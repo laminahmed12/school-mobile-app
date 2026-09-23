@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  partially_paid
+  paid
+  overdue
+  cancelled
+  refunded
+}
+
+model School {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  legalName       String?
+  currencyCode    String           @default("LYD") @db.Char(3)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  users           User[]
+  students        Student[]
+  guardians       Guardian[]
+  invoices        StudentInvoice[]
+  attendance      Attendance[]
+  grades          GradeEntry[]
+}
+
+model Role {
+  id        String @id @default(uuid()) @db.Uuid
+  code      String @unique
+  name      String
+  users     User[]
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  schoolId     String     @db.Uuid
+  roleId       String     @db.Uuid
+  username     String?
+  passwordHash String?
+  firstName    String
+  lastName     String?
+  status       UserStatus @default(active)
+  school       School     @relation(fields: [schoolId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+  guardian     Guardian?
+  attendance   Attendance[] @relation("recordedBy")
+  grades       GradeEntry[] @relation("gradeRecordedBy")
+
+  @@unique([schoolId, username])
+  @@index([schoolId, roleId])
+}
+
+model Student {
+  id            String             @id @default(uuid()) @db.Uuid
+  schoolId      String             @db.Uuid
+  studentNumber String
+  firstName     String
+  middleName    String?
+  lastName      String?
+  isActive      Boolean            @default(true)
+  school        School             @relation(fields: [schoolId], references: [id])
+  enrollments   Enrollment[]
+  guardians     StudentGuardian[]
+  invoices      StudentInvoice[]
+  attendance    Attendance[]
+  grades        GradeEntry[]
+
+  @@unique([schoolId, studentNumber])
+  @@index([schoolId, lastName, firstName])
+}
+
+model Guardian {
+  id         String             @id @default(uuid()) @db.Uuid
+  schoolId   String             @db.Uuid
+  userId     String?            @unique @db.Uuid
+  firstName  String
+  lastName   String?
+  phone      String
+  whatsappPhone String?
+  school     School             @relation(fields: [schoolId], references: [id])
+  user       User?              @relation(fields: [userId], references: [id])
+  students   StudentGuardian[]
+
+  @@index([schoolId, phone])
+}
+
+model StudentGuardian {
+  studentId  String  @db.Uuid
+  guardianId String  @db.Uuid
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, guardianId])
+}
+
+model AcademicYear {
+  id        String       @id @default(uuid()) @db.Uuid
+  schoolId  String       @db.Uuid
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  classes   Class[]
+  enrollments Enrollment[]
+}
+
+model Class {
+  id              String @id @default(uuid()) @db.Uuid
+  academicYearId  String @db.Uuid
+  name            String
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id])
+  enrollments     Enrollment[]
+}
+
+model Enrollment {
+  id              String @id @default(uuid()) @db.Uuid
+  studentId       String @db.Uuid
+  academicYearId  String @db.Uuid
+  classId         String @db.Uuid
+  isActive        Boolean @default(true)
+  student         Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id])
+  class           Class @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, academicYearId])
+}
+
+model StudentInvoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  schoolId      String        @db.Uuid
+  studentId     String        @db.Uuid
+  invoiceNumber String
+  issueDate     DateTime      @default(now())
+  totalAmount   Decimal       @db.Decimal(14,3)
+  paidAmount    Decimal       @default(0) @db.Decimal(14,3)
+  balanceDue    Decimal       @db.Decimal(14,3)
+  status        InvoiceStatus @default(draft)
+  school        School        @relation(fields: [schoolId], references: [id])
+  student       Student       @relation(fields: [studentId], references: [id])
+
+  @@unique([schoolId, invoiceNumber])
+  @@index([schoolId, studentId, status])
+}
+
+model Attendance {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @db.Uuid
+  studentId      String   @db.Uuid
+  attendanceDate DateTime
+  present        Boolean
+  note           String?
+  recordedById   String   @db.Uuid
+  school         School   @relation(fields: [schoolId], references: [id])
+  student        Student  @relation(fields: [studentId], references: [id])
+  recordedBy     User     @relation("recordedBy", fields: [recordedById], references: [id])
+
+  @@index([schoolId, attendanceDate])
+  @@index([studentId, attendanceDate])
+}
+
+model GradeEntry {
+  id           String  @id @default(uuid()) @db.Uuid
+  schoolId     String  @db.Uuid
+  studentId    String  @db.Uuid
+  subjectId    String  @db.Uuid
+  score        Decimal @db.Decimal(6,2)
+  recordedById String  @db.Uuid
+  school       School  @relation(fields: [schoolId], references: [id])
+  student      Student @relation(fields: [studentId], references: [id])
+  recordedBy   User    @relation("gradeRecordedBy", fields: [recordedById], references: [id])
+
+  @@unique([studentId, subjectId])
+}
