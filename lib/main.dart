@@ -10,15 +10,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
   final prefs = await SharedPreferences.getInstance();
-  runApp(NoorApp(prefs: prefs));
+  runApp(LaminApp(prefs: prefs));
 }
 
-class NoorApp extends StatelessWidget {
+class LaminApp extends StatelessWidget {
   final SharedPreferences prefs;
-  const NoorApp({super.key, required this.prefs});
+  const LaminApp({super.key, required this.prefs});
   @override Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    title: 'نور الأجيال',
+    title: 'لامين',
     theme: ThemeData(
       useMaterial3: true,
       fontFamily: 'Cairo',
@@ -72,9 +72,9 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(children: [
           Container(width: 86, height: 86, decoration: BoxDecoration(color: const Color(0xFF155D4A), borderRadius: BorderRadius.circular(24)), child: const Icon(Icons.school_rounded, color: Colors.white, size: 46)),
           const SizedBox(height: 18),
-          const Text('نور الأجيال', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+          const Text('لامين', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
-          const Text('نظام إدارة المدارس الخاصة', style: TextStyle(color: Colors.black54)),
+          const Text('لامين لإدارة وتنظيم المدارس', style: TextStyle(color: Colors.black54)),
           const SizedBox(height: 32),
           TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined))),
           const SizedBox(height: 14),
@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
       FinanceView(repo: repo, students: students, payments: payments, onChanged: refresh),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('نور الأجيال', style: TextStyle(fontWeight: FontWeight.w800)), actions: [
+      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [
         IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)),
         PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') await repo.signOut(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))]),
       ]),
