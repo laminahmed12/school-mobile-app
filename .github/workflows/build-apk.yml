@@ -20,6 +20,7 @@ jobs:
           cache: true
       - run: flutter create --project-name noor_alajyal --org com.adreemk.school --platforms android .
       - run: sed -i 's/android:label="[^"]*"/android:label="نور الأجيال"/' android/app/src/main/AndroidManifest.xml
+      - run: rm -f test/widget_test.dart
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter build apk --release --no-tree-shake-icons
