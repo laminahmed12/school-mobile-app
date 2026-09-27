@@ -16,6 +16,7 @@ class _ReportsViewState extends State<ReportsView>{
   if(!loading&&data.isNotEmpty)...[
    row('إجمالي الطلاب',data['students']),row('الحاضرون',data['present']),row('الغائبون',data['absent']),row('المتأخرون',data['late']),row('المدفوعات','${data['payments']??0} د.ل'),row('المصروفات','${data['expenses']??0} د.ل')
   ]
- ]);
+ ]));
+ }
  Widget row(String a,d)=>Card(child:ListTile(title:Text(a),trailing:Text('$d',style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold))));
 }
