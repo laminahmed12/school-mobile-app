@@ -1,4 +1,4 @@
-name: Build Noor Al-Ajyal APK
+name: Build Noor Al-Ajyal APK v3
 on:
   push:
     branches: [main]
