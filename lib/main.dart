@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'models.dart';
 import 'repository.dart';
+import 'whatsapp.dart';
 import 'supabase_config.dart';
 
 Future<void> main() async {
@@ -211,6 +212,7 @@ class StudentsView extends StatelessWidget {
           leading: CircleAvatar(child: Text(s.name.isEmpty ? '?' : s.name.substring(0, 1))),
           title: Text(s.name),
           subtitle: Text('الفصل: ' + s.className + (s.phone.isEmpty ? '' : ' • ' + s.phone)),
+          trailing: IconButton(onPressed: s.phone.isEmpty ? null : () => openWhatsApp(context, s.phone, 'السلام عليكم، نود إبلاغكم بخصوص الطالب.'), icon: const Icon(Icons.chat, color: Color(0xFF155D4A))),
         ));
       });
 }
