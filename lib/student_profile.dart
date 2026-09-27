@@ -25,7 +25,7 @@ class _StudentProfileViewState extends State<StudentProfileView>{
    FilledButton.icon(onPressed:()=>editParent(c),icon:const Icon(Icons.edit),label:const Text('بيانات ولي الأمر')),
    const SizedBox(height:8),
    OutlinedButton.icon(onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>AcademicView(repo:widget.repo,students:[widget.student]))),icon:const Icon(Icons.grade),label:const Text('الدرجات والنتائج')),
-  ]);
+  ]));
  }
  Future<void> editParent(BuildContext c)async{
   final n=TextEditingController(text:(parent?['parent_name']??'').toString());
