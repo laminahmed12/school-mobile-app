@@ -22,3 +22,6 @@
 Supabase project ref: stbrhcgzfxvpayfnnqfl
 
 > هذا المشروع مستقل تمامًا عن مشروع Adreemk Licensing.
+
+
+Build checkpoint: final APK workflow verification pending.
