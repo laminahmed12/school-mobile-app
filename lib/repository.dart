@@ -7,6 +7,22 @@ class SchoolRepository {
  final SharedPreferences prefs; SchoolRepository(this.prefs);
  Future<SchoolProfile?> profile() async {final u=db.auth.currentUser;if(u==null)return null;final row=await db.from('profiles').select().eq('user_id',u.id).maybeSingle();return row==null?null:SchoolProfile.fromMap(row);}
  Future<List<Student>> students() async {try{final rows=await db.from('students').select().order('name');final list=(rows as List).map((e)=>Student.fromMap(Map<String,dynamic>.from(e))).toList();await prefs.setString('students_cache',jsonEncode(list.map((s)=>{'id':s.id,'name':s.name,'class_name':s.className,'phone':s.phone}).toList()));return list;}catch(_){final raw=prefs.getString('students_cache');if(raw==null)return[];return(jsonDecode(raw)as List).map((e)=>Student.fromMap(Map<String,dynamic>.from(e))).toList();}}
+ Future<Map<String,dynamic>?> parent(String studentId) async {
+  try {
+    final row=await db.from('student_parents').select().eq('student_id',studentId).maybeSingle();
+    return row==null?null:Map<String,dynamic>.from(row);
+  } catch(_){return null;}
+ }
+ Future<void> saveParent({required String studentId,required String parentName,required String phone,String relation='ولي الأمر'}) async {
+  await db.from('student_parents').upsert({'student_id':studentId,'parent_name':parentName.trim(),'phone':phone.replaceAll(RegExp(r'[^0-9]'),'').trim(),'relation':relation.trim()});
+ }
+ Future<Map<String,dynamic>> dailySummary(DateTime day) async {
+  final d=day.toIso8601String().substring(0,10);
+  try {
+    final r=await db.rpc('school_daily_summary',params:{'p_date':d});
+    return Map<String,dynamic>.from(r as Map);
+  } catch(_){return {};}
+ }
  Future<List<Teacher>> teachers()async{try{final rows=await db.from('teachers').select().order('name');return(rows as List).map((e)=>Teacher.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
  Future<List<SubjectItem>> subjects()async{try{final rows=await db.from('subjects').select().order('name');return(rows as List).map((e)=>SubjectItem.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
  Future<List<AttendanceRecord>> attendance(DateTime day)async{final d=day.toIso8601String().substring(0,10);try{final rows=await db.from('attendance').select().eq('attendance_date',d);return(rows as List).map((e)=>AttendanceRecord.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
