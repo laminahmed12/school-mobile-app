@@ -1,5 +1,24 @@
-# نور الأجيال — إدارة المدارس
-هذا المستودع هو واجهة Flutter لمشروع Supabase School-Management.
+# لامين لإدارة وتنظيم المدارس — Adreemk
+
+تطبيق Flutter Android متصل بـ Supabase ومصمم للعمل بأقل عدد ممكن من الخطوات.
+
+## المنجز
+- تسجيل الدخول والجلسة المستمرة.
+- لوحة مدرسية مختصرة.
+- إضافة وبحث الطلاب.
+- WhatsApp مباشر لولي الأمر.
+- حضور الطلاب: حاضر / غائب / متأخر / معذور.
+- تسجيل الدفعات والمصروفات.
+- إدارة المعلمين.
+- قاعدة بيانات متعددة المدارس مع RLS.
+- سجل عمليات وقاعدة بيانات مالية وأكاديمية قابلة للتوسع.
+- جداول السنوات الدراسية والفصول وأولياء الأمور والحضور والمصروفات وإشعارات WhatsApp.
+
+## البنية
+- Flutter Android
+- Supabase Auth + PostgreSQL + RLS
+- GitHub Actions لبناء APK
+
 Supabase project ref: stbrhcgzfxvpayfnnqfl
-الجداول: schools, profiles, students, student_fees, payments, student_behavior, subjects, grades, teachers, audit_log, login_attempts.
-المفتاح المضمّن في التطبيق Publishable Key فقط، وليس Secret/Service Role.
+
+> هذا المشروع مستقل تمامًا عن مشروع Adreemk Licensing.
