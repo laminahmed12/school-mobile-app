@@ -38,8 +38,8 @@ class _AcademicViewState extends State<AcademicView>{
    TextField(controller:max,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'من'))
  ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{
    final sc=double.tryParse(score.text.replaceAll(',','.')),mx=double.tryParse(max.text.replaceAll(',','.'));
-   if(exam.text.trim().isEmpty||subjectId==null||sc==null||mx==null||mx<=0||sc<0||sc>mx)return;
-   await widget.repo.addResult(studentId:selected!.id,subjectId:subjectId!,term:term.text,exam:exam.text,score:sc,maxScore:mx);
+   if(exam.text.trim().isEmpty||sc==null||mx==null||mx<=0||sc<0||sc>mx)return;
+   await widget.repo.addResult(studentId:selected!.id,subjectId:subjectId,term:term.text,exam:exam.text,score:sc,maxScore:mx);
    if(ctx.mounted)Navigator.pop(ctx);await openStudent(selected!);
  },child:const Text('حفظ'))]));
  }
