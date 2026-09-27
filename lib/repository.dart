@@ -23,6 +23,12 @@ class SchoolRepository {
     return Map<String,dynamic>.from(r as Map);
   } catch(_){return {};}
  }
+
+ Future<List<Map<String,dynamic>>> academicYears()async{try{return (await db.from('academic_years').select().order('created_at',ascending:false) as List).map((e)=>Map<String,dynamic>.from(e)).toList();}catch(_){return[];}}
+ Future<List<Map<String,dynamic>>> classes()async{try{return (await db.from('classes').select().order('name') as List).map((e)=>Map<String,dynamic>.from(e)).toList();}catch(_){return[];}}
+ Future<void> addAcademicYear(String name)async{await db.from('academic_years').insert({'name':name.trim(),'active':false});}
+ Future<void> addClass({required String name,String section='',String? academicYearId})async{await db.from('classes').insert({'name':name.trim(),'section':section.trim(),'academic_year_id':academicYearId});}
+ Future<void> addSubject(String name)async{await db.from('subjects').insert({'name':name.trim()});}
  Future<List<Teacher>> teachers()async{try{final rows=await db.from('teachers').select().order('name');return(rows as List).map((e)=>Teacher.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
  Future<List<SubjectItem>> subjects()async{try{final rows=await db.from('subjects').select().order('name');return(rows as List).map((e)=>SubjectItem.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
  Future<List<AttendanceRecord>> attendance(DateTime day)async{final d=day.toIso8601String().substring(0,10);try{final rows=await db.from('attendance').select().eq('attendance_date',d);return(rows as List).map((e)=>AttendanceRecord.fromMap(Map<String,dynamic>.from(e))).toList();}catch(_){return[];}}
