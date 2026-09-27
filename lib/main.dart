@@ -110,7 +110,7 @@ class _HomePageState extends State<HomePage> {
       subjects = await repo.count('subjects');
       grades = await repo.count('grades');
       payments = await repo.paymentsTotal();
-      online = (await Connectivity().checkConnectivity()) != ConnectivityResult.none;
+      online = !(await Connectivity().checkConnectivity()).contains(ConnectivityResult.none);
     } catch (_) {}
     if (mounted) setState(() => loading = false);
   }
@@ -138,26 +138,64 @@ class _HomePageState extends State<HomePage> {
 }
 
 class DashboardView extends StatelessWidget {
-  final SchoolProfile? profile; final List<Student> students; final List<Teacher> teachers;
-  final int subjects, grades; final double payments; final bool online; final Future<void> Function() onRefresh;
+  final SchoolProfile? profile;
+  final List<Student> students;
+  final List<Teacher> teachers;
+  final int subjects;
+  final int grades;
+  final double payments;
+  final bool online;
+  final Future<void> Function() onRefresh;
   const DashboardView({super.key, required this.profile, required this.students, required this.teachers, required this.subjects, required this.grades, required this.payments, required this.online, required this.onRefresh});
-  Widget stat(String title, String value, IconData icon) => Card(child: ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFE7F2ED), child: Icon(icon, color: const Color(0xFF155D4A))), title: Text(title), trailing: Text(value, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800))));
-  @override Widget build(BuildContext context) {
+
+  Widget stat(String title, String value, IconData icon) => Card(
+    child: ListTile(
+      leading: CircleAvatar(backgroundColor: const Color(0xFFE7F2ED), child: Icon(icon, color: const Color(0xFF155D4A))),
+      title: Text(title),
+      trailing: Text(value, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
     final welcome = profile?.username.isNotEmpty == true ? 'مرحباً ' + profile!.username : 'مرحباً بك';
-    return RefreshIndicator(onRefresh: onRefresh, child: ListView(padding: const EdgeInsets.all(16), children: [
-      Card(color: const Color(0xFF155D4A), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Icon(Icons.verified_user, color: Colors.white), const SizedBox(width: 8), Text(online ? 'متصل بالنظام' : 'وضع العمل دون اتصال', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
-        const SizedBox(height: 12), Text(welcome, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-        Text(profile?.role ?? 'مستخدم', style: const TextStyle(color: Colors.white70)),
-      ])),
-      const SizedBox(height: 12),
-      stat('الطلاب', students.length.toString(), Icons.groups_rounded),
-      stat('المعلمون', teachers.length.toString(), Icons.school_rounded),
-      stat('المواد', subjects.toString(), Icons.menu_book_rounded),
-      stat('الدرجات', grades.toString(), Icons.grade_rounded),
-      stat('إجمالي المدفوعات', payments.toStringAsFixed(2) + ' د.ل', Icons.account_balance_wallet_rounded),
-      const Card(child: ListTile(leading: Icon(Icons.security), title: Text('حماية البيانات مفعّلة'), subtitle: Text('Supabase Auth وRLS يطبقان الوصول حسب المدرسة والصلاحية.'))),
-    ]));
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            color: const Color(0xFF155D4A),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.verified_user, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(online ? 'متصل بالنظام' : 'وضع العمل دون اتصال', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 12),
+                Text(welcome, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                Text(profile?.role ?? 'مستخدم', style: const TextStyle(color: Colors.white70)),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 12),
+          stat('الطلاب', students.length.toString(), Icons.groups_rounded),
+          stat('المعلمون', teachers.length.toString(), Icons.school_rounded),
+          stat('المواد', subjects.toString(), Icons.menu_book_rounded),
+          stat('الدرجات', grades.toString(), Icons.grade_rounded),
+          stat('إجمالي المدفوعات', payments.toStringAsFixed(2) + ' د.ل', Icons.account_balance_wallet_rounded),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.security),
+              title: Text('حماية البيانات مفعّلة'),
+              subtitle: Text('Supabase Auth وRLS يطبقان الوصول حسب المدرسة والصلاحية.'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
