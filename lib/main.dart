@@ -9,6 +9,7 @@ import 'supabase_config.dart';
 import 'academic.dart';
 import 'student_profile.dart';
 import 'reports.dart';
+import 'school_setup.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,6 +98,7 @@ class MoreView extends StatelessWidget{final SchoolRepository repo;final List<Te
     Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(c))),
     Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
+    Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.admin_panel_settings),title:const Text('الصلاحيات والأمان'),subtitle:const Text('RLS وتسجيل العمليات مفعّلان في قاعدة البيانات.'))),
   ]);
   Future<void> showTeachers(BuildContext c)async{await showModalBottomSheet(context:c,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • '+t.phone))))])));}
