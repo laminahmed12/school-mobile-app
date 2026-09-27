@@ -7,6 +7,8 @@ import 'repository.dart';
 import 'whatsapp.dart';
 import 'supabase_config.dart';
 import 'academic.dart';
+import 'student_profile.dart';
+import 'reports.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,7 +71,7 @@ class _StudentsViewState extends State<StudentsView>{
   String q='';
   @override Widget build(BuildContext c){final list=students.where((s)=>s.name.contains(q)||s.className.contains(q)||s.phone.contains(q)).toList();return Column(children:[
     Padding(padding:const EdgeInsets.fromLTRB(12,12,12,5),child:Row(children:[Expanded(child:TextField(onChanged:(v)=>setState(()=>q=v.trim()),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'بحث سريع عن طالب'))),const SizedBox(width:8),IconButton.filled(onPressed:()=>addStudent(c),icon:const Icon(Icons.person_add))])),
-    Expanded(child:list.isEmpty?const Center(child:Text('لا توجد نتائج')):ListView.builder(padding:const EdgeInsets.all(10),itemCount:list.length,itemBuilder:(_,i){final s=list[i];return Card(child:ListTile(leading:CircleAvatar(child:Text(s.name.isEmpty?'?':s.name[0])),title:Text(s.name),subtitle:Text(s.className+(s.phone.isEmpty?'':' • '+s.phone)),trailing:IconButton(onPressed:s.phone.isEmpty?null:()=>openWhatsApp(c,s.phone,'السلام عليكم، نود إبلاغكم بخصوص الطالب ${s.name}.'),icon:const Icon(Icons.chat,color:Color(0xFF155D4A))));}))
+    Expanded(child:list.isEmpty?const Center(child:Text('لا توجد نتائج')):ListView.builder(padding:const EdgeInsets.all(10),itemCount:list.length,itemBuilder:(_,i){final s=list[i];return Card(child:ListTile(leading:CircleAvatar(child:Text(s.name.isEmpty?'?':s.name[0])),title:Text(s.name),subtitle:Text(s.className+(s.phone.isEmpty?'':' • '+s.phone)),trailing:IconButton(onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>StudentProfileView(repo:widget.repo,student:s))),icon:const Icon(Icons.chevron_left)));}))
   ]);}
   Future<void> addStudent(BuildContext c)async{final n=TextEditingController(),cl=TextEditingController(),p=TextEditingController();await showDialog(context:c,builder:(_)=>AlertDialog(title:const Text('طالب جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:n,decoration:const InputDecoration(labelText:'اسم الطالب')),TextField(controller:cl,decoration:const InputDecoration(labelText:'الصف / الفصل')),TextField(controller:p,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'WhatsApp ولي الأمر'))]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),FilledButton(onPressed:()async{if(n.text.trim().isEmpty||cl.text.trim().isEmpty)return;await repo.addStudent(name:n.text,className:cl.text,phone:p.text);if(c.mounted)Navigator.pop(c);await widget.onChanged();},child:const Text('حفظ'))]));}
 }
@@ -93,6 +95,7 @@ class MoreView extends StatelessWidget{final SchoolRepository repo;final List<Te
   @override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(12),children:[
     Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),trailing:const Icon(Icons.chevron_left),onTap:()=>showTeachers(c))),
     Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(c))),
+    Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     Card(child:ListTile(leading:const Icon(Icons.admin_panel_settings),title:const Text('الصلاحيات والأمان'),subtitle:const Text('RLS وتسجيل العمليات مفعّلان في قاعدة البيانات.'))),
   ]);
