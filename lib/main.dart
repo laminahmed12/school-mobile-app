@@ -64,6 +64,8 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false;
   bool hide = true;
   String? error;
+  int ownerTaps = 0;
+  DateTime? lastOwnerTap;
 
   Future<void> login() async {
     if (email.text.trim().isEmpty || password.text.isEmpty) {
@@ -134,12 +136,188 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   const Text('سيبقى الدخول محفوظًا على هذا الجهاز حتى تسجيل الخروج أو انتهاء الجلسة الأمنية.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
                   const SizedBox(height: 6),
-                  const Text('Adreemk', style: TextStyle(fontSize: 11)),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      final now = DateTime.now();
+                      if (lastOwnerTap == null ||
+                          now.difference(lastOwnerTap!) > const Duration(milliseconds: 900)) {
+                        ownerTaps = 1;
+                      } else {
+                        ownerTaps++;
+                      }
+                      lastOwnerTap = now;
+                      if (ownerTaps >= 3) {
+                        ownerTaps = 0;
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => _OwnerPinDialog(prefs: widget.prefs),
+                        );
+                      }
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Adreemk', style: TextStyle(fontSize: 11)),
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OwnerPinDialog extends StatefulWidget {
+  final SharedPreferences prefs;
+  const _OwnerPinDialog({required this.prefs});
+  @override
+  State<_OwnerPinDialog> createState() => _OwnerPinDialogState();
+}
+
+class _OwnerPinDialogState extends State<_OwnerPinDialog> {
+  final code = TextEditingController();
+  bool hide = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('بوابة المالك'),
+      content: TextField(
+        controller: code,
+        obscureText: hide,
+        keyboardType: TextInputType.number,
+        maxLength: 6,
+        decoration: InputDecoration(
+          labelText: 'رمز المالك',
+          prefixIcon: const Icon(Icons.lock_outline),
+          suffixIcon: IconButton(
+            onPressed: () => setState(() => hide = !hide),
+            icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        FilledButton(
+          onPressed: () {
+            if (code.text.trim() == '116936') {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => OwnerPanel(prefs: widget.prefs)),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('رمز المالك غير صحيح')),
+              );
+            }
+          },
+          child: const Text('فتح'),
+        ),
+      ],
+    );
+  }
+}
+
+class OwnerPanel extends StatelessWidget {
+  final SharedPreferences prefs;
+  const OwnerPanel({super.key, required this.prefs});
+
+  Future<void> openOwnerGate(BuildContext context) async {
+    final code = TextEditingController();
+    var hide = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('بوابة المالك'),
+          content: TextField(
+            controller: code,
+            obscureText: hide,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            decoration: InputDecoration(
+              labelText: 'رمز المالك',
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                onPressed: () => setDialogState(() => hide = !hide),
+                icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, code.text.trim() == '116936'),
+              child: const Text('فتح'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => OwnerPanel(prefs: prefs)),
+      );
+    } else if (ok == false && context.mounted && code.text.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('رمز المالك غير صحيح')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('قائمة المالك', style: TextStyle(fontWeight: FontWeight.w800)),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          Card(
+            color: const Color(0xFF155D4A),
+            child: const ListTile(
+              leading: CircleAvatar(child: Icon(Icons.admin_panel_settings)),
+              title: Text('لوحة المالك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text('إدارة ومراجعة إعدادات تطبيق لامين', style: TextStyle(color: Colors.white70)),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.school_outlined),
+              title: const Text('إعداد المدرسة'),
+              subtitle: const Text('السنوات والصفوف والمواد'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SchoolSetupView(repo: SchoolRepository(prefs)),
+                  ),
+                );
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('معلومات النظام'),
+              subtitle: const Text('لامين لإدارة وتنظيم المدارس • Adreemk'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('بوابة المالك'),
+              subtitle: const Text('الدخول محمي برمز المالك'),
+              onTap: () => openOwnerGate(context),
+            ),
+          ),
+        ],
       ),
     );
   }
