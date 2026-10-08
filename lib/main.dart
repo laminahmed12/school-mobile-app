@@ -51,7 +51,6 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   final security = DeviceSecurityService();
   bool locked = false;
   bool checking = true;
-  bool ownerSession = false;
 
   @override
   void initState() {
@@ -78,17 +77,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
-    bool owner = false;
-    if (session != null) {
-      try {
-        final row = await db.from('profiles').select('role').eq('user_id', session.user.id).maybeSingle();
-        owner = row?['role']?.toString() == 'owner';
-      } catch (_) {}
-    }
     if (!mounted) return;
     setState(() {
       checking = false;
-      ownerSession = owner;
       locked = session != null && enabled;
     });
   }
@@ -103,7 +94,6 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     builder: (_, __) {
       if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
-      if (ownerSession) return OwnerPanel(prefs: widget.prefs);
       return HomePage(prefs: widget.prefs);
     },
   );
@@ -120,6 +110,8 @@ class _LoginPageState extends State<LoginPage> {
   final auth=LaminAuthService();
   bool loading=false,hide=true,schoolLocked=false,showLicense=false;
   String? error;
+  int _ownerTaps = 0;
+  DateTime? _lastOwnerTap;
 
   @override
   void initState(){super.initState();_loadSchool();}
@@ -162,107 +154,82 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height:14),
         const Text('سيتم حفظ رمز المدرسة بأمان على هذا الجهاز بعد أول دخول ناجح.',textAlign:TextAlign.center,style:TextStyle(fontSize:12)),
         const SizedBox(height: 22),
-        TextButton.icon(
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerLoginPage(prefs: widget.prefs))),
-          icon: const Icon(Icons.admin_panel_settings_outlined),
-          label: const Text('دخول المالك'),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            final now = DateTime.now();
+            if (_lastOwnerTap == null ||
+                now.difference(_lastOwnerTap!) > const Duration(milliseconds: 900)) {
+              _ownerTaps = 1;
+            } else {
+              _ownerTaps++;
+            }
+            _lastOwnerTap = now;
+            if (_ownerTaps >= 3) {
+              _ownerTaps = 0;
+              showDialog(
+                context: context,
+                builder: (_) => _OwnerPinDialog(prefs: widget.prefs),
+              );
+            }
+          },
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Text('Adreemk', style: TextStyle(fontSize: 11)),
+          ),
         ),
       ]),
     )))),
   );
 }
 
-class OwnerLoginPage extends StatefulWidget {
+class _OwnerPinDialog extends StatefulWidget {
   final SharedPreferences prefs;
-  const OwnerLoginPage({super.key, required this.prefs});
-  @override State<OwnerLoginPage> createState() => _OwnerLoginPageState();
+  const _OwnerPinDialog({required this.prefs});
+  @override
+  State<_OwnerPinDialog> createState() => _OwnerPinDialogState();
 }
 
-class _OwnerLoginPageState extends State<OwnerLoginPage> {
-  final email = TextEditingController();
-  final password = TextEditingController();
-  bool loading = false, hide = true;
-  String? error;
+class _OwnerPinDialogState extends State<_OwnerPinDialog> {
+  final code = TextEditingController();
+  bool hide = true;
 
-  Future<void> login() async {
-    if (email.text.trim().isEmpty || password.text.isEmpty) {
-      setState(() => error = 'أدخل بريد المالك وكلمة المرور.');
-      return;
-    }
-    setState(() { loading = true; error = null; });
-    try {
-      final res = await db.auth.signInWithPassword(
-        email: email.text.trim(),
-        password: password.text,
+  void openOwner() {
+    if (code.text.trim() == '116936') {
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => OwnerPanel(prefs: widget.prefs)),
       );
-      final row = await db.from('profiles').select('role').eq('user_id', res.user!.id).maybeSingle();
-      if (row?['role']?.toString() != 'owner') {
-        await db.auth.signOut();
-        throw Exception('هذا الحساب ليس حساب مالك.');
-      }
-    } catch (_) {
-      if (mounted) setState(() => error = 'بيانات دخول المالك غير صحيحة أو الحساب غير مصرح له.');
-    } finally {
-      if (mounted) setState(() => loading = false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('رمز المالك غير صحيح')),
+      );
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('دخول المالك')),
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                Container(
-                  width: 82, height: 82,
-                  decoration: BoxDecoration(color: brandGreen, borderRadius: BorderRadius.circular(24)),
-                  child: const Icon(Icons.admin_panel_settings, color: Colors.white, size: 44),
-                ),
-                const SizedBox(height: 18),
-                const Text('دخول المالك', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                const Text('إدارة لامين وصلاحيات النظام'),
-                const SizedBox(height: 28),
-                TextField(
-                  controller: email,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: const InputDecoration(labelText: 'بريد المالك', prefixIcon: Icon(Icons.email_outlined)),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: password,
-                  obscureText: hide,
-                  decoration: InputDecoration(
-                    labelText: 'كلمة مرور المالك',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(onPressed: () => setState(() => hide = !hide), icon: Icon(hide ? Icons.visibility : Icons.visibility_off)),
-                  ),
-                ),
-                if (error != null)
-                  Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity, height: 52,
-                  child: FilledButton.icon(
-                    onPressed: loading ? null : login,
-                    icon: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.login),
-                    label: Text(loading ? 'جارِ التحقق...' : 'دخول المالك'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('هذه الشاشة مستقلة عن حسابات المدارس.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('بوابة المالك'),
+    content: TextField(
+      controller: code,
+      obscureText: hide,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      onSubmitted: (_) => openOwner(),
+      decoration: InputDecoration(
+        labelText: 'رمز المالك',
+        prefixIcon: const Icon(Icons.lock_outline),
+        suffixIcon: IconButton(
+          onPressed: () => setState(() => hide = !hide),
+          icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
         ),
       ),
     ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton(onPressed: openOwner, child: const Text('فتح')),
+    ],
   );
 }
 
@@ -287,13 +254,16 @@ class _OwnerPanelState extends State<OwnerPanel> {
     try {
       final net = await Connectivity().checkConnectivity();
       final online = !net.contains(ConnectivityResult.none);
-      if (db.auth.currentSession != null) await repo.ensureOwnerSchool();
-      students = await repo.count('students');
-      teachers = await repo.count('teachers');
-      years = (await repo.academicYears()).length;
-      classes = (await repo.classes()).length;
-      subjects = (await repo.subjects()).length;
-      connection = online ? 'متصل بالإنترنت' : 'دون اتصال';
+      if (db.auth.currentSession != null) {
+        students = await repo.count('students');
+        teachers = await repo.count('teachers');
+        years = (await repo.academicYears()).length;
+        classes = (await repo.classes()).length;
+        subjects = (await repo.subjects()).length;
+      } else {
+        students = teachers = years = classes = subjects = 0;
+      }
+      connection = online ? 'متصل • بوابة المالك' : 'دون اتصال • بوابة المالك';
     } catch (_) {
       connection = 'تعذر الفحص';
     }
@@ -314,9 +284,9 @@ class _OwnerPanelState extends State<OwnerPanel> {
       appBar: AppBar(title: const Text('قائمة المالك', style: TextStyle(fontWeight: FontWeight.w800)), actions: [
         IconButton(onPressed: checking ? null : checkSystem, icon: const Icon(Icons.refresh)),
         IconButton(
-          tooltip: 'تسجيل خروج المالك',
-          onPressed: () async => db.auth.signOut(),
-          icon: const Icon(Icons.logout),
+          tooltip: 'إغلاق لوحة المالك',
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close),
         ),
       ]),
       body: pages[tab],
