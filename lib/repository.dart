@@ -130,10 +130,20 @@ class SchoolRepository {
   }
 
   Future<void> addClass({required String name, String section = '', String? academicYearId}) async {
+    var yearId = academicYearId;
+    if (yearId == null || yearId.isEmpty) {
+      final active = await db.from('academic_years')
+          .select('id')
+          .eq('active', true)
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      yearId = active?['id']?.toString();
+    }
     await db.from('classes').insert({
       'name': name.trim(),
       'section': section.trim(),
-      'academic_year_id': academicYearId,
+      if (yearId != null && yearId.isNotEmpty) 'academic_year_id': yearId,
     });
   }
 
