@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_error.dart';
 import 'package:flutter/services.dart';
 import 'supabase_config.dart';
 
@@ -19,7 +20,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
   void initState() { super.initState(); loadSchools(); }
 
   Future<Map<String, dynamic>> callOwner(String action, [Map<String, dynamic> extra = const {}]) async {
-    final response = await db.functions.invoke('owner-api', body: {'action': action, 'pin': widget.pin, ...extra});
+    final response = await db.functions.invoke('owner-api', body: {'action': action, 'pin': widget.pin, ...extra}).timeout(const Duration(seconds: 20));
     final data = response.data;
     if (data is Map && data['error'] != null) throw Exception(data['error'].toString());
     if (data is! Map) throw Exception('استجابة غير صالحة من الخادم');
@@ -33,7 +34,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
       final raw = data['schools'];
       schools = raw is List ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
     } catch (e) {
-      error = e.toString().replaceFirst('Exception: ', '');
+      error = friendlyError(e);
     }
     if (mounted) setState(() => loading = false);
   }
@@ -69,7 +70,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
             await loadSchools();
             if (mounted) message('تم إنشاء المدرسة بنجاح');
           } catch (e) {
-            if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+            if (mounted) message(friendlyError(e), error: true);
           } finally {
             if (mounted) setState(() => creating = false);
           }
@@ -109,7 +110,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
       if (mounted) message('تم إنشاء الرمز الدائم لمرة واحدة ونسخه');
       await loadSchools();
     } catch (e) {
-      if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+      if (mounted) message(friendlyError(e), error: true);
     }
   }
 
@@ -153,7 +154,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
         ),
       );
     } catch (e) {
-      if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+      if (mounted) message(friendlyError(e), error: true);
     }
   }
   @override
