@@ -194,10 +194,31 @@ class _OwnerPinDialog extends StatefulWidget {
 class _OwnerPinDialogState extends State<_OwnerPinDialog> {
   final code = TextEditingController();
   bool hide = true;
+  bool loading = false;
 
   Future<void> openOwner() async {
     final pin = code.text.trim();
-    if (!RegExp(r'^\\d{6}
+    if (pin.length != 6 || int.tryParse(pin) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل رمز المالك المكوّن من 6 أرقام')));
+      return;
+    }
+    setState(() => loading = true);
+    try {
+      final response = await db.functions.invoke('owner-api', body: {'action': 'list_schools', 'pin': pin});
+      final data = response.data;
+      if (data is Map && data['error'] != null) throw Exception(data['error'].toString());
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerConsole(pin: pin)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
@@ -207,19 +228,20 @@ class _OwnerPinDialogState extends State<_OwnerPinDialog> {
       obscureText: hide,
       keyboardType: TextInputType.number,
       maxLength: 6,
+      enabled: !loading,
       onSubmitted: (_) => openOwner(),
       decoration: InputDecoration(
         labelText: 'رمز المالك',
         prefixIcon: const Icon(Icons.lock_outline),
         suffixIcon: IconButton(
-          onPressed: () => setState(() => hide = !hide),
+          onPressed: loading ? null : () => setState(() => hide = !hide),
           icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
         ),
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-      FilledButton(onPressed: openOwner, child: const Text('فتح')),
+      TextButton(onPressed: loading ? null : () => Navigator.pop(context), child: const Text('إلغاء')),
+      FilledButton(onPressed: loading ? null : openOwner, child: Text(loading ? 'جارِ التحقق...' : 'فتح')),
     ],
   );
 }
