@@ -10,6 +10,8 @@ import 'academic.dart';
 import 'student_profile.dart';
 import 'reports.dart';
 import 'school_setup.dart';
+import 'auth_service.dart';
+import 'backup_service.dart';
 
 const brandGreen = Color(0xFF155D4A);
 
@@ -54,136 +56,53 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final email = TextEditingController();
-  final password = TextEditingController();
-  bool loading = false, hide = true;
+  final school=TextEditingController(), username=TextEditingController(), password=TextEditingController(), license=TextEditingController();
+  final auth=LaminAuthService();
+  bool loading=false,hide=true,schoolLocked=false,showLicense=false;
   String? error;
-  int ownerTaps = 0;
-  DateTime? lastOwnerTap;
+
+  @override
+  void initState(){super.initState();_loadSchool();}
+  Future<void> _loadSchool() async {
+    final saved=await auth.savedSchoolCode();
+    if(!mounted)return;
+    if(saved!=null&&saved.isNotEmpty){school.text=saved;setState(()=>schoolLocked=true);}
+  }
 
   Future<void> login() async {
-    final e = email.text.trim();
-    if (e.isEmpty || password.text.isEmpty) {
-      setState(() => error = 'أدخل البريد الإلكتروني وكلمة المرور');
-      return;
-    }
-    setState(() { loading = true; error = null; });
-    try {
-      await db.auth.signInWithPassword(email: e, password: password.text);
-    } on AuthException catch (x) {
-      setState(() => error = x.message);
-    } catch (_) {
-      setState(() => error = 'تعذر الاتصال بالخادم');
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
+    setState(()=>loading=true);
+    final r=await auth.login(school:school.text,username:username.text,password:password.text,licenseCode:license.text);
+    if(!mounted)return;
+    if(r.trialExpired){setState(()=>showLicense=true);}
+    setState(()=>error=r.ok?null:r.message);
+    setState(()=>loading=false);
   }
 
-  void ownerTap() {
-    final now = DateTime.now();
-    if (lastOwnerTap == null || now.difference(lastOwnerTap!) > const Duration(milliseconds: 1400)) {
-      ownerTaps = 1;
-    } else {
-      ownerTaps++;
-    }
-    lastOwnerTap = now;
-    if (ownerTaps >= 3) {
-      ownerTaps = 0;
-      showDialog(context: context, builder: (_) => OwnerPinDialog(prefs: widget.prefs));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(children: [
-              Container(
-                width: 86, height: 86,
-                decoration: BoxDecoration(color: brandGreen, borderRadius: BorderRadius.circular(24)),
-                child: const Icon(Icons.school, color: Colors.white, size: 46),
-              ),
-              const SizedBox(height: 18),
-              const Text('لامين', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 5),
-              const Text('لامين لإدارة وتنظيم المدارس'),
-              const SizedBox(height: 30),
-              const Align(alignment: Alignment.centerRight, child: Text('دخول المدرسة', style: TextStyle(fontWeight: FontWeight.w700))),
-              const SizedBox(height: 8),
-              TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined))),
-              const SizedBox(height: 12),
-              TextField(
-                controller: password,
-                obscureText: hide,
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(onPressed: () => setState(() => hide = !hide), icon: Icon(hide ? Icons.visibility : Icons.visibility_off)),
-                ),
-              ),
-              if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: const TextStyle(color: Colors.red))),
-              const SizedBox(height: 18),
-              SizedBox(width: double.infinity, height: 52, child: FilledButton.icon(
-                onPressed: loading ? null : login,
-                icon: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.login),
-                label: Text(loading ? 'جارِ الدخول...' : 'دخول'),
-              )),
-              const SizedBox(height: 14),
-              const Text('سيبقى الدخول محفوظًا على هذا الجهاز حتى تسجيل الخروج أو انتهاء الجلسة الأمنية.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 8),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: ownerTap,
-                child: const Padding(padding: EdgeInsets.all(10), child: Text('Adreemk', style: TextStyle(fontSize: 11))),
-              ),
-            ]),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class OwnerPinDialog extends StatefulWidget {
-  final SharedPreferences prefs;
-  const OwnerPinDialog({super.key, required this.prefs});
-  @override State<OwnerPinDialog> createState() => _OwnerPinDialogState();
-}
-
-class _OwnerPinDialogState extends State<OwnerPinDialog> {
-  final code = TextEditingController();
-  bool hide = true;
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('دخول المالك'),
-    content: TextField(
-      controller: code,
-      autofocus: true,
-      obscureText: hide,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      decoration: InputDecoration(
-        labelText: 'رمز المالك',
-        hintText: '116936',
-        prefixIcon: const Icon(Icons.lock_outline),
-        suffixIcon: IconButton(onPressed: () => setState(() => hide = !hide), icon: Icon(hide ? Icons.visibility : Icons.visibility_off)),
-      ),
-    ),
-    actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-      FilledButton(onPressed: () {
-        if (code.text.trim() != '116936') {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('رمز المالك غير صحيح')));
-          return;
-        }
-        Navigator.pop(context);
-        Navigator.push(context, MaterialPageRoute(builder: (_) => OwnerPanel(prefs: widget.prefs)));
-      }, child: const Text('فتح')),
-    ],
+  @override Widget build(BuildContext context)=>Scaffold(
+    body:SafeArea(child:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(
+      constraints:const BoxConstraints(maxWidth:430),
+      child:Column(children:[
+        Container(width:86,height:86,decoration:BoxDecoration(color:brandGreen,borderRadius:BorderRadius.circular(24)),child:const Icon(Icons.school,color:Colors.white,size:46)),
+        const SizedBox(height:18),const Text('لامين',style:TextStyle(fontSize:30,fontWeight:FontWeight.w800)),
+        const SizedBox(height:5),const Text('لامين لإدارة وتنظيم المدارس'),
+        const SizedBox(height:30),const Align(alignment:Alignment.centerRight,child:Text('دخول المدرسة',style:TextStyle(fontWeight:FontWeight.w700))),
+        const SizedBox(height:8),
+        TextField(controller:school,enabled:!schoolLocked,autocorrect:false,decoration:InputDecoration(labelText:'رمز المدرسة',prefixIcon:const Icon(Icons.domain),suffixIcon:schoolLocked?IconButton(onPressed:()=>setState(()=>schoolLocked=false),icon:const Icon(Icons.edit)):null)),
+        const SizedBox(height:12),
+        TextField(controller:username,autocorrect:false,decoration:const InputDecoration(labelText:'اسم المستخدم',prefixIcon:Icon(Icons.person_outline))),
+        const SizedBox(height:12),
+        TextField(controller:password,obscureText:hide,decoration:InputDecoration(labelText:'كلمة المرور',prefixIcon:const Icon(Icons.lock_outline),suffixIcon:IconButton(onPressed:()=>setState(()=>hide=!hide),icon:Icon(hide?Icons.visibility:Icons.visibility_off)))),
+        if(showLicense) ...[
+          const SizedBox(height:12),
+          TextField(controller:license,autocorrect:false,decoration:const InputDecoration(labelText:'رمز الترخيص الدائم',prefixIcon:Icon(Icons.vpn_key_outlined))),
+        ],
+        if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,textAlign:TextAlign.center,style:const TextStyle(color:Colors.red))),
+        const SizedBox(height:18),
+        SizedBox(width:double.infinity,height:52,child:FilledButton.icon(onPressed:loading?null:login,icon:loading?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)):const Icon(Icons.login),label:Text(loading?'جارِ الدخول...':'دخول'))),
+        const SizedBox(height:14),
+        const Text('سيتم حفظ رمز المدرسة بأمان على هذا الجهاز بعد أول دخول ناجح.',textAlign:TextAlign.center,style:TextStyle(fontSize:12)),
+      ]),
+    )))),
   );
 }
 
@@ -450,7 +369,7 @@ class FinanceView extends StatelessWidget {
   Future<void> payment(BuildContext context, Student s) async { final a=TextEditingController(), n=TextEditingController(); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('دفعة — ${s.name}'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل')),TextField(controller:n,decoration:const InputDecoration(labelText:'ملاحظة'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(v==null||v<=0)return;try{await repo.addPayment(studentId:s.id,amount:v,note:n.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();if(s.phone.isNotEmpty&&context.mounted){await openWhatsApp(context,s.phone,'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${v.toStringAsFixed(2)} د.ل.');}}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ الدفعة')));}},child:const Text('حفظ'))])); }
 }
 
-class MoreView extends StatelessWidget {
+class UserManagementView extends StatefulWidget {\n  final SchoolRepository repo;\n  const UserManagementView({super.key,required this.repo});\n  @override State<UserManagementView> createState()=>_UserManagementViewState();\n}\nclass _UserManagementViewState extends State<UserManagementView>{\n  List<Map<String,dynamic>> users=[]; bool loading=true;\n  @override void initState(){super.initState();load();}\n  Future<void> load() async {setState(()=>loading=true);try{users=await widget.repo.schoolUsers();}catch(_){ }if(mounted)setState(()=>loading=false);}\n  Future<void> disable(Map<String,dynamic> u) async {\n    final role=u['role']?.toString()??''; if(role!='accountant'&&role!='supervisor')return;\n    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('تعطيل الحساب'),content:Text('سيتم تعطيل حساب '+(u['username']?.toString()??'')+' مع الحفاظ على سجلاته.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('تعطيل'))]))??false;\n    if(!ok)return;try{await widget.repo.deleteSchoolUser(u['user_id'].toString());await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعطيل الحساب وحفظ سجله.')));}catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تعذر تنفيذ العملية.')));}\n  }\n  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('مستخدمو المدرسة'),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(12),children:[\n    const Card(child:ListTile(leading:Icon(Icons.info_outline),title:Text('حماية السجلات'),subtitle:Text('تعطيل المشرف أو المحاسب لا يحذف العمليات المالية أو سجل التدقيق.'))),\n    ...users.map((u)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(u['role']=='accountant'?Icons.calculate:Icons.supervisor_account)),title:Text(u['username']?.toString()??'—'),subtitle:Text((u['role']=='accountant'?'محاسب':u['role']=='supervisor'?'مشرف':u['role']).toString()+' • '+(u['active']==true?'نشط':'موقوف')),trailing:(u['role']=='accountant'||u['role']=='supervisor')&&u['active']==true?IconButton(onPressed:()=>disable(u),icon:const Icon(Icons.person_off)):null))),\n  ]));\n}\nclass MoreView extends StatelessWidget {
   final SchoolRepository repo; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
   const MoreView({super.key, required this.repo, required this.teachers, required this.students, required this.onChanged});
   @override Widget build(BuildContext context) => ListView(padding:const EdgeInsets.all(12),children:[
@@ -458,7 +377,7 @@ class MoreView extends StatelessWidget {
     Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
-    Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
+    Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),\n    Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
   ]);
   Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }

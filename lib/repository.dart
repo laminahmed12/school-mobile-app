@@ -107,6 +107,28 @@ class SchoolRepository {
     await db.from('academic_years').insert({'name': name.trim(), 'active': false});
   }
 
+  Future<String?> activeAcademicYearName() async {
+    try {
+      final row = await db.from('academic_years').select('name').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle();
+      return row?['name']?.toString();
+    } catch (_) { return null; }
+  }
+
+  Future<String?> createNextAcademicYear(String name, {DateTime? startsOn, DateTime? endsOn}) async {
+    final result = await db.rpc('create_next_academic_year', params: {
+      'p_name': name.trim(),
+      'p_starts_on': startsOn?.toIso8601String().substring(0,10),
+      'p_ends_on': endsOn?.toIso8601String().substring(0,10),
+      'p_migrate_students': true,
+      'p_migrate_staff': true,
+    });
+    return result?.toString();
+  }
+
+  Future<void> promoteStudent(String studentId, String? targetClassId, {String status='active'}) async {
+    await db.rpc('set_student_promotion', params: {'p_student_id':studentId,'p_target_class_id':targetClassId,'p_status':status});
+  }
+
   Future<void> addClass({required String name, String section = '', String? academicYearId}) async {
     await db.from('classes').insert({
       'name': name.trim(),
@@ -205,7 +227,23 @@ class SchoolRepository {
   }
 
   Future<void> addPayment({required String studentId, required double amount, String note = ''}) async {
-    await db.from('payments').insert({'student_id': studentId, 'amount': amount, 'note': note.trim()});
+    final year = await db.from('academic_years').select('id').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle();
+    await db.from('payments').insert({'student_id': studentId, 'academic_year_id': year?['id'], 'amount': amount, 'note': note.trim()});
+  }
+
+  Future<Map<String,dynamic>> exportBackup() async {
+    final result = await db.rpc('export_backup');
+    if (result is Map) return Map<String,dynamic>.from(result);
+    return {'payload': result};
+  }
+
+  Future<void> deleteSchoolUser(String userId) async {
+    await db.rpc('delete_school_user', params: {'p_user_id': userId});
+  }
+
+  Future<List<Map<String,dynamic>>> schoolUsers() async {
+    final rows=await db.from('profiles').select('user_id,username,role,active,school_id').eq('school_id',(await profile())?.schoolId ?? '');
+    return (rows as List).map((e)=>Map<String,dynamic>.from(e)).toList();
   }
 
   Future<void> addExpense({required String title, required double amount, String category = 'عام', String note = ''}) async {

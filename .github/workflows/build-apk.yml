@@ -2,6 +2,8 @@ name: Build Lamin APK
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,8 +23,8 @@ jobs:
       - run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
       - run: sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
       - run: rm -f test/widget_test.dart
-      - run: python3 tool/patch_owner_console.py
       - run: flutter pub get
+      - run: dart format lib
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter build apk --release --no-tree-shake-icons
       - uses: actions/upload-artifact@v4
