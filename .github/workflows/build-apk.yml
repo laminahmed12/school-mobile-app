@@ -37,6 +37,20 @@ jobs:
       - run: dart format lib
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter build apk --release --no-tree-shake-icons
+      - name: Android emulator smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install -r build/app/outputs/flutter-apk/app-release.apk
+            adb shell am start -n com.adreemk.school.lamin_school/.MainActivity
+            sleep 15
+            adb shell uiautomator dump /sdcard/window.xml
+            adb shell cat /sdcard/window.xml | grep -q "لامين"
+            adb shell am force-stop com.adreemk.school.lamin_school
+
       - uses: actions/upload-artifact@v4
         with:
           name: lamin-release-apk
