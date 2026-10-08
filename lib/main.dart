@@ -40,13 +40,62 @@ class LaminApp extends StatelessWidget {
   );
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   final SharedPreferences prefs;
   const AuthGate({super.key, required this.prefs});
   @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
+  final security = DeviceSecurityService();
+  bool locked = false;
+  bool checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshLock();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshLock();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (db.auth.currentSession != null && mounted) setState(() => locked = true);
+    }
+  }
+
+  Future<void> _refreshLock() async {
+    final session = db.auth.currentSession;
+    final enabled = await security.enabled;
+    if (!mounted) return;
+    setState(() {
+      checking = false;
+      locked = session != null && enabled;
+    });
+  }
+
+  void _unlock() {
+    if (mounted) setState(() => locked = false);
+  }
+
+  @override
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
-    builder: (_, __) => db.auth.currentSession == null ? LoginPage(prefs: prefs) : HomePage(prefs: prefs),
+    builder: (_, __) {
+      if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
+      if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
+      return HomePage(prefs: widget.prefs);
+    },
   );
 }
 
@@ -301,7 +350,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       StudentsView(repo: repo, students: students, onChanged: refresh),
       AttendanceView(repo: repo, students: students),
       FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
-      MoreView(repo: repo, teachers: teachers, students: students, onChanged: refresh),
+      MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh),
     ];
     return WillPopScope(
       onWillPop: () async {
@@ -429,14 +478,27 @@ class _UserManagementViewState extends State<UserManagementView>{
   ]));
 }
 class MoreView extends StatelessWidget {
-  final SchoolRepository repo; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
-  const MoreView({super.key, required this.repo, required this.teachers, required this.students, required this.onChanged});
+  final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
+  const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged});
   @override Widget build(BuildContext context) => ListView(padding:const EdgeInsets.all(12),children:[
     Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
     Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),\n    Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
+    Card(child:ListTile(leading:const Icon(Icons.fingerprint),title:const Text('الدخول بالبصمة'),subtitle:const Text('فتح التطبيق بسرعة وبشكل آمن بعد أول دخول'),onTap:()async{
+      final service=DeviceSecurityService();
+      final enabled=await service.enabled;
+      if(!context.mounted)return;
+      if(enabled){
+        await service.disable();
+        if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعطيل الدخول بالبصمة.')));
+      }else{
+        final ok=await service.enable();
+        if(!context.mounted)return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'تم تفعيل الدخول بالبصمة.':'لم يتم التفعيل. تأكد من إعداد بصمة على الجهاز.')));
+      }
+    })),
   ]);
   Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }
