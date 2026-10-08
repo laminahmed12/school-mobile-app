@@ -122,14 +122,6 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
                 icon: const Icon(Icons.fingerprint),
                 label: Text(loading ? 'جارِ التحقق...' : 'فتح بالبصمة'),
               ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () async {
-                  await service.disable();
-                  if (mounted) widget.onAuthenticated();
-                },
-                child: const Text('تعطيل الدخول بالبصمة'),
-              ),
             ],
           ),
         ),
