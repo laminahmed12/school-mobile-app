@@ -98,7 +98,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('إدارة المالك', style: TextStyle(fontWeight: FontWeight.w800)),
+      title: const Text('مركز المالك', style: TextStyle(fontWeight: FontWeight.w800)),
       leading: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
       actions: [IconButton(onPressed: loading ? null : loadSchools, icon: const Icon(Icons.refresh))],
     ),
@@ -111,10 +111,22 @@ class _OwnerConsoleState extends State<OwnerConsole> {
           subtitle: Text('إدارة المدارس والتراخيص الدائمة', style: TextStyle(color: Colors.white70)),
         )),
         if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: const Text('تعذر تحميل البيانات'), subtitle: Text(error!))),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Expanded(child: _ownerStat('المدارس', schools.length.toString(), Icons.apartment)),
+              const SizedBox(width: 8),
+              Expanded(child: _ownerStat('مفعّلة', schools.where((s) => s['licensed'] == true).length.toString(), Icons.verified)),
+              const SizedBox(width: 8),
+              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true).length.toString(), Icons.schedule)),
+            ],
+          ),
+        ),
         Card(child: ListTile(
           leading: const Icon(Icons.add_business_outlined),
-          title: const Text('إنشاء مدرسة'),
-          subtitle: const Text('إنشاء المدرسة وحساب مديرها'),
+          title: const Text('إنشاء مدرسة جديدة'),
+          subtitle: const Text('إنشاء المدرسة وحساب مديرها وبداية الفترة التجريبية'),
           trailing: const Icon(Icons.chevron_left),
           onTap: createSchool,
         )),
@@ -139,10 +151,24 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     ),
   );
 
+  Widget _ownerStat(String title, String value, IconData icon) => Card(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        children: [
+          Icon(icon, color: _ownerGreen),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          Text(title, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    ),
+  );
+
   Widget schoolCard(Map<String, dynamic> school) {
     final licensed = school['licensed'] == true;
     final trial = school['trial_started_at'] != null;
-    final status = licensed ? 'الترخيص: دائم ومفعّل' : (trial ? 'الحالة: فترة تجريبية' : 'الحالة: غير مفعّلة');
+    final status = licensed ? 'ترخيص دائم ومفعّل' : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
     return Card(child: ListTile(
       leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
       title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
