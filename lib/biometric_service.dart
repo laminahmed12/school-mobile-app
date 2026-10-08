@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'supabase_config.dart';
 
 class LaminBiometricService {
   static const _enabledKey = 'lamin.biometric.enabled';
@@ -121,6 +122,17 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
                 onPressed: loading ? null : unlock,
                 icon: const Icon(Icons.fingerprint),
                 label: Text(loading ? 'جارِ التحقق...' : 'فتح بالبصمة'),
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: loading
+                    ? null
+                    : () async {
+                        await service.disable();
+                        await db.auth.signOut();
+                      },
+                icon: const Icon(Icons.password_outlined),
+                label: const Text('استخدام كلمة المرور'),
               ),
             ],
           ),
