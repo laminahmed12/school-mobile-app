@@ -256,7 +256,7 @@ class HomePage extends StatefulWidget {
   @override State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final SchoolRepository repo = SchoolRepository(widget.prefs);
   late int tab = widget.initialTab;
   bool loading = true, online = true;
@@ -266,7 +266,17 @@ class _HomePageState extends State<HomePage> {
   double payments = 0, expenses = 0;
 
   @override
-  void initState() { super.initState(); refresh(); }
+  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); refresh(); }
+
+  @override
+  void dispose() { WidgetsBinding.instance.removeObserver(this); super.dispose(); }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      BackupService.createLocalBackup(repo).then((_) {}, onError: (_) {});
+    }
+  }
 
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
@@ -292,7 +302,12 @@ class _HomePageState extends State<HomePage> {
       FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
       MoreView(repo: repo, teachers: teachers, students: students, onChanged: refresh),
     ];
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        try { await BackupService.backupAndOpenShare(repo); } catch (_) {}
+        return true;
+      },
+      child: Scaffold(
       appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') await repo.signOut(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [
@@ -302,6 +317,7 @@ class _HomePageState extends State<HomePage> {
         NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'المالية'),
         NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'المزيد'),
       ]),
+      ),
     );
   }
 }
