@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+import 'app_error.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +21,15 @@ const brandGreen = Color(0xFF155D4A);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Uncaught async error: $error');
+    debugPrintStack(stackTrace: stack);
+    return true;
+  };
+
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
   final prefs = await SharedPreferences.getInstance();
   runApp(LaminApp(prefs: prefs));
@@ -377,7 +388,7 @@ class _OwnerPinDialogState extends State<_OwnerPinDialog> {
     }
     setState(() => loading = true);
     try {
-      final response = await db.functions.invoke('owner-api', body: {'action': 'list_schools', 'pin': pin});
+      final response = await db.functions.invoke('owner-api', body: {'action': 'list_schools', 'pin': pin}).timeout(const Duration(seconds: 20));
       final data = response.data;
       if (data is Map && data['error'] != null) throw Exception(data['error'].toString());
       if (!mounted) return;
@@ -386,7 +397,7 @@ class _OwnerPinDialogState extends State<_OwnerPinDialog> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e, fallback: 'تعذر فتح بوابة المالك. حاول مرة أخرى.'))),
       );
     } finally {
       if (mounted) setState(() => loading = false);
