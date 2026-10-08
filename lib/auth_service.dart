@@ -24,7 +24,7 @@ class LaminAuthService {
       await db.auth.setSession(refresh); await saveSchoolCode(school); return const LaminAuthResult(ok:true,message:'تم تسجيل الدخول.');
     }on FunctionException catch(e){
       final d=e.details; if(d is Map){final code=d['code']?.toString()??'';final msg=d['error']?.toString()??'تعذر تسجيل الدخول.';return LaminAuthResult(ok:false,message:msg,trialExpired:code=='TRIAL_EXPIRED');}
-      return LaminAuthResult(ok:false,message:e.reason??'تعذر تسجيل الدخول.');
+      return const LaminAuthResult(ok:false,message:'تعذر تسجيل الدخول.');
     }catch(e){debugPrint('login error: '+e.toString());return const LaminAuthResult(ok:false,message:'تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.');}
   }
 }
