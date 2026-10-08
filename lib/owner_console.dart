@@ -1,142 +1,156 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'supabase_config.dart';
 
 const _ownerGreen = Color(0xFF155D4A);
 
 class OwnerConsole extends StatefulWidget {
-  final SharedPreferences prefs;
-  const OwnerConsole({super.key, required this.prefs});
-
-  @override
-  State<OwnerConsole> createState() => _OwnerConsoleState();
+  final String pin;
+  const OwnerConsole({super.key, required this.pin});
+  @override State<OwnerConsole> createState() => _OwnerConsoleState();
 }
 
 class _OwnerConsoleState extends State<OwnerConsole> {
-  String? lastCode;
-  String lastPlan = 'لم يتم إنشاء ترخيص بعد';
+  List<Map<String, dynamic>> schools = [];
+  bool loading = true, creating = false;
+  String? error, generatedCode, generatedSchool;
 
-  String _generateCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final r = Random.secure();
-    final parts = List.generate(4, (_) => List.generate(4, (_) => chars[r.nextInt(chars.length)]).join());
-    return parts.join('-');
+  @override
+  void initState() { super.initState(); loadSchools(); }
+
+  Future<Map<String, dynamic>> callOwner(String action, [Map<String, dynamic> extra = const {}]) async {
+    final response = await db.functions.invoke('owner-api', body: {'action': action, 'pin': widget.pin, ...extra});
+    final data = response.data;
+    if (data is Map && data['error'] != null) throw Exception(data['error'].toString());
+    if (data is! Map) throw Exception('استجابة غير صالحة من الخادم');
+    return Map<String, dynamic>.from(data);
   }
 
-  Future<void> _createLicense(String plan) async {
-    final code = _generateCode();
-    await widget.prefs.setString('owner_last_license_code', code);
-    await widget.prefs.setString('owner_last_license_plan', plan);
-    setState(() {
-      lastCode = code;
-      lastPlan = plan;
-    });
-    await Clipboard.setData(ClipboardData(text: code));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم توليد الرمز ونسخه إلى الحافظة')));
+  Future<void> loadSchools() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      final data = await callOwner('list_schools');
+      final raw = data['schools'];
+      schools = raw is List ? raw.map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+    } catch (e) {
+      error = e.toString().replaceFirst('Exception: ', '');
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  void message(String value, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(value), backgroundColor: error ? Colors.red.shade700 : null));
+  }
+
+  Future<void> createSchool() async {
+    final name = TextEditingController(), code = TextEditingController();
+    final username = TextEditingController(text: 'admin'), password = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    await showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('إنشاء مدرسة جديدة'),
+      content: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextFormField(controller: name, decoration: const InputDecoration(labelText: 'اسم المدرسة'), validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم المدرسة' : null),
+        TextFormField(controller: code, decoration: const InputDecoration(labelText: 'رمز المدرسة'), validator: (v) => v == null || v.trim().length < 3 ? 'أدخل رمز المدرسة' : null),
+        TextFormField(controller: username, decoration: const InputDecoration(labelText: 'اسم مدير المدرسة')),
+        TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة مرور المدير'), validator: (v) => v == null || v.length < 6 ? '6 خانات على الأقل' : null),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: creating ? null : () async {
+          if (!formKey.currentState!.validate()) return;
+          setState(() => creating = true);
+          try {
+            await callOwner('create_school', {
+              'name': name.text.trim(), 'code': code.text.trim(),
+              'admin_username': username.text.trim(), 'admin_password': password.text, 'currency': 'د.ل',
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            await loadSchools();
+            if (mounted) message('تم إنشاء المدرسة بنجاح');
+          } catch (e) {
+            if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+          } finally {
+            if (mounted) setState(() => creating = false);
+          }
+        }, child: const Text('إنشاء')),
+      ],
+    ));
+  }
+
+  Future<void> generateLicense(Map<String, dynamic> school) async {
+    try {
+      final data = await callOwner('generate_license', {'school_id': school['id']});
+      final code = data['code']?.toString();
+      if (code == null || code.isEmpty) throw Exception('لم يُرجع الخادم رمز التفعيل');
+      setState(() {
+        generatedCode = code;
+        generatedSchool = school['name']?.toString() ?? school['code']?.toString();
+      });
+      await Clipboard.setData(ClipboardData(text: code));
+      if (mounted) message('تم إنشاء رمز التفعيل الدائم ونسخه');
+      await loadSchools();
+    } catch (e) {
+      if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+    }
   }
 
   @override
-  void initState() {
-    super.initState();
-    lastCode = widget.prefs.getString('owner_last_license_code');
-    lastPlan = widget.prefs.getString('owner_last_license_plan') ?? lastPlan;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('إدارة المالك', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(14),
-        children: [
-          Card(
-            color: _ownerGreen,
-            child: const ListTile(
-              leading: CircleAvatar(child: Icon(Icons.verified_user)),
-              title: Text('لوحة المالك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              subtitle: Text('تحكم خاص بمالك تطبيق لامين', style: TextStyle(color: Colors.white70)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _action(
-            icon: Icons.vpn_key_outlined,
-            title: 'توليد رمز تفعيل لعميل',
-            subtitle: 'اختر مدة الترخيص ثم انسخ الرمز للعميل',
-            onTap: () => _licenseDialog(context),
-          ),
-          _action(
-            icon: Icons.key_outlined,
-            title: 'آخر رمز تم توليده',
-            subtitle: lastCode == null ? 'لا يوجد رمز محفوظ على هذا الجهاز' : '$lastPlan • $lastCode',
-            onTap: lastCode == null ? null : () async {
-              await Clipboard.setData(ClipboardData(text: lastCode!));
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ الرمز')));
-            },
-          ),
-          _action(
-            icon: Icons.security_outlined,
-            title: 'أمان المالك',
-            subtitle: 'رمز المالك لا يظهر داخل خانة الإدخال',
-            onTap: () => showDialog(context: context, builder: (_) => const AlertDialog(
-              title: Text('أمان المالك'),
-              content: Text('هذه الشاشة لا تستخدم البريد الإلكتروني. الدخول إليها يتم من شاشة الدخول عبر ثلاث نقرات على Adreemk ثم إدخال رمز المالك.'),
-            )),
-          ),
-          _action(
-            icon: Icons.school_outlined,
-            title: 'العودة إلى التطبيق',
-            subtitle: 'إغلاق لوحة المالك والعودة لشاشة الدخول',
-            onTap: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _action({required IconData icon, required String title, required String subtitle, required VoidCallback? onTap}) => Card(
-    child: ListTile(
-      minVerticalPadding: 14,
-      leading: CircleAvatar(child: Icon(icon)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle)),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: onTap,
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('إدارة المالك', style: TextStyle(fontWeight: FontWeight.w800)),
+      leading: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+      actions: [IconButton(onPressed: loading ? null : loadSchools, icon: const Icon(Icons.refresh))],
+    ),
+    body: loading ? const Center(child: CircularProgressIndicator()) : RefreshIndicator(
+      onRefresh: loadSchools,
+      child: ListView(padding: const EdgeInsets.all(14), children: [
+        Card(color: _ownerGreen, child: const ListTile(
+          leading: CircleAvatar(child: Icon(Icons.admin_panel_settings)),
+          title: Text('لوحة المالك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          subtitle: Text('إدارة المدارس والتراخيص الدائمة', style: TextStyle(color: Colors.white70)),
+        )),
+        if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: const Text('تعذر تحميل البيانات'), subtitle: Text(error!))),
+        Card(child: ListTile(
+          leading: const Icon(Icons.add_business_outlined),
+          title: const Text('إنشاء مدرسة'),
+          subtitle: const Text('إنشاء المدرسة وحساب مديرها'),
+          trailing: const Icon(Icons.chevron_left),
+          onTap: createSchool,
+        )),
+        if (generatedCode != null) Card(child: ListTile(
+          leading: const Icon(Icons.vpn_key),
+          title: const Text('رمز التفعيل الجديد'),
+          subtitle: Text((generatedSchool ?? '') + '\n' + generatedCode! + '\nرمز دائم • استخدام مرة واحدة'),
+          isThreeLine: true,
+          trailing: IconButton(onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: generatedCode!));
+            if (mounted) message('تم نسخ الرمز');
+          }, icon: const Icon(Icons.copy)),
+        )),
+        const SizedBox(height: 8),
+        Text('المدارس (' + schools.length.toString() + ')', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        if (schools.isEmpty)
+          const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد مدارس بعد.')))
+        else
+          ...schools.map(schoolCard),
+      ]),
     ),
   );
 
-  Future<void> _licenseDialog(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Align(alignment: Alignment.centerRight, child: Text('مدة الترخيص', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-            const SizedBox(height: 10),
-            _plan(ctx, '6 أشهر', 'ترخيص نصف سنوي'),
-            _plan(ctx, 'سنة', 'ترخيص سنوي'),
-            _plan(ctx, 'دائم', 'ترخيص دائم'),
-          ]),
-        ),
-      ),
-    );
+  Widget schoolCard(Map<String, dynamic> school) {
+    final licensed = school['licensed'] == true;
+    final trial = school['trial_started_at'] != null;
+    final status = licensed ? 'الترخيص: دائم ومفعّل' : (trial ? 'الحالة: فترة تجريبية' : 'الحالة: غير مفعّلة');
+    return Card(child: ListTile(
+      leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
+      title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text('الرمز: ' + (school['code']?.toString() ?? '—') + '\n' + status),
+      isThreeLine: true,
+      trailing: licensed
+        ? const Icon(Icons.check_circle, color: _ownerGreen)
+        : IconButton(tooltip: 'توليد رمز دائم', icon: const Icon(Icons.vpn_key_outlined), onPressed: () => generateLicense(school)),
+    ));
   }
-
-  Widget _plan(BuildContext ctx, String title, String subtitle) => Card(
-    child: ListTile(
-      leading: const Icon(Icons.verified_outlined),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: () async {
-        Navigator.pop(ctx);
-        await _createLicense(title);
-      },
-    ),
-  );
 }
