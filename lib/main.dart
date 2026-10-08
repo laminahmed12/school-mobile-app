@@ -52,6 +52,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   final security = DeviceSecurityService();
   bool locked = false;
   bool checking = true;
+  bool mustChangePassword = false;
 
   @override
   void initState() {
@@ -78,10 +79,23 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
+    bool forcePassword = false;
+    if (session != null) {
+      try {
+        final row = await db.from('profiles')
+            .select('role,must_change_password,active')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+        forcePassword = row?['active'] == true &&
+            row?['role'] != 'owner' &&
+            row?['must_change_password'] == true;
+      } catch (_) {}
+    }
     if (!mounted) return;
     setState(() {
       checking = false;
       locked = session != null && enabled;
+      mustChangePassword = forcePassword;
     });
   }
 
@@ -95,8 +109,167 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     builder: (_, __) {
       if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
+      if (mustChangePassword) return ForcePasswordChangePage(prefs: widget.prefs);
       return HomePage(prefs: widget.prefs);
     },
+  );
+}
+
+class ForcePasswordChangePage extends StatefulWidget {
+  final SharedPreferences prefs;
+  const ForcePasswordChangePage({super.key, required this.prefs});
+  @override State<ForcePasswordChangePage> createState() => _ForcePasswordChangePageState();
+}
+
+class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
+  final password = TextEditingController();
+  final confirm = TextEditingController();
+  bool loading = false, hide = true, hideConfirm = true;
+  String? error;
+
+  Future<void> save() async {
+    final p = password.text;
+    if (p.length < 6 || p.length > 72 || p.contains(RegExp(r'\s'))) {
+      setState(() => error = 'كلمة المرور يجب أن تكون من 6 إلى 72 خانة وبدون مسافات.');
+      return;
+    }
+    if (p != confirm.text) {
+      setState(() => error = 'تأكيد كلمة المرور غير مطابق.');
+      return;
+    }
+    setState(() { loading = true; error = null; });
+    try {
+      final response = await db.functions.invoke('admin-api', body: {
+        'action': 'change_my_password',
+        'new_password': p,
+      });
+      final data = response.data;
+      if (data is Map && data['error'] != null) {
+        throw Exception(data['error'].toString());
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تغيير كلمة المرور بنجاح.')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomePage(prefs: widget.prefs)),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> logout() async {
+    await db.auth.signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    child: Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('تغيير كلمة المرور'),
+        actions: [
+          IconButton(
+            tooltip: 'تسجيل الخروج',
+            onPressed: loading ? null : logout,
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Column(
+                children: [
+                  Container(
+                    width: 82, height: 82,
+                    decoration: BoxDecoration(
+                      color: brandGreen,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(Icons.lock_reset, color: Colors.white, size: 44),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'حماية الحساب',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'يجب تغيير كلمة المرور المؤقتة قبل متابعة استخدام المدرسة.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+                  TextField(
+                    controller: password,
+                    obscureText: hide,
+                    enabled: !loading,
+                    decoration: InputDecoration(
+                      labelText: 'كلمة المرور الجديدة',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: loading ? null : () => setState(() => hide = !hide),
+                        icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirm,
+                    obscureText: hideConfirm,
+                    enabled: !loading,
+                    onSubmitted: (_) => save(),
+                    decoration: InputDecoration(
+                      labelText: 'تأكيد كلمة المرور',
+                      prefixIcon: const Icon(Icons.verified_user_outlined),
+                      suffixIcon: IconButton(
+                        onPressed: loading ? null : () => setState(() => hideConfirm = !hideConfirm),
+                        icon: Icon(hideConfirm ? Icons.visibility : Icons.visibility_off),
+                      ),
+                    ),
+                  ),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: loading ? null : save,
+                      icon: loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(loading ? 'جارِ الحفظ...' : 'حفظ كلمة المرور'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 
