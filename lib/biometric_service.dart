@@ -137,3 +137,15 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
     ),
   );
 }
+
+
+class DeviceSecurityService {
+  final LaminBiometricService _inner = LaminBiometricService();
+  Future<bool> get enabled => _inner.enabled;
+  Future<bool> enable() => _inner.enable();
+  Future<void> disable() => _inner.disable();
+}
+
+class DeviceLockPage extends BiometricLockPage {
+  const DeviceLockPage({super.key, required super.onAuthenticated});
+}
