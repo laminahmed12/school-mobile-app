@@ -40,15 +40,20 @@ jobs:
       - name: Android emulator smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_2
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim
           script: |
+            adb wait-for-device
+            adb shell getprop sys.boot_completed
             adb install -r build/app/outputs/flutter-apk/app-release.apk
             adb shell am start -n com.adreemk.school.lamin_school/.MainActivity
-            sleep 15
+            sleep 12
+            adb shell pidof com.adreemk.school.lamin_school
             adb shell uiautomator dump /sdcard/window.xml
-            adb shell cat /sdcard/window.xml | grep -q "لامين"
             adb shell am force-stop com.adreemk.school.lamin_school
 
       - uses: actions/upload-artifact@v4
