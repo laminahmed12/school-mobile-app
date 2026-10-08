@@ -241,6 +241,11 @@ class SchoolRepository {
     await db.rpc('delete_school_user', params: {'p_user_id': userId});
   }
 
+  Future<List<Map<String,dynamic>>> schoolUsers() async {
+    final rows=await db.from('profiles').select('user_id,username,role,active,school_id').eq('school_id',(await profile())?.schoolId ?? '');
+    return (rows as List).map((e)=>Map<String,dynamic>.from(e)).toList();
+  }
+
   Future<void> addExpense({required String title, required double amount, String category = 'عام', String note = ''}) async {
     await db.from('expenses').insert({'title': title.trim(), 'amount': amount, 'category': category.trim(), 'note': note.trim()});
   }
