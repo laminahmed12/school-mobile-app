@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'repository.dart';
+import 'models.dart';
 
 class SchoolSetupView extends StatefulWidget {
   final SchoolRepository repo;
@@ -10,6 +11,7 @@ class SchoolSetupView extends StatefulWidget {
 class _SchoolSetupViewState extends State<SchoolSetupView> {
   List<Map<String, dynamic>> years = [];
   List<Map<String, dynamic>> classes = [];
+  List<SubjectItem> subjects = [];
   bool loading = true;
   String? error;
 
@@ -25,6 +27,7 @@ class _SchoolSetupViewState extends State<SchoolSetupView> {
       await widget.repo.ensureOwnerSchool();
       years = await widget.repo.academicYears();
       classes = await widget.repo.classes();
+      subjects = await widget.repo.subjects();
     } catch (e) {
       error = 'تعذر تحميل إعدادات المدرسة. تحقق من الاتصال ثم أعد المحاولة.';
     }
@@ -74,8 +77,12 @@ class _SchoolSetupViewState extends State<SchoolSetupView> {
                       Card(child: ListTile(
                         leading: const Icon(Icons.menu_book),
                         title: const Text('المواد الدراسية'),
-                        subtitle: const Text('إضافة مادة جديدة'),
+                        subtitle: Text('${subjects.length} مادة'),
                         trailing: IconButton(onPressed: () => addSubject(c), icon: const Icon(Icons.add)),
+                      )),
+                      ...subjects.map((s) => ListTile(
+                        leading: const Icon(Icons.book_outlined),
+                        title: Text(s.name),
                       )),
                     ],
                   ),
