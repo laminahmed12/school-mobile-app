@@ -385,7 +385,49 @@ class FinanceView extends StatelessWidget {
   Future<void> payment(BuildContext context, Student s) async { final a=TextEditingController(), n=TextEditingController(); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('دفعة — ${s.name}'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل')),TextField(controller:n,decoration:const InputDecoration(labelText:'ملاحظة'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(v==null||v<=0)return;try{await repo.addPayment(studentId:s.id,amount:v,note:n.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();if(s.phone.isNotEmpty&&context.mounted){await openWhatsApp(context,s.phone,'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${v.toStringAsFixed(2)} د.ل.');}}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ الدفعة')));}},child:const Text('حفظ'))])); }
 }
 
-class UserManagementView extends StatefulWidget {\n  final SchoolRepository repo;\n  const UserManagementView({super.key,required this.repo});\n  @override State<UserManagementView> createState()=>_UserManagementViewState();\n}\nclass _UserManagementViewState extends State<UserManagementView>{\n  List<Map<String,dynamic>> users=[]; bool loading=true;\n  @override void initState(){super.initState();load();}\n  Future<void> load() async {setState(()=>loading=true);try{users=await widget.repo.schoolUsers();}catch(_){ }if(mounted)setState(()=>loading=false);}\n  Future<void> disable(Map<String,dynamic> u) async {\n    final role=u['role']?.toString()??''; if(role!='accountant'&&role!='supervisor')return;\n    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('تعطيل الحساب'),content:Text('سيتم تعطيل حساب '+(u['username']?.toString()??'')+' مع الحفاظ على سجلاته.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('تعطيل'))]))??false;\n    if(!ok)return;try{await widget.repo.deleteSchoolUser(u['user_id'].toString());await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعطيل الحساب وحفظ سجله.')));}catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تعذر تنفيذ العملية.')));}\n  }\n  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('مستخدمو المدرسة'),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(12),children:[\n    const Card(child:ListTile(leading:Icon(Icons.info_outline),title:Text('حماية السجلات'),subtitle:Text('تعطيل المشرف أو المحاسب لا يحذف العمليات المالية أو سجل التدقيق.'))),\n    ...users.map((u)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(u['role']=='accountant'?Icons.calculate:Icons.supervisor_account)),title:Text(u['username']?.toString()??'—'),subtitle:Text((u['role']=='accountant'?'محاسب':u['role']=='supervisor'?'مشرف':u['role']).toString()+' • '+(u['active']==true?'نشط':'موقوف')),trailing:(u['role']=='accountant'||u['role']=='supervisor')&&u['active']==true?IconButton(onPressed:()=>disable(u),icon:const Icon(Icons.person_off)):null))),\n  ]));\n}\nclass MoreView extends StatelessWidget {
+class UserManagementView extends StatefulWidget {
+  final SchoolRepository repo;
+  const UserManagementView({super.key,required this.repo});
+  @override State<UserManagementView> createState()=>_UserManagementViewState();
+}
+class _UserManagementViewState extends State<UserManagementView>{
+  List<Map<String,dynamic>> users=[]; bool loading=true;
+  @override void initState(){super.initState();load();}
+  Future<void> load() async {setState(()=>loading=true);try{users=await widget.repo.schoolUsers();}catch(_){ }if(mounted)setState(()=>loading=false);}
+  Future<void> oneDrive(Map<String,dynamic> u) async {
+    final id=u['user_id']?.toString()??''; final name=u['username']?.toString()??''; final granted=u['onedrive_access_granted']==true;
+    final email=TextEditingController(text:u['microsoft_email']?.toString()??'');
+    final token=TextEditingController(); final drive=TextEditingController(); final folder=TextEditingController();
+    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(
+      title:Text(granted?'إلغاء صلاحية OneDrive':'منح صلاحية OneDrive'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        Text('المستخدم: '+name),
+        if(!granted) ...[TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'بريد Microsoft / OneDrive')),const SizedBox(height:8),const Text('المنح يتم من حساب مدير المدرسة.',style:TextStyle(fontSize:12))],
+        const SizedBox(height:8),TextField(controller:token,obscureText:true,decoration:const InputDecoration(labelText:'رمز Microsoft المؤقت')),
+        const SizedBox(height:8),TextField(controller:drive,decoration:const InputDecoration(labelText:'معرّف OneDrive Drive')),
+        const SizedBox(height:8),TextField(controller:folder,decoration:const InputDecoration(labelText:'معرّف مجلد المدرسة')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:Text(granted?'إلغاء الصلاحية':'منح الصلاحية'))],
+    ))??false;
+    if(!ok)return;
+    try{
+      if(granted){await widget.repo.revokeOneDriveAccess(id,microsoftAccessToken:token.text.trim(),driveId:drive.text.trim(),folderItemId:folder.text.trim());}
+      else {if(email.text.trim().isEmpty)throw Exception('أدخل بريد Microsoft');await widget.repo.grantOneDriveAccess(id,microsoftEmail:email.text,microsoftAccessToken:token.text.trim(),driveId:drive.text.trim(),folderItemId:folder.text.trim());}
+      await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(granted?'تم إلغاء صلاحية OneDrive.':'تم منح صلاحية OneDrive.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تنفيذ العملية: '+e.toString())));}
+  }
+  Future<void> disable(Map<String,dynamic> u) async {
+    final role=u['role']?.toString()??'';if(role!='accountant'&&role!='supervisor')return;final id=u['user_id']?.toString()??'';
+    if(u['onedrive_access_granted']==true){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('ألغِ صلاحية OneDrive أولاً ثم أوقف الحساب.')));return;}
+    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('إيقاف الحساب'),content:Text('سيتم إيقاف حساب '+(u['username']?.toString()??'')+' مع الحفاظ على السجلات.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('إيقاف'))]))??false;
+    if(!ok)return;try{await widget.repo.deleteSchoolUser(id);await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إيقاف الحساب.')));}catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تعذر تنفيذ العملية.')));}
+  }
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('مستخدمو المدرسة'),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(12),children:[
+    const Card(child:ListTile(leading:Icon(Icons.security),title:Text('حماية OneDrive'),subtitle:Text('المحاسب والمشرف لا يحصلان على التخزين إلا بموافقة المدير.'))),
+    ...users.map((u){final role=u['role']=='accountant'?'محاسب':u['role']=='supervisor'?'مشرف':u['role'].toString();final granted=u['onedrive_access_granted']==true;return Card(child:ListTile(leading:CircleAvatar(child:Icon(u['role']=='accountant'?Icons.calculate:Icons.supervisor_account)),title:Text(u['username']?.toString()??'—'),subtitle:Text(role+' • '+(u['active']==true?'نشط':'موقوف')+'\nOneDrive: '+(granted?'مصرّح':'غير مصرح')),isThreeLine:true,trailing:Wrap(children:[IconButton(tooltip:granted?'إلغاء OneDrive':'منح OneDrive',onPressed:u['active']==true?()=>oneDrive(u):null,icon:Icon(granted?Icons.cloud_off:Icons.cloud_done)),if((u['role']=='accountant'||u['role']=='supervisor')&&u['active']==true)IconButton(tooltip:'إيقاف',onPressed:()=>disable(u),icon:const Icon(Icons.person_off))])));}),
+  ]));
+}
+class MoreView extends StatelessWidget {
   final SchoolRepository repo; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
   const MoreView({super.key, required this.repo, required this.teachers, required this.students, required this.onChanged});
   @override Widget build(BuildContext context) => ListView(padding:const EdgeInsets.all(12),children:[
