@@ -1,7 +1,7 @@
 name: lamin_school
 description: "لامين لإدارة وتنظيم المدارس - Adreemk"
 publish_to: "none"
-version: 1.1.0+2
+version: 2.0.0+1
 environment:
   sdk: ">=3.9.0 <4.0.0"
 dependencies:
@@ -16,6 +16,7 @@ dependencies:
   share_plus: ^12.0.2
   pdf: ^3.12.0
   printing: ^5.14.3
+  flutter_secure_storage: ^9.2.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
