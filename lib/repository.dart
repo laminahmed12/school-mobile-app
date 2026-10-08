@@ -241,8 +241,16 @@ class SchoolRepository {
     await db.rpc('delete_school_user', params: {'p_user_id': userId});
   }
 
+  Future<void> grantOneDriveAccess(String userId, {required String microsoftEmail, required String microsoftAccessToken, required String driveId, required String folderItemId}) async {
+    await db.functions.invoke('onedrive-access', body: {'action':'grant','user_id':userId,'microsoft_email':microsoftEmail.trim().toLowerCase(),'microsoft_access_token':microsoftAccessToken,'drive_id':driveId,'folder_item_id':folderItemId});
+  }
+
+  Future<void> revokeOneDriveAccess(String userId, {required String microsoftAccessToken, required String driveId, required String folderItemId}) async {
+    await db.functions.invoke('onedrive-access', body: {'action':'revoke','user_id':userId,'microsoft_access_token':microsoftAccessToken,'drive_id':driveId,'folder_item_id':folderItemId});
+  }
+
   Future<List<Map<String,dynamic>>> schoolUsers() async {
-    final rows=await db.from('profiles').select('user_id,username,role,active,school_id').eq('school_id',(await profile())?.schoolId ?? '');
+    final rows=await db.from('profiles').select('user_id,username,role,active,school_id,microsoft_email,onedrive_access_granted,onedrive_permission_id,onedrive_granted_at,onedrive_revoked_at').eq('school_id',(await profile())?.schoolId ?? '');
     return (rows as List).map((e)=>Map<String,dynamic>.from(e)).toList();
   }
 
