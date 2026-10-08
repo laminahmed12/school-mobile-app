@@ -6,3 +6,5 @@ Release candidate for Android testing.
 - School data remains server-authoritative in Supabase.
 - OneDrive access remains manager-controlled.
 - Android release CI validates formatting, analysis, and release APK generation.
+
+- CI trigger refresh for the release candidate.
