@@ -79,22 +79,83 @@ class _OwnerConsoleState extends State<OwnerConsole> {
   }
 
   Future<void> generateLicense(Map<String, dynamic> school) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رمز تفعيل دائم'),
+        content: const Text(
+          'سيتم إنشاء رمز واحد لهذه المدرسة. الرمز دائم ويُستخدم مرة واحدة فقط، وبعد نجاح التفعيل لا يمكن إنشاء رمز ثانٍ لنفس المدرسة.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إنشاء الرمز')),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed) return;
     try {
       final data = await callOwner('generate_license', {'school_id': school['id']});
       final code = data['code']?.toString();
       if (code == null || code.isEmpty) throw Exception('لم يُرجع الخادم رمز التفعيل');
+      if (data['permanent'] != true || data['one_time'] != true) {
+        throw Exception('استجابة الترخيص غير صالحة');
+      }
+      if (!mounted) return;
       setState(() {
         generatedCode = code;
         generatedSchool = school['name']?.toString() ?? school['code']?.toString();
       });
       await Clipboard.setData(ClipboardData(text: code));
-      if (mounted) message('تم إنشاء رمز التفعيل الدائم ونسخه');
+      if (mounted) message('تم إنشاء الرمز الدائم لمرة واحدة ونسخه');
       await loadSchools();
     } catch (e) {
       if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
     }
   }
 
+  Future<void> showSchoolDetails(Map<String, dynamic> school) async {
+    try {
+      final data = await callOwner('school_details', {'school_id': school['id']});
+      final stats = data['stats'] is Map ? Map<String, dynamic>.from(data['stats'] as Map) : <String, dynamic>{};
+      final users = data['users'] is List
+          ? (data['users'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(school['name']?.toString() ?? 'تفاصيل المدرسة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('رمز المدرسة: \${school['code'] ?? '—'}'),
+                Text('الحالة: \${school['licensed'] == true ? 'ترخيص دائم' : 'فترة تجريبية'}'),
+                const Divider(),
+                Text('الطلاب: \${stats['students'] ?? 0}'),
+                Text('المعلمون: \${stats['teachers'] ?? 0}'),
+                Text('حسابات المدرسة: \${users.length}'),
+                const SizedBox(height: 8),
+                ...users.map((u) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(u['active'] == true ? Icons.person : Icons.person_off),
+                  title: Text('\${u['username'] ?? '—'}'),
+                  subtitle: Text('\${u['role'] ?? '—'} • \${u['active'] == true ? 'نشط' : 'موقوف'}'),
+                )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) message(e.toString().replaceFirst('Exception: ', ''), error: true);
+    }
+  }
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -169,14 +230,35 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     final licensed = school['licensed'] == true;
     final trial = school['trial_started_at'] != null;
     final status = licensed ? 'ترخيص دائم ومفعّل' : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
-    return Card(child: ListTile(
-      leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
-      title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text('الرمز: ' + (school['code']?.toString() ?? '—') + '\n' + status),
-      isThreeLine: true,
-      trailing: licensed
-        ? const Icon(Icons.check_circle, color: _ownerGreen)
-        : IconButton(tooltip: 'توليد رمز دائم', icon: const Icon(Icons.vpn_key_outlined), onPressed: () => generateLicense(school)),
-    ));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
+          title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('الرمز: \${school['code'] ?? '—'}\n\$status'),
+          isThreeLine: true,
+          onTap: () => showSchoolDetails(school),
+          trailing: Wrap(
+            spacing: 2,
+            children: [
+              IconButton(
+                tooltip: 'تفاصيل المدرسة',
+                onPressed: () => showSchoolDetails(school),
+                icon: const Icon(Icons.info_outline),
+              ),
+              if (licensed)
+                const Icon(Icons.check_circle, color: _ownerGreen)
+              else
+                IconButton(
+                  tooltip: 'إنشاء رمز تفعيل دائم لمرة واحدة',
+                  icon: const Icon(Icons.vpn_key_outlined),
+                  onPressed: () => generateLicense(school),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
