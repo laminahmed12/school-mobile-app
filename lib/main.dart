@@ -817,7 +817,10 @@ class MoreView extends StatelessWidget {
   final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final String role;
   const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.role});
   @override Widget build(BuildContext context) {
-    final isAdmin = role == 'admin' || role == 'owner';\n    final isSupervisor = role == 'supervisor';\n    final isAccountant = role == 'accountant';\n    return ListView(padding:const EdgeInsets.all(12),children:[
+    final isAdmin = role == 'admin' || role == 'owner';
+    final isSupervisor = role == 'supervisor';
+    final isAccountant = role == 'accountant';
+    return ListView(padding:const EdgeInsets.all(12),children:[
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
@@ -837,7 +840,8 @@ class MoreView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'تم تفعيل الدخول بالبصمة.':'لم يتم التفعيل. تأكد من إعداد بصمة على الجهاز.')));
       }
     })),
-    ]);\n  }
+    ]);
+  }
   Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }
 }
