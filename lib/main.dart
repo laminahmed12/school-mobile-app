@@ -488,7 +488,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final isAccountant = role == 'accountant';
     final pages = <Widget>[
       DashboardView(profile: profile, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
-      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh),
+      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
       MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
@@ -537,7 +537,8 @@ class StudentsView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
   final Future<void> Function() onChanged;
-  const StudentsView({super.key, required this.repo, required this.students, required this.onChanged});
+  final bool canAdd;
+  const StudentsView({super.key, required this.repo, required this.students, required this.onChanged, this.canAdd = true});
   @override State<StudentsView> createState() => _StudentsViewState();
 }
 
@@ -547,7 +548,7 @@ class _StudentsViewState extends State<StudentsView> {
   Widget build(BuildContext context) {
     final list = widget.students.where((s) => s.name.contains(q) || s.className.contains(q) || s.phone.contains(q)).toList();
     return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 5), child: Row(children: [Expanded(child: TextField(onChanged: (v) => setState(() => q = v.trim()), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'بحث سريع عن طالب'))), const SizedBox(width: 8), IconButton.filled(onPressed: () => addStudent(context), icon: const Icon(Icons.person_add))])),
+      Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 5), child: Row(children: [Expanded(child: TextField(onChanged: (v) => setState(() => q = v.trim()), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'بحث سريع عن طالب'))), if (widget.canAdd) ...[const SizedBox(width: 8), IconButton.filled(onPressed: () => addStudent(context), icon: const Icon(Icons.person_add))]])),
       Expanded(child: list.isEmpty ? const Center(child: Text('لا توجد نتائج')) : ListView.builder(padding: const EdgeInsets.all(10), itemCount: list.length, itemBuilder: (_, i) { final s = list[i]; return Card(child: ListTile(leading: CircleAvatar(child: Text(s.name.isEmpty ? '?' : s.name[0])), title: Text(s.name), subtitle: Text(s.className + (s.phone.isEmpty ? '' : ' • ${s.phone}')), trailing: IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StudentProfileView(repo: widget.repo, student: s))), icon: const Icon(Icons.chevron_left)))); }))
     ]);
   }
