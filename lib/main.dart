@@ -291,9 +291,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final school=TextEditingController(), username=TextEditingController(), password=TextEditingController(), license=TextEditingController();
+  final school=TextEditingController(), username=TextEditingController(), password=TextEditingController();
   final auth=LaminAuthService();
-  bool loading=false,hide=true,schoolLocked=false,showLicense=false;
+  bool loading=false,hide=true,schoolLocked=false;
   String? error;
   int _ownerTaps = 0;
   DateTime? _lastOwnerTap;
@@ -307,12 +307,22 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> login() async {
-    setState(()=>loading=true);
-    final r=await auth.login(school:school.text,username:username.text,password:password.text,licenseCode:license.text);
-    if(!mounted)return;
-    if(r.trialExpired){setState(()=>showLicense=true);}
-    setState(()=>error=r.ok?null:r.message);
-    setState(()=>loading=false);
+    if (school.text.trim().isEmpty || username.text.trim().isEmpty || password.text.isEmpty) {
+      setState(() => error = 'أدخل رمز المدرسة واسم المستخدم وكلمة المرور.');
+      return;
+    }
+    setState(() { loading = true; error = null; });
+    try {
+      final r = await auth.login(school: school.text, username: username.text, password: password.text);
+      if (!mounted) return;
+      setState(() => error = r.ok ? null : (r.trialExpired
+          ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
+          : r.message));
+    } catch (e) {
+      if (mounted) setState(() => error = friendlyError(e, fallback: 'تعذر تسجيل الدخول.'));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override Widget build(BuildContext context)=>Scaffold(
@@ -329,10 +339,6 @@ class _LoginPageState extends State<LoginPage> {
         TextField(controller:username,autocorrect:false,decoration:const InputDecoration(labelText:'اسم المستخدم',prefixIcon:Icon(Icons.person_outline))),
         const SizedBox(height:12),
         TextField(controller:password,obscureText:hide,decoration:InputDecoration(labelText:'كلمة المرور',prefixIcon:const Icon(Icons.lock_outline),suffixIcon:IconButton(onPressed:()=>setState(()=>hide=!hide),icon:Icon(hide?Icons.visibility:Icons.visibility_off)))),
-        if(showLicense) ...[
-          const SizedBox(height:12),
-          TextField(controller:license,autocorrect:false,decoration:const InputDecoration(labelText:'رمز الترخيص الدائم',prefixIcon:Icon(Icons.vpn_key_outlined))),
-        ],
         if(error!=null)Padding(padding:const EdgeInsets.only(top:10),child:Text(error!,textAlign:TextAlign.center,style:const TextStyle(color:Colors.red))),
         const SizedBox(height:18),
         SizedBox(width:double.infinity,height:52,child:FilledButton.icon(onPressed:loading?null:login,icon:loading?const SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:Colors.white)):const Icon(Icons.login),label:Text(loading?'جارِ الدخول...':'دخول'))),
@@ -568,47 +574,238 @@ class FinanceView extends StatelessWidget {
 
 class UserManagementView extends StatefulWidget {
   final SchoolRepository repo;
-  const UserManagementView({super.key,required this.repo});
-  @override State<UserManagementView> createState()=>_UserManagementViewState();
+  const UserManagementView({super.key, required this.repo});
+  @override
+  State<UserManagementView> createState() => _UserManagementViewState();
 }
-class _UserManagementViewState extends State<UserManagementView>{
-  List<Map<String,dynamic>> users=[]; bool loading=true;
-  @override void initState(){super.initState();load();}
-  Future<void> load() async {setState(()=>loading=true);try{users=await widget.repo.schoolUsers();}catch(_){ }if(mounted)setState(()=>loading=false);}
-  Future<void> oneDrive(Map<String,dynamic> u) async {
-    final id=u['user_id']?.toString()??''; final name=u['username']?.toString()??''; final granted=u['onedrive_access_granted']==true;
-    final email=TextEditingController(text:u['microsoft_email']?.toString()??'');
-    final token=TextEditingController(); final drive=TextEditingController(); final folder=TextEditingController();
-    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(
-      title:Text(granted?'إلغاء صلاحية OneDrive':'منح صلاحية OneDrive'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Text('المستخدم: '+name),
-        if(!granted) ...[TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'بريد Microsoft / OneDrive')),const SizedBox(height:8),const Text('المنح يتم من حساب مدير المدرسة.',style:TextStyle(fontSize:12))],
-        const SizedBox(height:8),TextField(controller:token,obscureText:true,decoration:const InputDecoration(labelText:'رمز Microsoft المؤقت')),
-        const SizedBox(height:8),TextField(controller:drive,decoration:const InputDecoration(labelText:'معرّف OneDrive Drive')),
-        const SizedBox(height:8),TextField(controller:folder,decoration:const InputDecoration(labelText:'معرّف مجلد المدرسة')),
+
+class _UserManagementViewState extends State<UserManagementView> {
+  List<Map<String, dynamic>> users = [];
+  bool loading = true, saving = false;
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  Future<void> load() async {
+    if (mounted) setState(() => loading = true);
+    try { users = await widget.repo.schoolUsers(); } catch (_) {}
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _adminCall(String action, [Map<String, dynamic> fields = const {}]) async {
+    final response = await db.functions.invoke('admin-api', body: {'action': action, ...fields})
+        .timeout(const Duration(seconds: 20));
+    final data = response.data;
+    if (data is Map && data['error'] != null) throw Exception(data['error'].toString());
+    if (data is! Map || data['ok'] != true) throw Exception('لم يؤكد الخادم نجاح العملية.');
+  }
+
+  String _roleLabel(String? role) {
+    switch (role) {
+      case 'admin': return 'مدير المدرسة';
+      case 'supervisor': return 'مشرف';
+      case 'accountant': return 'محاسب';
+      case 'owner': return 'مالك النظام';
+      default: return role ?? 'غير محدد';
+    }
+  }
+
+  Future<void> editUser({Map<String, dynamic>? user}) async {
+    final username = TextEditingController(text: user?['username']?.toString() ?? '');
+    final password = TextEditingController();
+    String role = user?['role']?.toString() == 'admin' ? 'admin'
+        : (user?['role']?.toString() == 'accountant' ? 'accountant' : 'supervisor');
+    final formKey = GlobalKey<FormState>();
+    final isNew = user == null;
+    final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text(isNew ? 'إضافة مستخدم' : 'تعديل المستخدم'),
+        content: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(controller: username, autocorrect: false, decoration: const InputDecoration(labelText: 'اسم المستخدم'),
+            validator: (v) => v == null || v.trim().length < 2 || v.trim().length > 40 ? 'الاسم من 2 إلى 40 حرفاً' : null),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: role,
+            decoration: const InputDecoration(labelText: 'الدور والصلاحيات'),
+            items: const [
+              DropdownMenuItem(value: 'admin', child: Text('مدير المدرسة')),
+              DropdownMenuItem(value: 'supervisor', child: Text('مشرف')),
+              DropdownMenuItem(value: 'accountant', child: Text('محاسب')),
+            ],
+            onChanged: (value) { if (value != null) setDialogState(() => role = value); },
+          ),
+          const SizedBox(height: 10),
+          TextFormField(controller: password, obscureText: true, decoration: InputDecoration(
+            labelText: isNew ? 'كلمة المرور المؤقتة' : 'كلمة مرور جديدة (اختياري)',
+            helperText: isNew ? 'سيُطلب منه تغييرها عند أول دخول.' : 'اتركها فارغة دون تغيير.',
+          ), validator: (v) {
+            if (isNew && (v == null || v.length < 6 || v.length > 72 || v.contains(RegExp(r'\s')))) return 'كلمة المرور 6 خانات على الأقل وبدون مسافات';
+            if (v != null && v.isNotEmpty && (v.length < 6 || v.length > 72 || v.contains(RegExp(r'\s')))) return 'كلمة المرور 6 خانات على الأقل وبدون مسافات';
+            return null;
+          }),
+        ]))),
+        actions: [
+          TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: saving ? null : () async {
+            if (!formKey.currentState!.validate()) return;
+            if (mounted) setState(() => saving = true);
+            try {
+              if (isNew) {
+                await _adminCall('create_user', {'username': username.text.trim(), 'password': password.text, 'role': role});
+              } else {
+                await _adminCall('update_user', {
+                  'user_id': user['user_id'], 'username': username.text.trim(), 'role': role,
+                  if (password.text.isNotEmpty) 'password': password.text,
+                });
+              }
+              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+            } catch (e) {
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ المستخدم.')), backgroundColor: Colors.red.shade700));
+            } finally {
+              if (mounted) setState(() => saving = false);
+            }
+          }, child: Text(saving ? 'جارِ الحفظ...' : (isNew ? 'إضافة' : 'حفظ'))),
+        ],
+      ),
+    )) ?? false;
+    username.dispose();
+    password.dispose();
+    if (confirmed) {
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        isNew ? 'تم إنشاء المستخدم؛ يجب تغيير كلمة المرور عند أول دخول.' : 'تم تحديث بيانات المستخدم.')));
+    }
+  }
+
+  Future<void> toggleActive(Map<String, dynamic> user) async {
+    final active = user['active'] == true;
+    final name = user['username']?.toString() ?? 'المستخدم';
+    final confirmed = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+      title: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب'),
+      content: Text(active ? 'سيُمنع ' + name + ' من الدخول مع الاحتفاظ بسجلاته.' : 'سيُسمح لـ ' + name + ' بالدخول مجدداً.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(active ? 'إيقاف' : 'تفعيل')),
+      ],
+    )) ?? false;
+    if (!confirmed) return;
+    try {
+      await _adminCall('update_user', {'user_id': user['user_id'], 'active': !active});
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(active ? 'تم إيقاف الحساب.' : 'تم تفعيل الحساب.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red.shade700));
+    }
+  }
+
+  Future<void> deleteUser(Map<String, dynamic> user) async {
+    final name = user['username']?.toString() ?? 'المستخدم';
+    final confirmed = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+      title: const Text('حذف المستخدم'),
+      content: Text('هل تريد حذف حساب ' + name + ' نهائياً؟'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('حذف')),
+      ],
+    )) ?? false;
+    if (!confirmed) return;
+    try {
+      await _adminCall('delete_user', {'user_id': user['user_id']});
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف المستخدم.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red.shade700));
+    }
+  }
+
+  Future<void> oneDrive(Map<String, dynamic> u) async {
+    final id = u['user_id']?.toString() ?? '';
+    final name = u['username']?.toString() ?? '';
+    final granted = u['onedrive_access_granted'] == true;
+    final email = TextEditingController(text: u['microsoft_email']?.toString() ?? '');
+    final token = TextEditingController(), drive = TextEditingController(), folder = TextEditingController();
+    final ok = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
+      title: Text(granted ? 'إلغاء صلاحية OneDrive' : 'منح صلاحية OneDrive'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('المستخدم: ' + name),
+        if (!granted) TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'بريد Microsoft / OneDrive')),
+        const SizedBox(height: 8),
+        TextField(controller: token, obscureText: true, decoration: const InputDecoration(labelText: 'رمز Microsoft المؤقت')),
+        const SizedBox(height: 8),
+        TextField(controller: drive, decoration: const InputDecoration(labelText: 'معرّف OneDrive Drive')),
+        const SizedBox(height: 8),
+        TextField(controller: folder, decoration: const InputDecoration(labelText: 'معرّف مجلد المدرسة')),
       ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:Text(granted?'إلغاء الصلاحية':'منح الصلاحية'))],
-    ))??false;
-    if(!ok)return;
-    try{
-      if(granted){await widget.repo.revokeOneDriveAccess(id,microsoftAccessToken:token.text.trim(),driveId:drive.text.trim(),folderItemId:folder.text.trim());}
-      else {if(email.text.trim().isEmpty)throw Exception('أدخل بريد Microsoft');await widget.repo.grantOneDriveAccess(id,microsoftEmail:email.text,microsoftAccessToken:token.text.trim(),driveId:drive.text.trim(),folderItemId:folder.text.trim());}
-      await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(granted?'تم إلغاء صلاحية OneDrive.':'تم منح صلاحية OneDrive.')));
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تنفيذ العملية: '+e.toString())));}
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(granted ? 'إلغاء الصلاحية' : 'منح الصلاحية')),
+      ],
+    )) ?? false;
+    if (!ok) return;
+    try {
+      if (granted) {
+        await widget.repo.revokeOneDriveAccess(id, microsoftAccessToken: token.text.trim(), driveId: drive.text.trim(), folderItemId: folder.text.trim());
+      } else {
+        if (email.text.trim().isEmpty) throw Exception('أدخل بريد Microsoft');
+        await widget.repo.grantOneDriveAccess(id, microsoftEmail: email.text, microsoftAccessToken: token.text.trim(), driveId: drive.text.trim(), folderItemId: folder.text.trim());
+      }
+      await load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(granted ? 'تم إلغاء صلاحية OneDrive.' : 'تم منح صلاحية OneDrive.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
   }
-  Future<void> disable(Map<String,dynamic> u) async {
-    final role=u['role']?.toString()??'';if(role!='accountant'&&role!='supervisor')return;final id=u['user_id']?.toString()??'';
-    if(u['onedrive_access_granted']==true){
-    final ok=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('إيقاف الحساب'),content:Text('سيتم إيقاف حساب '+(u['username']?.toString()??'')+' مع الحفاظ على السجلات.'),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('إيقاف'))]))??false;
-    if(!ok)return;try{final token=TextEditingController();final drive=TextEditingController();final folder=TextEditingController();final credentials=await showDialog<bool>(context:context,builder:(d)=>AlertDialog(title:const Text('تأمين الإيقاف'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('لأن الحساب يملك صلاحية OneDrive، سيقوم لامين بإلغاء المشاركة أولاً ثم يوقف الحساب.'),const SizedBox(height:10),TextField(controller:token,obscureText:true,decoration:const InputDecoration(labelText:'جلسة Microsoft للمدير')),const SizedBox(height:8),TextField(controller:drive,decoration:const InputDecoration(labelText:'معرّف OneDrive Drive')),const SizedBox(height:8),TextField(controller:folder,decoration:const InputDecoration(labelText:'معرّف مجلد المدرسة'))])),actions:[TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(d,true),child:const Text('إلغاء الصلاحية والإيقاف'))]))??false;if(!credentials)return;await widget.repo.disableUserAndRevokeOneDrive(id,microsoftAccessToken:token.text.trim(),driveId:drive.text.trim(),folderItemId:folder.text.trim());await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم إلغاء OneDrive وإيقاف الحساب.')));}catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تعذر الإيقاف؛ لم يتم تعطيل الحساب حفاظاً على أمان OneDrive.')));}
-  }
-  }
-  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('مستخدمو المدرسة'),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(12),children:[
-    const Card(child:ListTile(leading:Icon(Icons.security),title:Text('حماية OneDrive'),subtitle:Text('المحاسب والمشرف لا يحصلان على التخزين إلا بموافقة المدير.'))),
-    ...users.map((u){final role=u['role']=='accountant'?'محاسب':u['role']=='supervisor'?'مشرف':u['role'].toString();final granted=u['onedrive_access_granted']==true;return Card(child:ListTile(leading:CircleAvatar(child:Icon(u['role']=='accountant'?Icons.calculate:Icons.supervisor_account)),title:Text(u['username']?.toString()??'—'),subtitle:Text(role+' • '+(u['active']==true?'نشط':'موقوف')+'\nOneDrive: '+(granted?'مصرّح':'غير مصرح')),isThreeLine:true,trailing:Wrap(children:[IconButton(tooltip:granted?'إلغاء OneDrive':'منح OneDrive',onPressed:u['active']==true?()=>oneDrive(u):null,icon:Icon(granted?Icons.cloud_off:Icons.cloud_done)),if((u['role']=='accountant'||u['role']=='supervisor')&&u['active']==true)IconButton(tooltip:'إيقاف',onPressed:()=>disable(u),icon:const Icon(Icons.person_off))])));}),
-  ]));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('مستخدمو المدرسة'), actions: [
+      IconButton(onPressed: loading ? null : load, icon: const Icon(Icons.refresh)),
+    ]),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: saving ? null : () => editUser(),
+      icon: const Icon(Icons.person_add_alt_1),
+      label: const Text('إضافة مستخدم'),
+    ),
+    body: loading ? const Center(child: CircularProgressIndicator()) : ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+      children: [
+        const Card(child: ListTile(
+          leading: Icon(Icons.security),
+          title: Text('الأدوار والصلاحيات'),
+          subtitle: Text('مدير المدرسة لإدارة الحسابات، المشرف للمتابعة، والمحاسب للشؤون المالية. صلاحيات OneDrive تدار بشكل منفصل.'),
+        )),
+        ...users.map((u) {
+          final role = _roleLabel(u['role']?.toString());
+          final granted = u['onedrive_access_granted'] == true;
+          final isOwner = u['role'] == 'owner';
+          final active = u['active'] == true;
+          return Card(child: ListTile(
+            leading: CircleAvatar(child: Icon(u['role'] == 'accountant' ? Icons.calculate : u['role'] == 'supervisor' ? Icons.supervisor_account : Icons.admin_panel_settings)),
+            title: Text(u['username']?.toString() ?? '—'),
+            subtitle: Text(role + ' • ' + (active ? 'نشط' : 'موقوف') + '\nOneDrive: ' + (granted ? 'مصرّح' : 'غير مصرح')),
+            isThreeLine: true,
+            trailing: isOwner ? const Icon(Icons.shield) : PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'edit') editUser(user: u);
+                if (value == 'active') toggleActive(u);
+                if (value == 'delete') deleteUser(u);
+                if (value == 'drive') oneDrive(u);
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit', child: Text('تعديل البيانات والدور')),
+                PopupMenuItem(value: 'active', child: Text(active ? 'إيقاف الحساب' : 'تفعيل الحساب')),
+                const PopupMenuItem(value: 'drive', child: Text('إدارة صلاحية OneDrive')),
+                const PopupMenuItem(value: 'delete', child: Text('حذف المستخدم')),
+              ],
+            ),
+          ));
+        }),
+      ],
+    ),
+  );
 }
+
 class MoreView extends StatelessWidget {
   final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
   const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged});
