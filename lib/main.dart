@@ -482,7 +482,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final role = profile?.role ?? 'admin';
+    final role = profile?.role ?? '';
     final isAdmin = role == 'admin' || role == 'owner';
     final isSupervisor = role == 'supervisor';
     final isAccountant = role == 'accountant';
@@ -815,7 +815,8 @@ class _UserManagementViewState extends State<UserManagementView> {
 class MoreView extends StatelessWidget {
   final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final String role;
   const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.role});
-  @override Widget build(BuildContext context) {\n    final isAdmin = role == 'admin' || role == 'owner';\n    final isSupervisor = role == 'supervisor';\n    final isAccountant = role == 'accountant';\n    return ListView(padding:const EdgeInsets.all(12),children:[
+  @override Widget build(BuildContext context) {
+    final isAdmin = role == 'admin' || role == 'owner';\n    final isSupervisor = role == 'supervisor';\n    final isAccountant = role == 'accountant';\n    return ListView(padding:const EdgeInsets.all(12),children:[
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
