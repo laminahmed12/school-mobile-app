@@ -482,13 +482,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
+    final role = profile?.role ?? 'admin';
+    final isAdmin = role == 'admin' || role == 'owner';
+    final isSupervisor = role == 'supervisor';
+    final isAccountant = role == 'accountant';
+    final pages = <Widget>[
       DashboardView(profile: profile, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
-      StudentsView(repo: repo, students: students, onChanged: refresh),
-      AttendanceView(repo: repo, students: students),
-      FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
-      MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh),
+      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh),
+      if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
+      if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
+      MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
     ];
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'),
+      if (isAdmin || isSupervisor) const NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'الطلاب'),
+      if (isAdmin || isSupervisor) const NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'الحضور'),
+      if (isAdmin || isAccountant) const NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'المالية'),
+      const NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'المزيد'),
+    ];
+    if (tab >= pages.length) tab = 0;
     return WillPopScope(
       onWillPop: () async {
         try { await BackupService.backupAndOpenShare(repo); } catch (_) {}
@@ -497,13 +509,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Scaffold(
       appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') await repo.signOut(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
-      bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [
-        NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'),
-        NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'الطلاب'),
-        NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'الحضور'),
-        NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'المالية'),
-        NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'المزيد'),
-      ]),
+      bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: destinations),
       ),
     );
   }
@@ -807,15 +813,15 @@ class _UserManagementViewState extends State<UserManagementView> {
 }
 
 class MoreView extends StatelessWidget {
-  final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged;
-  const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged});
-  @override Widget build(BuildContext context) => ListView(padding:const EdgeInsets.all(12),children:[
-    Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
-    Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
-    Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
-    Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
-    Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
-    Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
+  final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final String role;
+  const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.role});
+  @override Widget build(BuildContext context) {\n    final isAdmin = role == 'admin' || role == 'owner';\n    final isSupervisor = role == 'supervisor';\n    final isAccountant = role == 'accountant';\n    return ListView(padding:const EdgeInsets.all(12),children:[
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
+    if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
+    if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
+    if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المسؤولين والمشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.fingerprint),title:const Text('الدخول بالبصمة'),subtitle:const Text('فتح التطبيق بسرعة وبشكل آمن بعد أول دخول'),onTap:()async{
       final service=DeviceSecurityService();
       final enabled=await service.enabled;
@@ -829,7 +835,7 @@ class MoreView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'تم تفعيل الدخول بالبصمة.':'لم يتم التفعيل. تأكد من إعداد بصمة على الجهاز.')));
       }
     })),
-  ]);
+    ]);\n  }
   Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }
 }
