@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'app_error.dart';
-import 'package:flutter/services.dart';
 import 'supabase_config.dart';
 
 const _ownerGreen = Color(0xFF155D4A);
