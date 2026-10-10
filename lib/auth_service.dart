@@ -16,10 +16,10 @@ class LaminAuthService {
   Future<String?> savedSchoolCode()=>_storage.read(key:_schoolKey);
   Future<void> saveSchoolCode(String code)=>_storage.write(key:_schoolKey,value:code.trim());
   Future<void> clearSchoolCode()=>_storage.delete(key:_schoolKey);
-  Future<LaminAuthResult> login({required String school,required String username,required String password,String licenseCode=''}) async {
+  Future<LaminAuthResult> login({required String school, required String username, required String password}) async {
     if(school.trim().isEmpty||username.trim().isEmpty||password.isEmpty)return const LaminAuthResult(ok:false,message:'أدخل رمز المدرسة واسم المستخدم وكلمة المرور.');
     try{
-      final res=await db.functions.invoke('auth-login',body:{'school':school.trim(),'username':username.trim(),'password':password,if(licenseCode.trim().isNotEmpty)'license_code':licenseCode.trim()}).timeout(const Duration(seconds: 20));
+      final res=await db.functions.invoke('auth-login',body:{'school':school.trim(),'username':username.trim(),'password':password}).timeout(const Duration(seconds: 20));
       final data=Map<String,dynamic>.from(res.data as Map); final refresh=data['refresh_token']?.toString()??'';
       if(refresh.isEmpty)return const LaminAuthResult(ok:false,message:'استجابة الدخول غير مكتملة.');
       await db.auth.setSession(refresh); await saveSchoolCode(school); return const LaminAuthResult(ok:true,message:'تم تسجيل الدخول.');
