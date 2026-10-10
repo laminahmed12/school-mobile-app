@@ -14,7 +14,7 @@ class OwnerConsole extends StatefulWidget {
 class _OwnerConsoleState extends State<OwnerConsole> {
   List<Map<String, dynamic>> schools = [];
   bool loading = true, creating = false;
-  String? error, generatedCode, generatedSchool;
+  String? error;
 
   @override
   void initState() { super.initState(); loadSchools(); }
@@ -79,36 +79,24 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     ));
   }
 
-  Future<void> generateLicense(Map<String, dynamic> school) async {
+  Future<void> activateSchool(Map<String, dynamic> school) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('رمز تفعيل دائم'),
-        content: const Text(
-          'سيتم إنشاء رمز واحد لهذه المدرسة. الرمز دائم ويُستخدم مرة واحدة فقط، وبعد نجاح التفعيل لا يمكن إنشاء رمز ثانٍ لنفس المدرسة.',
-        ),
+        title: const Text('تفعيل المدرسة'),
+        content: Text('سيتم تفعيل مدرسة ' + (school['name']?.toString() ?? school['code']?.toString() ?? '') +
+          ' من لوحة المالك. لن يحتاج العميل إلى إدخال رمز تفعيل.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إنشاء الرمز')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تفعيل الآن')),
         ],
       ),
     ) ?? false;
     if (!confirmed) return;
     try {
-      final data = await callOwner('generate_license', {'school_id': school['id']});
-      final code = data['code']?.toString();
-      if (code == null || code.isEmpty) throw Exception('لم يُرجع الخادم رمز التفعيل');
-      if (data['permanent'] != true || data['one_time'] != true) {
-        throw Exception('استجابة الترخيص غير صالحة');
-      }
-      if (!mounted) return;
-      setState(() {
-        generatedCode = code;
-        generatedSchool = school['name']?.toString() ?? school['code']?.toString();
-      });
-      await Clipboard.setData(ClipboardData(text: code));
-      if (mounted) message('تم إنشاء الرمز الدائم لمرة واحدة ونسخه');
+      await callOwner('activate_school', {'school_id': school['id']});
       await loadSchools();
+      if (mounted) message('تم تفعيل المدرسة. يمكن للعميل الدخول ببيانات حسابه المعتادة.');
     } catch (e) {
       if (mounted) message(friendlyError(e), error: true);
     }
@@ -188,19 +176,9 @@ class _OwnerConsoleState extends State<OwnerConsole> {
         Card(child: ListTile(
           leading: const Icon(Icons.add_business_outlined),
           title: const Text('إنشاء مدرسة جديدة'),
-          subtitle: const Text('إنشاء المدرسة وحساب مديرها وبداية الفترة التجريبية'),
+          subtitle: const Text('إنشاء المدرسة وتفعيلها مباشرة؛ العميل يدخل ببيانات حسابه فقط'),
           trailing: const Icon(Icons.chevron_left),
           onTap: createSchool,
-        )),
-        if (generatedCode != null) Card(child: ListTile(
-          leading: const Icon(Icons.vpn_key),
-          title: const Text('رمز التفعيل الجديد'),
-          subtitle: Text((generatedSchool ?? '') + '\n' + generatedCode! + '\nرمز دائم • استخدام مرة واحدة'),
-          isThreeLine: true,
-          trailing: IconButton(onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: generatedCode!));
-            if (mounted) message('تم نسخ الرمز');
-          }, icon: const Icon(Icons.copy)),
         )),
         const SizedBox(height: 8),
         Text('المدارس (' + schools.length.toString() + ')', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -252,9 +230,9 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                 const Icon(Icons.check_circle, color: _ownerGreen)
               else
                 IconButton(
-                  tooltip: 'إنشاء رمز تفعيل دائم لمرة واحدة',
-                  icon: const Icon(Icons.vpn_key_outlined),
-                  onPressed: () => generateLicense(school),
+                  tooltip: 'تفعيل المدرسة',
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: () => activateSchool(school),
                 ),
             ],
           ),
