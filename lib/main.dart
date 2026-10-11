@@ -1124,34 +1124,44 @@ class MoreView extends StatelessWidget {
     )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     if (isAdmin) Card(child:ListTile(
-      leading: const Icon(Icons.cloud_upload_outlined),
-      title: const Text('حفظ نسخة احتياطية'),
-      subtitle: const Text('إنشاء ملف ثم اختيار Google Drive أو موقع حفظ آخر'),
+      leading: const Icon(Icons.save_alt_outlined),
+      title: const Text('نسخة احتياطية محلية'),
+      subtitle: const Text('حفظ نسخة داخل مساحة التطبيق على هذا الجهاز دون فتح نافذة خارجية'),
       trailing: const Icon(Icons.chevron_left),
       onTap: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('نسخة احتياطية للمدرسة'),
-            content: const Text('سيُنشأ ملف JSON ثم تفتح نافذة الحفظ في أندرويد. إذا أردت Google Drive، اضغط قائمة المواقع (☰) أعلى النافذة واختر Google Drive، ثم اختر المجلد واضغط «حفظ». إذا بقيت في «عمليات التنزيل»، فسيُحفظ الملف هناك على الجهاز.'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
-            ],
-          ),
-        );
-        if (confirmed != true || !context.mounted) return;
         try {
-          final savedLocation = await BackupService.backupAndSave(repo);
-          if (context.mounted && savedLocation != null) {
+          final file = await BackupService.createLocalBackup(repo);
+          if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم حفظ ملف النسخة الاحتياطية في الموقع المحدد. إذا اخترت Google Drive، افتح Drive وتأكد من ظهور الملف قبل الاعتماد عليه.')),
+              const SnackBar(content: Text('تم إنشاء النسخة الاحتياطية محلياً على هذا الجهاز.')),
             );
           }
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة الاحتياطية.'))),
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة المحلية.'))),
+            );
+          }
+        }
+      },
+    )),
+    if (isAdmin) Card(child:ListTile(
+      leading: const Icon(Icons.add_to_drive_outlined),
+      title: const Text('نسخة احتياطية إلى Google Drive'),
+      subtitle: const Text('فتح نافذة الحفظ لاختيار Google Drive كموقع للحفظ'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () async {
+        try {
+          final savedLocation = await BackupService.backupAndSave(repo);
+          if (context.mounted && savedLocation != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('تم حفظ ملف النسخة في الموقع المحدد. افتح Google Drive وتأكد من ظهور الملف قبل الاعتماد عليه.')),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ النسخة على Google Drive.'))),
             );
           }
         }
