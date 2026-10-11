@@ -936,6 +936,57 @@ class MoreView extends StatelessWidget {
             content: const Text('سيُنشأ ملف يحتوي على بيانات المدرسة. احفظه في حساب Google Drive موثوق ولا تشاركه مع الآخرين. ستفتح قائمة المشاركة لاختيار Google Drive.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+    if (isAdmin) Card(child:ListTile(
+      leading: const Icon(Icons.settings_backup_restore_outlined),
+      title: const Text('استعادة نسخة احتياطية'),
+      subtitle: const Text('اختيار ملف JSON محفوظ على الجهاز أو Google Drive'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () async {
+        try {
+          final envelope = await BackupService.pickBackupFile();
+          if (envelope == null || !context.mounted) return;
+          final currentSchool = await repo.school();
+          final currentSchoolId = currentSchool?['id']?.toString();
+          if (currentSchoolId == null || envelope['school_id']?.toString() != currentSchoolId) {
+            throw Exception('هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية بيانات المدارس.');
+          }
+          final data = Map<String, dynamic>.from(envelope['data'] as Map);
+          if (data['format'] != 'lamin-school-backup-v2' ||
+              data['school_filter']?.toString() != currentSchoolId) {
+            throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
+          }
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('تأكيد استعادة البيانات'),
+              content: Text(
+                'النسخة: ${envelope['school_name'] ?? 'المدرسة'}\\n'
+                'التاريخ: ${envelope['created_at'] ?? 'غير معروف'}\\n\\n'
+                'ستُدمج السجلات الناقصة من النسخة مع البيانات الحالية. لن تُحذف السجلات الحالية، ولن تُستبدل السجلات المتطابقة.',
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+              ],
+            ),
+          );
+          if (confirmed != true || !context.mounted) return;
+          final result = await repo.restoreBackup(data);
+          await onChanged();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('اكتملت الاستعادة الآمنة. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}')),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت استعادة النسخة الاحتياطية.'))),
+            );
+          }
+        }
+      },
+    )),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
             ],
           ),
