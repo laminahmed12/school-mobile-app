@@ -1168,6 +1168,60 @@ class MoreView extends StatelessWidget {
       },
     )),
     if (isAdmin) Card(child:ListTile(
+    if (isAdmin) Card(child:ListTile(
+      leading: const Icon(Icons.restore_page_outlined),
+      title: const Text('استعادة النسخة المحلية'),
+      subtitle: const Text('استعادة أحدث نسخة محفوظة داخل التطبيق على هذا الجهاز'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () async {
+        try {
+          final envelope = await BackupService.readLatestLocalBackup(repo);
+          if (envelope == null || !context.mounted) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('لا توجد نسخة محلية محفوظة لهذه المدرسة على هذا الجهاز.')),
+              );
+            }
+            return;
+          }
+          final currentSchool = await repo.school();
+          final currentSchoolId = currentSchool?['id']?.toString();
+          if (currentSchoolId == null || envelope['school_id']?.toString() != currentSchoolId) {
+            throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
+          }
+          final data = Map<String, dynamic>.from(envelope['data'] as Map);
+          if (data['format'] != 'lamin-school-backup-v2' ||
+              data['school_filter']?.toString() != currentSchoolId) {
+            throw Exception('محتوى النسخة المحلية لا يطابق المدرسة الحالية.');
+          }
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('تأكيد استعادة النسخة المحلية'),
+              content: const Text('ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+              ],
+            ),
+          );
+          if (confirmed != true || !context.mounted) return;
+          final result = await repo.restoreBackup(data);
+          await onChanged();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("اكتملت الاستعادة المحلية. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}")),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت استعادة النسخة المحلية.'))),
+            );
+          }
+        }
+      },
+    )),
       leading: const Icon(Icons.settings_backup_restore_outlined),
       title: const Text('استعادة نسخة احتياطية'),
       subtitle: const Text('اختيار ملف JSON محفوظ على الجهاز أو Google Drive'),
