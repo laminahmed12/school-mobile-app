@@ -124,49 +124,138 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     }
   }
 
+  Future<void> setSchoolActive(Map<String, dynamic> school, bool active) async {
+    final name = school['name']?.toString() ?? school['code']?.toString() ?? 'المدرسة';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(active ? 'إعادة تفعيل المدرسة' : 'إيقاف المدرسة'),
+        content: Text(active
+            ? 'هل تريد إعادة تفعيل $name؟ سيتمكن المستخدمون من تسجيل الدخول مجددًا.'
+            : 'سيتم منع مستخدمي $name من تسجيل الدخول واستخدام بيانات المدرسة حتى إعادة تفعيلها. لن تُحذف أي بيانات.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(
+            style: active ? null : FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(active ? 'إعادة التفعيل' : 'إيقاف المدرسة'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed) return;
+    try {
+      await callOwner('set_school_active', {'school_id': school['id'], 'active': active});
+      await loadSchools();
+      if (mounted) message(active ? 'تمت إعادة تفعيل المدرسة.' : 'تم إيقاف المدرسة ومنع تسجيل الدخول إليها.');
+    } catch (e) {
+      if (mounted) message(friendlyError(e), error: true);
+    }
+  }
+
   Future<void> showSchoolDetails(Map<String, dynamic> school) async {
     try {
       final data = await callOwner('school_details', {'school_id': school['id']});
+      final currentSchool = data['school'] is Map
+          ? Map<String, dynamic>.from(data['school'] as Map)
+          : school;
       final stats = data['stats'] is Map ? Map<String, dynamic>.from(data['stats'] as Map) : <String, dynamic>{};
       final users = data['users'] is List
           ? (data['users'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : <Map<String, dynamic>>[];
       if (!mounted) return;
+      final active = currentSchool['active'] != false;
       await showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(school['name']?.toString() ?? 'تفاصيل المدرسة'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("رمز المدرسة: ${school['code'] ?? '—'}"),
-                Text("الحالة: ${school['licensed'] == true ? 'ترخيص دائم' : 'فترة تجريبية'}"),
-                const Divider(),
-                Text("الطلاب: ${stats['students'] ?? 0}"),
-                Text("المعلمون: ${stats['teachers'] ?? 0}"),
-                Text("حسابات المدرسة: ${users.length}"),
-                const SizedBox(height: 8),
-                ...users.map((u) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(u['active'] == true ? Icons.person : Icons.person_off),
-                  title: Text("${u['username'] ?? '—'}"),
-                  subtitle: Text("${u['role'] ?? '—'} • ${u['active'] == true ? 'نشط' : 'موقوف'}"),
-                )),
-              ],
+        builder: (ctx) => Dialog(
+          alignment: Alignment.center,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 460, maxHeight: MediaQuery.sizeOf(ctx).height * 0.82),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: active ? _ownerGreen.withValues(alpha: 0.12) : Colors.red.withValues(alpha: 0.12),
+                        child: Icon(active ? Icons.school : Icons.pause_circle_outline,
+                            color: active ? _ownerGreen : Colors.red.shade700),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(
+                        currentSchool['name']?.toString() ?? 'تفاصيل المدرسة',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                      )),
+                      IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("رمز المدرسة: ${currentSchool['code'] ?? '—'}"),
+                        const SizedBox(height: 4),
+                        Text("الحالة: ${!active ? 'موقوفة من المالك' : currentSchool['licensed'] == true ? 'ترخيص دائم' : 'فترة تجريبية'}",
+                            style: TextStyle(fontWeight: FontWeight.w700, color: active ? _ownerGreen : Colors.red.shade700)),
+                        const Divider(height: 22),
+                        Text("الطلاب: ${stats['students'] ?? 0}"),
+                        Text("المعلمون: ${stats['teachers'] ?? 0}"),
+                        Text("حسابات المدرسة: ${users.length}"),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: users.isEmpty
+                        ? const Center(child: Text('لا توجد حسابات مستخدمين.'))
+                        : ListView.separated(
+                            itemCount: users.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final u = users[i];
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(u['active'] == true ? Icons.person : Icons.person_off),
+                                title: Text("${u['username'] ?? '—'}"),
+                                subtitle: Text("${u['role'] ?? '—'} • ${u['active'] == true ? 'نشط' : 'موقوف'}"),
+                              );
+                            },
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => setSchoolActive(currentSchool, !active).then((_) {
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          }),
+                          icon: Icon(active ? Icons.pause_circle_outline : Icons.play_circle_outline),
+                          label: Text(active ? 'إيقاف المدرسة' : 'إعادة التفعيل'),
+                          style: active ? OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700) : null,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
-          ],
         ),
       );
     } catch (e) {
       if (mounted) message(friendlyError(e), error: true);
     }
   }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -229,31 +318,44 @@ class _OwnerConsoleState extends State<OwnerConsole> {
 
   Widget schoolCard(Map<String, dynamic> school) {
     final licensed = school['licensed'] == true;
+    final active = school['active'] != false;
     final trial = school['trial_started_at'] != null;
-    final status = licensed ? 'ترخيص دائم ومفعّل' : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
+    final status = !active
+        ? 'موقوفة من المالك'
+        : licensed
+            ? 'ترخيص دائم ومفعّل'
+            : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ListTile(
-          leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
+          leading: CircleAvatar(
+            backgroundColor: active ? _ownerGreen.withValues(alpha: 0.12) : Colors.red.withValues(alpha: 0.12),
+            child: Icon(!active ? Icons.pause_circle_outline : licensed ? Icons.verified : Icons.school_outlined,
+                color: active ? _ownerGreen : Colors.red.shade700),
+          ),
           title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text("الرمز: ${school['code'] ?? '—'}\n$status"),
+          subtitle: Text("الرمز: ${school['code'] ?? '—'}\\n$status"),
           isThreeLine: true,
           onTap: () => showSchoolDetails(school),
           trailing: Wrap(
-            spacing: 2,
+            spacing: 0,
             children: [
               IconButton(
                 tooltip: 'تفاصيل المدرسة',
                 onPressed: () => showSchoolDetails(school),
                 icon: const Icon(Icons.info_outline),
               ),
-              if (licensed)
-                const Icon(Icons.check_circle, color: _ownerGreen)
-              else
+              IconButton(
+                tooltip: active ? 'إيقاف المدرسة' : 'إعادة تفعيل المدرسة',
+                icon: Icon(active ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                    color: active ? Colors.red.shade700 : _ownerGreen),
+                onPressed: () => setSchoolActive(school, !active),
+              ),
+              if (active && !licensed)
                 IconButton(
-                  tooltip: 'تفعيل المدرسة',
-                  icon: const Icon(Icons.check_circle_outline),
+                  tooltip: 'تفعيل الترخيص الدائم',
+                  icon: const Icon(Icons.verified_outlined),
                   onPressed: () => activateSchool(school),
                 ),
             ],
