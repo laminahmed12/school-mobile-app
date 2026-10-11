@@ -434,14 +434,32 @@ class SchoolRepository {
     if (schoolId == null || (p?.role != 'admin' && p?.role != 'owner' && p?.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
-    final filters = db.from('student_fee_assessments')
-        .select('id')
-        .eq('school_id', schoolId)
-        .eq('student_id', studentId)
-        .eq('term', term);
-    final existing = academicYearId == null
-        ? await filters.isFilter('academic_year_id', null).eq('academic_year_label', academicYearLabel).maybeSingle()
-        : await filters.eq('academic_year_id', academicYearId).maybeSingle();
+    final existingForYear = academicYearId == null
+        ? await db.from('student_fee_assessments')
+            .select('id')
+            .eq('school_id', schoolId)
+            .eq('student_id', studentId)
+            .eq('term', term)
+            .isFilter('academic_year_id', null)
+            .eq('academic_year_label', academicYearLabel)
+            .maybeSingle()
+        : await db.from('student_fee_assessments')
+            .select('id')
+            .eq('school_id', schoolId)
+            .eq('student_id', studentId)
+            .eq('term', term)
+            .eq('academic_year_id', academicYearId)
+            .maybeSingle();
+    final existingUnassigned = existingForYear == null && academicYearId != null
+        ? await db.from('student_fee_assessments')
+            .select('id')
+            .eq('school_id', schoolId)
+            .eq('student_id', studentId)
+            .eq('term', term)
+            .isFilter('academic_year_id', null)
+            .maybeSingle()
+        : null;
+    final existing = existingForYear ?? existingUnassigned;
     final payload = {
       'school_id': schoolId,
       'student_id': studentId,
