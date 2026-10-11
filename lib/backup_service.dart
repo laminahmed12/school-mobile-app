@@ -90,11 +90,26 @@ class BackupService {
   /// The user can choose Google Drive (if available on the device) or another
   /// destination. This avoids accidentally routing a backup into WhatsApp.
   static Future<String?> backupAndSave(SchoolRepository repo) async {
-    final file = await createLocalBackup(repo);
+    final data = await repo.exportBackup();
+    final school = await repo.school();
+    final schoolId = school?['id']?.toString() ?? 'unknown-school';
+    final year = await repo.activeAcademicYearName() ?? 'current';
+    final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\\u0600-\\u06FF_-]+'), '_');
+    final envelope = {
+      'format': 'lamin-school-backup',
+      'version': 2,
+      'school_id': schoolId,
+      'school_code': school?['code'],
+      'school_name': school?['name'],
+      'academic_year': year,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'data': data,
+    };
+    final bytes = utf8.encode(const JsonEncoder.withIndent('  ').convert(envelope));
     return FilePicker.platform.saveFile(
-      dialogTitle: 'حفظ النسخة الاحتياطية للمدرسة',
-      fileName: file.uri.pathSegments.last,
-      bytes: await file.readAsBytes(),
+      dialogTitle: 'حفظ النسخة الاحتياطية على Google Drive',
+      fileName: 'lamin_${safeYear}_${schoolId}.json',
+      bytes: bytes,
     );
   }
 }
