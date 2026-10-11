@@ -321,6 +321,12 @@ class SchoolRepository {
     return {'payload': result};
   }
 
+  Future<Map<String, dynamic>> restoreBackup(Map<String, dynamic> backup) async {
+    final result = await db.rpc('restore_backup', params: {'p_backup': backup});
+    if (result is Map) return Map<String, dynamic>.from(result);
+    throw Exception('استجابة استعادة النسخة غير صالحة.');
+  }
+
   Future<void> deleteSchoolUser(String userId) async {
     await db.rpc('delete_school_user', params: {'p_user_id': userId});
   }
