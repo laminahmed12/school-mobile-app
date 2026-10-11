@@ -1598,7 +1598,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
               title: Text(t.name),
               subtitle: Text('${t.subject}${t.phone.isEmpty ? '' : ' • ${t.phone}'}'),
               trailing: const Icon(Icons.chevron_left),
-            ))).toList()),
+            ))).toList())),
   );
 }
 
