@@ -614,9 +614,12 @@ class DashboardView extends StatelessWidget {
   Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(14), children: [
     Card(color: brandGreen, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(online ? '● متصل بالنظام' : '● دون اتصال', style: const TextStyle(color: Colors.white)), const SizedBox(height: 8), Text(profile?.username.isNotEmpty == true ? 'مرحباً ${profile!.username}' : 'مرحباً بك', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)), Text(profile?.role ?? 'مستخدم', style: const TextStyle(color: Colors.white70))]))),
     stat('الطلاب', '${students.length}', Icons.groups),
-    stat('المعلمون', '${teachers.length}', Icons.school),
-    stat('إجمالي المدفوعات', '${payments.toStringAsFixed(2)} د.ل', Icons.account_balance_wallet),
-    stat('المصروفات', '${expenses.toStringAsFixed(2)} د.ل', Icons.receipt_long),
+    if (profile?.role != 'supervisor')
+      stat('المعلمون', '${teachers.length}', Icons.school),
+    if (profile?.role == 'admin' || profile?.role == 'owner' || profile?.role == 'accountant') ...[
+      stat('إجمالي المدفوعات', '${payments.toStringAsFixed(2)} د.ل', Icons.account_balance_wallet),
+      stat('المصروفات', '${expenses.toStringAsFixed(2)} د.ل', Icons.receipt_long),
+    ],
   ]);
 }
 
