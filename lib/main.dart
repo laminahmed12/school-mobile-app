@@ -884,6 +884,35 @@ class MoreView extends StatelessWidget {
       )),
     )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
+    if (isAdmin) Card(child:ListTile(
+      leading: const Icon(Icons.cloud_upload_outlined),
+      title: const Text('النسخ الاحتياطي على Google Drive'),
+      subtitle: const Text('إنشاء نسخة من بيانات المدرسة ثم اختيار Google Drive للحفظ'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('نسخة احتياطية للمدرسة'),
+            content: const Text('سيُنشأ ملف يحتوي على بيانات المدرسة. احفظه في حساب Google Drive موثوق ولا تشاركه مع الآخرين. ستفتح قائمة المشاركة لاختيار Google Drive.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) return;
+        try {
+          await BackupService.backupAndOpenShare(repo);
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة الاحتياطية.'))),
+            );
+          }
+        }
+      },
+    )),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المسؤولين والمشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
