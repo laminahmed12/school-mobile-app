@@ -1130,7 +1130,7 @@ class MoreView extends StatelessWidget {
       trailing: const Icon(Icons.chevron_left),
       onTap: () async {
         try {
-          final file = await BackupService.createLocalBackup(repo);
+          await BackupService.createLocalBackup(repo);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('تم إنشاء النسخة الاحتياطية محلياً على هذا الجهاز.')),
