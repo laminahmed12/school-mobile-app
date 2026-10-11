@@ -564,6 +564,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> logout() async {
+    try {
+      await db.auth.signOut(scope: SignOutScope.local).timeout(const Duration(seconds: 12));
+      if (db.auth.currentSession != null) {
+        throw Exception('لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.');
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => AuthGate(prefs: widget.prefs)),
+        (route) => false,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج. حاول مرة أخرى.'))),
+        );
+      }
+    }
+  }
+
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
@@ -633,7 +653,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor, canSetFees: isAdmin),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh, canManageFees: isAdmin || isAccountant),
-      MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
+      MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, onLogout: logout, role: role),
     ];
     final destinations = <NavigationDestination>[
       const NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'),
@@ -644,7 +664,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ];
     if (tab >= pages.length) tab = 0;
     return Scaffold(
-      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') { try { await db.auth.signOut(scope: SignOutScope.local); if (db.auth.currentSession != null) throw Exception('تعذر إنهاء الجلسة. حاول مرة أخرى.'); if (!mounted) return; Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute<void>(builder: (_) => AuthGate(prefs: widget.prefs)), (route) => false); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج.')))); } } }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
+      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') await logout(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: destinations),
     );
@@ -1583,8 +1603,8 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
 }
 
 class MoreView extends StatelessWidget {
-  final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final String role;
-  const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.role});
+  final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final Future<void> Function() onLogout; final String role;
+  const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.onLogout, required this.role});
   @override Widget build(BuildContext context) {
     final isAdmin = role == 'admin' || role == 'owner';
     final isSupervisor = role == 'supervisor';
@@ -1626,21 +1646,33 @@ class MoreView extends StatelessWidget {
     )),
     if (isAdmin) Card(child:ListTile(
       leading: const Icon(Icons.add_to_drive_outlined),
-      title: const Text('نسخة احتياطية إلى Google Drive'),
-      subtitle: const Text('فتح نافذة الحفظ لاختيار Google Drive كموقع للحفظ'),
+      title: const Text('حفظ نسخة خارج التطبيق (Google Drive)'),
+      subtitle: const Text('اختر Google Drive من قائمة المواقع في نافذة الحفظ'),
       trailing: const Icon(Icons.chevron_left),
       onTap: () async {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('حفظ نسخة في Google Drive'),
+            content: const Text('ستفتح نافذة نظام Android. اضغط القائمة أعلى النافذة، واختر Google Drive ثم المجلد المطلوب واضغط «حفظ». إذا بقي الموقع «التنزيلات»، فلن تُرفع النسخة إلى Drive.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('اختيار الموقع')),
+            ],
+          ),
+        );
+        if (proceed != true || !context.mounted) return;
         try {
           final savedLocation = await BackupService.backupAndSave(repo);
           if (context.mounted && savedLocation != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم حفظ ملف النسخة في الموقع المحدد. افتح Google Drive وتأكد من ظهور الملف قبل الاعتماد عليه.')),
+              const SnackBar(content: Text('اكتمل الحفظ في الموقع الذي اخترته. افتح Google Drive وتحقق من وجود الملف قبل الاعتماد عليه.')),
             );
           }
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ النسخة على Google Drive.'))),
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء ملف النسخة الاحتياطية.'))),
             );
           }
         }
@@ -1768,6 +1800,13 @@ class MoreView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(ok?'تم تفعيل الدخول بالبصمة.':'لم يتم التفعيل. تأكد من إعداد بصمة على الجهاز.')));
       }
     })),
+    Card(child: ListTile(
+      leading: const Icon(Icons.logout),
+      title: const Text('تسجيل الخروج'),
+      subtitle: const Text('إنهاء جلسة هذا الحساب والعودة إلى شاشة الدخول'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: onLogout,
+    )),
     ]);
   }
 
