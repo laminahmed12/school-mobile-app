@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -19,6 +20,31 @@ class BackupService {
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(envelope), flush:true);
     return file;
   }
+
+  static Future<Map<String, dynamic>?> pickBackupFile() async {
+    final selection = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: true,
+    );
+    if (selection == null || selection.files.isEmpty) return null;
+    final file = selection.files.single;
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('تعذر قراءة ملف النسخة الاحتياطية.');
+    }
+    final decoded = jsonDecode(utf8.decode(bytes));
+    if (decoded is! Map) throw Exception('تنسيق ملف النسخة الاحتياطية غير صالح.');
+    final envelope = Map<String, dynamic>.from(decoded);
+    if (envelope['format'] != 'lamin-school-backup' || envelope['version'] != 2) {
+      throw Exception('إصدار النسخة الاحتياطية غير مدعوم.');
+    }
+    if (envelope['data'] is! Map || envelope['school_id'] == null) {
+      throw Exception('ملف النسخة الاحتياطية ناقص البيانات.');
+    }
+    return envelope;
+  }
+
   static Future<void> backupAndOpenShare(SchoolRepository repo) async {
     final file=await createLocalBackup(repo);
     await SharePlus.instance.share(ShareParams(files:[XFile(file.path,mimeType:'application/json')],subject:'نسخة احتياطية لامين',text:'احفظ هذه النسخة داخل Google Drive الخاص بالمدرسة.'));
