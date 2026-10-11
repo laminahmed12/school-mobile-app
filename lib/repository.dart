@@ -327,6 +327,58 @@ class SchoolRepository {
     throw Exception('استجابة استعادة النسخة غير صالحة.');
   }
 
+  Future<Map<String, dynamic>?> schoolBranding() async {
+    try {
+      final p = await profile();
+      if (p?.schoolId == null) return null;
+      final row = await db.from('school_branding')
+          .select('school_id,logo_data,logo_mime_type,updated_at')
+          .eq('school_id', p!.schoolId!)
+          .maybeSingle();
+      return row == null ? null : Map<String, dynamic>.from(row);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveSchoolLogo({
+    required String logoBase64,
+    required String mimeType,
+  }) async {
+    final p = await profile();
+    final schoolId = p?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية.');
+    }
+    if (p?.role != 'admin' && p?.role != 'owner') {
+      throw Exception('رفع شعار المدرسة متاح لمدير المدرسة فقط.');
+    }
+    if (logoBase64.length > 1300000) {
+      throw Exception('حجم الشعار أكبر من الحد المسموح.');
+    }
+    if (mimeType != 'image/png' && mimeType != 'image/jpeg') {
+      throw Exception('اختر صورة PNG أو JPG.');
+    }
+    await db.from('school_branding').upsert({
+      'school_id': schoolId,
+      'logo_data': logoBase64,
+      'logo_mime_type': mimeType,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<void> removeSchoolLogo() async {
+    final p = await profile();
+    final schoolId = p?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية.');
+    }
+    if (p?.role != 'admin' && p?.role != 'owner') {
+      throw Exception('حذف شعار المدرسة متاح لمدير المدرسة فقط.');
+    }
+    await db.from('school_branding').delete().eq('school_id', schoolId);
+  }
+
   Future<void> deleteSchoolUser(String userId) async {
     await db.rpc('delete_school_user', params: {'p_user_id': userId});
   }
