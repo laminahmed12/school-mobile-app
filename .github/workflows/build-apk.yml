@@ -21,6 +21,40 @@ jobs:
           channel: stable
           cache: true
       - run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+      - name: Apply Lamin launcher identity
+        run: |
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
+          cat > android/app/src/main/res/values/lamin_launcher.xml <<'EOF'
+          <resources>
+              <color name="lamin_launcher_background">#155D4A</color>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/drawable/ic_lamin_launcher_foreground.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#FFFFFFFF"
+                  android:pathData="M8,35 L54,17 L100,35 L54,53 Z"/>
+              <path android:fillColor="#FFFFFFFF"
+                  android:pathData="M28,44 L28,61 C43,72 65,72 80,61 L80,44 L54,55 Z"/>
+              <path android:fillColor="#FFD7B56D"
+                  android:pathData="M27,70 C37,64 45,66 54,72 C63,66 71,64 81,70 L81,82 C70,76 62,78 54,84 C46,78 38,76 27,82 Z"/>
+              <path android:fillColor="#FFD7B56D"
+                  android:pathData="M91,38 L96,41 L95,54 L91,56 Z"/>
+          </vector>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/lamin_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_lamin_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/lamin_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_lamin_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
       - run: |
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
