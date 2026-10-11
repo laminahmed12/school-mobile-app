@@ -874,6 +874,15 @@ class MoreView extends StatelessWidget {
     return ListView(padding:const EdgeInsets.all(12),children:[
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
+    if (isAdmin || isAccountant) Card(child:ListTile(
+      leading: const Icon(Icons.payments_outlined),
+      title: const Text('المرتبات والسلف'),
+      subtitle: const Text('رواتب المعلمين والموظفين وتسجيل المرتبات والسلف'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PayrollView(repo: repo, onChanged: onChanged, canManagePayees: isAdmin),
+      )),
+    )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
@@ -895,4 +904,327 @@ class MoreView extends StatelessWidget {
   }
   Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }
+}
+
+
+class PayrollView extends StatefulWidget {
+  final SchoolRepository repo;
+  final Future<void> Function() onChanged;
+  final bool canManagePayees;
+  const PayrollView({
+    super.key,
+    required this.repo,
+    required this.onChanged,
+    required this.canManagePayees,
+  });
+
+  @override
+  State<PayrollView> createState() => _PayrollViewState();
+}
+
+class _PayrollViewState extends State<PayrollView> {
+  bool loading = true, saving = false;
+  List<Map<String, dynamic>> teachers = [];
+  List<Map<String, dynamic>> staff = [];
+  List<Map<String, dynamic>> transactions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    if (mounted) setState(() => loading = true);
+    try {
+      final values = await Future.wait([
+        db.from('teachers').select('id,name,subject,phone,salary').order('name'),
+        widget.repo.staffMembers(),
+        widget.repo.payrollTransactions(),
+      ]);
+      teachers = (values[0] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      staff = (values[1] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      transactions = (values[2] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تحميل بيانات المرتبات.'))),
+      );
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  double _amount(Map<String, dynamic> row) => (row['amount'] as num?)?.toDouble() ?? 0;
+  double _salary(Map<String, dynamic> row) => (row['salary'] as num?)?.toDouble() ?? 0;
+  bool _thisMonth(Map<String, dynamic> row) {
+    final value = row['payment_date']?.toString() ?? '';
+    final now = DateTime.now();
+    return value.length >= 7 && value.substring(0, 7) == '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final monthTransactions = transactions.where(_thisMonth).toList();
+    final salaryTotal = monthTransactions.where((e) => e['transaction_type'] == 'salary')
+        .fold<double>(0, (sum, e) => sum + _amount(e));
+    final advanceTotal = monthTransactions.where((e) => e['transaction_type'] == 'advance')
+        .fold<double>(0, (sum, e) => sum + _amount(e));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('المرتبات والسلف'),
+        actions: [IconButton(onPressed: loading ? null : load, icon: const Icon(Icons.refresh))],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: load,
+              child: ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ملخص شهر ${DateTime.now().month}/${DateTime.now().year}',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            Expanded(child: _summary('المرتبات المصروفة', salaryTotal)),
+                            const SizedBox(width: 8),
+                            Expanded(child: _summary('السلف', advanceTotal)),
+                          ]),
+                          const SizedBox(height: 6),
+                          const Text('تُحتسب المرتبات والسلف ضمن إجمالي مصروفات المدرسة.',
+                              style: TextStyle(fontSize: 12, color: Colors.black54)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (widget.canManagePayees)
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.person_add_alt_1),
+                        title: const Text('إضافة موظف'),
+                        subtitle: const Text('إضافة موظف غير مدرج ضمن المعلمين'),
+                        trailing: const Icon(Icons.chevron_left),
+                        onTap: addStaff,
+                      ),
+                    ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 12, 4, 4),
+                    child: Text('المعلمون المسجلون', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  ),
+                  if (teachers.isEmpty) const Card(child: ListTile(title: Text('لا يوجد معلمون مسجلون.'))),
+                  ...teachers.map((person) => _payeeCard(person, isTeacher: true)),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 16, 4, 4),
+                    child: Text('الموظفون', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  ),
+                  if (staff.isEmpty) const Card(child: ListTile(title: Text('لا يوجد موظفون مسجلون. أضف موظفًا من زر الإضافة.'))),
+                  ...staff.where((p) => p['active'] != false).map((person) => _payeeCard(person, isTeacher: false)),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 18, 4, 4),
+                    child: Text('سجل المرتبات والسلف', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  ),
+                  if (transactions.isEmpty)
+                    const Card(child: ListTile(title: Text('لا توجد عمليات مسجلة حتى الآن.')))
+                  else
+                    ...transactions.map(_transactionCard),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _summary(String label, double value) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE7F0EA),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 12)),
+      const SizedBox(height: 5),
+      Text('${value.toStringAsFixed(2)} د.ل', style: const TextStyle(fontWeight: FontWeight.w800)),
+    ]),
+  );
+
+  Widget _payeeCard(Map<String, dynamic> person, {required bool isTeacher}) {
+    final salary = _salary(person);
+    final name = person['name']?.toString() ?? '—';
+    final subtitle = isTeacher
+        ? (person['subject']?.toString().isNotEmpty == true ? person['subject'].toString() : 'معلم')
+        : (person['role']?.toString() ?? 'موظف');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(children: [
+          ListTile(
+            leading: CircleAvatar(child: Icon(isTeacher ? Icons.school_outlined : Icons.badge_outlined)),
+            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('$subtitle • الراتب الشهري: ${salary.toStringAsFixed(2)} د.ل'),
+            trailing: widget.canManagePayees
+                ? IconButton(tooltip: 'تعديل الراتب', onPressed: () => editSalary(person, isTeacher: isTeacher), icon: const Icon(Icons.edit_outlined))
+                : null,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: Row(children: [
+              Expanded(child: FilledButton.tonalIcon(
+                onPressed: saving ? null : () => recordTransaction(person, isTeacher: isTeacher, type: 'salary'),
+                icon: const Icon(Icons.payments_outlined),
+                label: const Text('صرف راتب'),
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: OutlinedButton.icon(
+                onPressed: saving ? null : () => recordTransaction(person, isTeacher: isTeacher, type: 'advance'),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('سلفة'),
+              )),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _transactionCard(Map<String, dynamic> tx) {
+    final type = tx['payee_type']?.toString() ?? '';
+    final id = tx['payee_id']?.toString() ?? '';
+    final source = type == 'teacher' ? teachers : staff;
+    Map<String, dynamic>? person;
+    for (final p in source) {
+      if (p['id']?.toString() == id) { person = p; break; }
+    }
+    final isAdvance = tx['transaction_type'] == 'advance';
+    final date = tx['payment_date']?.toString() ?? '';
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(child: Icon(isAdvance ? Icons.account_balance_wallet_outlined : Icons.payments_outlined)),
+        title: Text('${person?['name'] ?? 'مستفيد غير موجود'} — ${isAdvance ? 'سلفة' : 'راتب'}'),
+        subtitle: Text('$date${(tx['note']?.toString().trim().isNotEmpty ?? false) ? ' • ${tx['note']}' : ''}'),
+        trailing: Text('${_amount(tx).toStringAsFixed(2)} د.ل', style: const TextStyle(fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+
+  Future<void> editSalary(Map<String, dynamic> person, {required bool isTeacher}) async {
+    final controller = TextEditingController(text: _salary(person).toStringAsFixed(2));
+    final value = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('راتب ${person['name'] ?? ''}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'الراتب الشهري (د.ل)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final amount = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+            if (amount == null || amount < 0) return;
+            Navigator.pop(ctx, amount);
+          }, child: const Text('حفظ')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      if (isTeacher) {
+        await widget.repo.setTeacherSalary(person['id'].toString(), value);
+      } else {
+        await widget.repo.setStaffSalary(person['id'].toString(), value);
+      }
+      await load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تحديث الراتب.'))));
+    }
+  }
+
+  Future<void> addStaff() async {
+    final name = TextEditingController();
+    final role = TextEditingController(text: 'موظف');
+    final phone = TextEditingController();
+    final salary = TextEditingController(text: '0');
+    final value = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إضافة موظف'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الموظف')),
+          TextField(controller: role, decoration: const InputDecoration(labelText: 'الوظيفة')),
+          TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف (اختياري)')),
+          TextField(controller: salary, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'الراتب الشهري (د.ل)')),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final amount = double.tryParse(salary.text.trim().replaceAll(',', '.'));
+            if (name.text.trim().isEmpty || amount == null || amount < 0) return;
+            Navigator.pop(ctx, {'name': name.text.trim(), 'role': role.text.trim(), 'phone': phone.text.trim(), 'salary': amount});
+          }, child: const Text('إضافة')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      await widget.repo.addStaffMember(name: value['name'] as String, role: value['role'] as String,
+          phone: value['phone'] as String, salary: value['salary'] as double);
+      await load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إضافة الموظف.'))));
+    }
+  }
+
+  Future<void> recordTransaction(Map<String, dynamic> person, {required bool isTeacher, required String type}) async {
+    final amount = TextEditingController(text: type == 'salary' && _salary(person) > 0 ? _salary(person).toStringAsFixed(2) : '');
+    final note = TextEditingController();
+    final value = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${type == 'advance' ? 'سلفة' : 'صرف راتب'} — ${person['name'] ?? ''}'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: amount,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: type == 'advance' ? 'مبلغ السلفة (د.ل)' : 'مبلغ الراتب المصروف (د.ل)'),
+          ),
+          TextField(controller: note, decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)')),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final v = double.tryParse(amount.text.trim().replaceAll(',', '.'));
+            if (v == null || v <= 0) return;
+            Navigator.pop(ctx, {'amount': v, 'note': note.text.trim()});
+          }, child: const Text('حفظ')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    setState(() => saving = true);
+    try {
+      await widget.repo.addPayrollTransaction(
+        payeeType: isTeacher ? 'teacher' : 'staff',
+        payeeId: person['id'].toString(),
+        transactionType: type,
+        amount: value['amount'] as double,
+        paymentDate: DateTime.now(),
+        note: value['note'] as String,
+      );
+      await load();
+      await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(type == 'advance' ? 'تم تسجيل السلفة ضمن المصروفات.' : 'تم تسجيل صرف الراتب ضمن المصروفات.')),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ العملية.'))));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 }
