@@ -936,6 +936,22 @@ class MoreView extends StatelessWidget {
             content: const Text('سيُنشأ ملف يحتوي على بيانات المدرسة. احفظه في حساب Google Drive موثوق ولا تشاركه مع الآخرين. ستفتح قائمة المشاركة لاختيار Google Drive.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) return;
+        try {
+          await BackupService.backupAndOpenShare(repo);
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة الاحتياطية.'))),
+            );
+          }
+        }
+      },
+    )),
     if (isAdmin) Card(child:ListTile(
       leading: const Icon(Icons.settings_backup_restore_outlined),
       title: const Text('استعادة نسخة احتياطية'),
@@ -982,22 +998,6 @@ class MoreView extends StatelessWidget {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت استعادة النسخة الاحتياطية.'))),
-            );
-          }
-        }
-      },
-    )),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
-            ],
-          ),
-        );
-        if (confirmed != true || !context.mounted) return;
-        try {
-          await BackupService.backupAndOpenShare(repo);
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة الاحتياطية.'))),
             );
           }
         }
