@@ -272,8 +272,7 @@ class SchoolRepository {
   Future<List<Map<String, dynamic>>> payrollTransactions() async {
     final rows = await db.from('payroll_transactions')
         .select('id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at')
-        .order('payment_date', ascending: false)
-        .limit(200);
+        .order('payment_date', ascending: false);
     return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
