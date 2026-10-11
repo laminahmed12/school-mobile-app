@@ -94,7 +94,7 @@ class BackupService {
     final school = await repo.school();
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
     final year = await repo.activeAcademicYearName() ?? 'current';
-    final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\\u0600-\\u06FF_-]+'), '_');
+    final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'), '_');
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
