@@ -521,13 +521,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
-      students = await repo.students();
-      teachers = await repo.teachers();
-      payments = await repo.paymentsTotal();
-      expenses = await repo.expensesTotal();
-      final status = await Connectivity().checkConnectivity();
-      online = !status.contains(ConnectivityResult.none);
-    } catch (_) {}
+
+      // Load each section independently so a role-restricted table does not
+      // prevent the rest of the dashboard from rendering.
+      try {
+        students = await repo.students();
+      } catch (_) {
+        students = [];
+      }
+
+      final role = profile?.role ?? '';
+      if (role == 'supervisor') {
+        // RLS intentionally restricts the teachers table for supervisors.
+        teachers = [];
+      } else {
+        try {
+          teachers = await repo.teachers();
+        } catch (_) {
+          teachers = [];
+        }
+      }
+
+      final canViewFinance = role == 'admin' ||
+          role == 'owner' ||
+          role == 'accountant';
+      if (canViewFinance) {
+        try {
+          payments = await repo.paymentsTotal();
+        } catch (_) {
+          payments = 0;
+        }
+        try {
+          expenses = await repo.expensesTotal();
+        } catch (_) {
+          expenses = 0;
+        }
+      } else {
+        payments = 0;
+        expenses = 0;
+      }
+
+      try {
+        final status = await Connectivity().checkConnectivity();
+        online = !status.contains(ConnectivityResult.none);
+      } catch (_) {
+        online = false;
+      }
+    } catch (_) {
+      // Keep the app usable even if profile/bootstrap loading temporarily fails.
+    }
     if (mounted) setState(() => loading = false);
   }
 
@@ -552,16 +594,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       const NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'المزيد'),
     ];
     if (tab >= pages.length) tab = 0;
-    return WillPopScope(
-      onWillPop: () async {
-        try { await BackupService.backupAndOpenShare(repo); } catch (_) {}
-        return true;
-      },
-      child: Scaffold(
+    return Scaffold(
       appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') { try { await repo.signOut(); if (db.auth.currentSession != null) { throw Exception('لم يكتمل تسجيل الخروج. حاول مرة أخرى.'); } if (mounted) Navigator.of(context).popUntil((route) => route.isFirst); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج.')))); } } }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: destinations),
-      ),
     );
   }
 }
