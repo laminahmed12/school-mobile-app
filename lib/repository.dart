@@ -77,12 +77,25 @@ class SchoolRepository {
 
   Future<Map<String, dynamic>> dailySummary(DateTime day) async {
     final d = day.toIso8601String().substring(0, 10);
+    Map<String, dynamic> result = {};
     try {
       final r = await db.rpc('school_daily_summary', params: {'p_date': d});
-      return Map<String, dynamic>.from(r as Map);
-    } catch (_) {
-      return {};
-    }
+      result = Map<String, dynamic>.from(r as Map);
+    } catch (_) {}
+    try {
+      final start = DateTime(day.year, day.month, day.day).toUtc().toIso8601String();
+      final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
+      final expenseRows = await db.from('expenses').select('amount')
+          .gte('created_at', start).lt('created_at', end);
+      final payrollRows = await db.from('payroll_transactions').select('amount')
+          .eq('payment_date', d);
+      final expenseTotal = (expenseRows as List)
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      final payrollTotal = (payrollRows as List)
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      result['expenses'] = expenseTotal + payrollTotal;
+    } catch (_) {}
+    return result;
   }
 
   Future<List<Map<String, dynamic>>> academicYears() async {
@@ -221,11 +234,65 @@ class SchoolRepository {
   }
 
   Future<double> expensesTotal() async {
+    double total = 0;
     try {
-      return (await db.from('expenses').select('amount') as List).fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
-    } catch (_) {
-      return 0;
-    }
+      total += (await db.from('expenses').select('amount') as List)
+          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
+    } catch (_) {}
+    try {
+      total += (await db.from('payroll_transactions').select('amount') as List)
+          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
+    } catch (_) {}
+    return total;
+  }
+
+  Future<List<Map<String, dynamic>>> staffMembers() async {
+    final rows = await db.from('staff').select('id,name,role,phone,salary,active,created_at').order('name');
+    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<void> addStaffMember({required String name, required String role, required String phone, required double salary}) async {
+    await db.from('staff').insert({
+      'name': name.trim(),
+      'role': role.trim().isEmpty ? 'موظف' : role.trim(),
+      'phone': phone.trim(),
+      'salary': salary,
+      'active': true,
+    });
+  }
+
+  Future<void> setTeacherSalary(String teacherId, double salary) async {
+    await db.from('teachers').update({'salary': salary}).eq('id', teacherId);
+  }
+
+  Future<void> setStaffSalary(String staffId, double salary) async {
+    await db.from('staff').update({'salary': salary}).eq('id', staffId);
+  }
+
+  Future<List<Map<String, dynamic>>> payrollTransactions() async {
+    final rows = await db.from('payroll_transactions')
+        .select('id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at')
+        .order('payment_date', ascending: false)
+        .limit(200);
+    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<void> addPayrollTransaction({
+    required String payeeType,
+    required String payeeId,
+    required String transactionType,
+    required double amount,
+    required DateTime paymentDate,
+    String note = '',
+  }) async {
+    await db.from('payroll_transactions').insert({
+      'payee_type': payeeType,
+      'payee_id': payeeId,
+      'transaction_type': transactionType,
+      'amount': amount,
+      'payment_date': paymentDate.toIso8601String().substring(0, 10),
+      'note': note.trim(),
+    });
   }
 
   Future<void> addStudent({required String name, required String className, required String phone}) async {
