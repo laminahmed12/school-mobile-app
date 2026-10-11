@@ -936,7 +936,8 @@ class FinanceView extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل مبلغًا أكبر من صفر.')));
               return;
             }
-            final selected = assessments.where((a) => a['id']?.toString() == selectedFeeId).firstOrNull;
+            final matchingAssessments = assessments.where((a) => a['id']?.toString() == selectedFeeId).toList();
+            final selected = matchingAssessments.isEmpty ? null : matchingAssessments.first;
             Navigator.pop(ctx, {
               'amount': amount,
               'note': noteController.text.trim(),
@@ -1146,7 +1147,8 @@ class _FeeManagementViewState extends State<FeeManagementView> {
     try {
       years = await widget.repo.academicYears();
       studentId = widget.initialStudentId ?? (widget.students.isNotEmpty ? widget.students.first.id : null);
-      final active = years.where((y) => y['active'] == true).firstOrNull;
+      final activeYears = years.where((y) => y['active'] == true).toList();
+      final active = activeYears.isEmpty ? null : activeYears.first;
       yearId = active?['id']?.toString();
       await prefill();
     } catch (e) { error = friendlyError(e, fallback: 'تعذر تحميل الرسوم.'); }
@@ -1178,7 +1180,8 @@ class _FeeManagementViewState extends State<FeeManagementView> {
     }
     setState(() { saving = true; error = null; });
     try {
-      final year = years.where((y) => y['id']?.toString() == yearId).firstOrNull;
+      final selectedYears = years.where((y) => y['id']?.toString() == yearId).toList();
+      final year = selectedYears.isEmpty ? null : selectedYears.first;
       await widget.repo.saveStudentFeeAssessment(
         studentId: studentId!,
         term: term,
@@ -1480,6 +1483,105 @@ class _UserManagementViewState extends State<UserManagementView> {
   );
 }
 
+class TeacherManagementView extends StatefulWidget {
+  final SchoolRepository repo;
+  final Future<void> Function() onChanged;
+  const TeacherManagementView({super.key, required this.repo, required this.onChanged});
+  @override State<TeacherManagementView> createState() => _TeacherManagementViewState();
+}
+
+class _TeacherManagementViewState extends State<TeacherManagementView> {
+  List<Teacher> teachers = [];
+  bool loading = true, saving = false;
+  String? error;
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  Future<void> load() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      teachers = await widget.repo.teachers();
+    } catch (e) {
+      error = friendlyError(e, fallback: 'تعذر تحميل قائمة المعلمين.');
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> addTeacher() async {
+    final name = TextEditingController();
+    final subject = TextEditingController();
+    final phone = TextEditingController();
+    final salary = TextEditingController(text: '0');
+    final formKey = GlobalKey<FormState>();
+    final saved = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('إضافة معلم جديد'),
+      content: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextFormField(controller: name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'اسم المعلم'), validator: (v) => v == null || v.trim().length < 2 ? 'أدخل اسم المعلم' : null),
+        TextFormField(controller: subject, decoration: const InputDecoration(labelText: 'المادة / التخصص'), validator: (v) => v == null || v.trim().isEmpty ? 'أدخل المادة أو التخصص' : null),
+        TextFormField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف (اختياري)'), validator: (v) { final p = (v ?? '').replaceAll(RegExp(r'[^0-9]'), ''); return p.isNotEmpty && (p.length < 8 || p.length > 15) ? 'رقم الهاتف من 8 إلى 15 رقمًا' : null; }),
+        TextFormField(controller: salary, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'الراتب الشهري (د.ل)'), validator: (v) { final n = double.tryParse((v ?? '').replaceAll(',', '.')); return n == null || n < 0 ? 'أدخل راتبًا صحيحًا' : null; }),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+        FilledButton(onPressed: saving ? null : () async {
+          if (!formKey.currentState!.validate()) return;
+          final monthly = double.parse(salary.text.replaceAll(',', '.'));
+          Navigator.pop(ctx, true);
+          try {
+            if (mounted) setState(() => saving = true);
+            await widget.repo.addTeacher(name: name.text, subject: subject.text, phone: phone.text, salary: monthly);
+            await load();
+            await widget.onChanged();
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المعلم بنجاح.')));
+          } catch (e) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت إضافة المعلم.'))));
+          } finally {
+            if (mounted) setState(() => saving = false);
+          }
+        }, child: const Text('حفظ المعلم')),
+      ],
+    ));
+    if (saved == null) return;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('المعلمون'), actions: [
+      IconButton(onPressed: loading ? null : load, tooltip: 'تحديث', icon: const Icon(Icons.refresh)),
+    ]),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: saving ? null : addTeacher,
+      icon: const Icon(Icons.person_add_alt_1),
+      label: const Text('إضافة معلم'),
+    ),
+    body: loading
+      ? const Center(child: CircularProgressIndicator())
+      : error != null
+        ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, size: 42),
+            const SizedBox(height: 10),
+            Text(error!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.icon(onPressed: load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+          ])))
+        : teachers.isEmpty
+          ? const Center(child: Padding(padding: EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.school_outlined, size: 56, color: brandGreen),
+              SizedBox(height: 12),
+              Text('لا يوجد معلمون مسجلون بعد.', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              SizedBox(height: 6),
+              Text('اضغط «إضافة معلم» لتسجيل أول معلم وربط راتبه بالمالية.', textAlign: TextAlign.center),
+            ])))
+          : RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 90), children: teachers.map((t) => Card(child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.school_outlined)),
+              title: Text(t.name),
+              subtitle: Text('${t.subject}${t.phone.isEmpty ? '' : ' • ${t.phone}'}'),
+              trailing: const Icon(Icons.chevron_left),
+            ))).toList()),
+  );
+}
+
 class MoreView extends StatelessWidget {
   final SchoolRepository repo; final SharedPreferences prefs; final List<Teacher> teachers; final List<Student> students; final Future<void> Function() onChanged; final String role;
   const MoreView({super.key, required this.repo, required this.prefs, required this.teachers, required this.students, required this.onChanged, required this.role});
@@ -1488,7 +1590,7 @@ class MoreView extends StatelessWidget {
     final isSupervisor = role == 'supervisor';
     final isAccountant = role == 'accountant';
     return ListView(padding:const EdgeInsets.all(12),children:[
-    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم'),onTap:()=>showTeachers(context))),
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم — إضافة وإدارة المعلمين'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TeacherManagementView(repo:repo,onChanged:onChanged))))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(
       leading: const Icon(Icons.payments_outlined),
@@ -1668,7 +1770,7 @@ class MoreView extends StatelessWidget {
     })),
     ]);
   }
-  Future<void> showTeachers(BuildContext context) async { await showModalBottomSheet(context:context,isScrollControlled:true,builder:(_)=>SafeArea(child:ListView(padding:const EdgeInsets.all(16),children:[const Text('المعلمون',style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),...teachers.map((t)=>ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text(t.name),subtitle:Text(t.subject+(t.phone.isEmpty?'':' • ${t.phone}'))))]))); }
+
   Future<void> expense(BuildContext context) async { final t=TextEditingController(),a=TextEditingController(),cat=TextEditingController(text:'عام'); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('مصروف جديد'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:t,decoration:const InputDecoration(labelText:'البيان')),TextField(controller:cat,decoration:const InputDecoration(labelText:'التصنيف')),TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(t.text.trim().isEmpty||v==null||v<=0)return;try{await repo.addExpense(title:t.text,amount:v,category:cat.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ المصروف')));}},child:const Text('حفظ'))])); }
 }
 
