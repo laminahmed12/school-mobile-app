@@ -87,13 +87,21 @@ class SchoolRepository {
       final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
       final expenseRows = await db.from('expenses').select('amount')
           .gte('created_at', start).lt('created_at', end);
-      final payrollRows = await db.from('payroll_transactions').select('amount')
+      final payrollRows = await db.from('payroll_transactions')
+          .select('amount,transaction_type')
           .eq('payment_date', d);
       final expenseTotal = (expenseRows as List)
           .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
-      final payrollTotal = (payrollRows as List)
+      final payrollList = payrollRows as List;
+      final salaryTotal = payrollList
+          .where((row) => row['transaction_type'] == 'salary')
           .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
-      result['expenses'] = expenseTotal + payrollTotal;
+      final advanceTotal = payrollList
+          .where((row) => row['transaction_type'] == 'advance')
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      result['payroll_salaries'] = salaryTotal;
+      result['payroll_advances'] = advanceTotal;
+      result['expenses'] = expenseTotal + salaryTotal + advanceTotal;
     } catch (_) {}
     return result;
   }
