@@ -22,6 +22,51 @@ const brandGold = Color(0xFFD7B56D);
 const brandInk = Color(0xFF20312C);
 const brandCanvas = Color(0xFFF3F6F3);
 
+DateTime? _schoolTrialEnd(Map<String, dynamic>? school) {
+  final raw = school?['trial_started_at']?.toString();
+  if (raw == null || raw.isEmpty) return null;
+  final started = DateTime.tryParse(raw)?.toUtc();
+  if (started == null) return null;
+  final firstOfTargetMonth = DateTime.utc(
+    started.year,
+    started.month + 1,
+    1,
+    started.hour,
+    started.minute,
+    started.second,
+    started.millisecond,
+    started.microsecond,
+  );
+  final lastDay = DateTime.utc(
+    firstOfTargetMonth.year,
+    firstOfTargetMonth.month + 1,
+    0,
+  ).day;
+  return DateTime.utc(
+    firstOfTargetMonth.year,
+    firstOfTargetMonth.month,
+    started.day > lastDay ? lastDay : started.day,
+    started.hour,
+    started.minute,
+    started.second,
+    started.millisecond,
+    started.microsecond,
+  );
+}
+
+String? _schoolTrialStatus(Map<String, dynamic>? school) {
+  if (school == null) return null;
+  if (school['active'] == false) return 'المدرسة موقوفة من المالك';
+  if (school['licensed'] == true) return 'الترخيص الدائم مفعّل';
+  final ends = _schoolTrialEnd(school);
+  if (ends == null) return null;
+  final remaining = ends.difference(DateTime.now().toUtc());
+  if (remaining <= Duration.zero) return 'انتهت الفترة التجريبية';
+  final days = (remaining.inSeconds / Duration.secondsPerDay).ceil();
+  final date = '${ends.year.toString().padLeft(4, '0')}-${ends.month.toString().padLeft(2, '0')}-${ends.day.toString().padLeft(2, '0')}';
+  return 'فترة تجريبية لمدة شهر — متبقي $days يوم. تنتهي في $date';
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
@@ -499,6 +544,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late int tab = widget.initialTab;
   bool loading = true, online = true;
   SchoolProfile? profile;
+  Map<String, dynamic>? schoolInfo;
   List<Student> students = [];
   List<Teacher> teachers = [];
   double payments = 0, expenses = 0;
@@ -521,6 +567,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
+      schoolInfo = await repo.school();
 
       // Load each section independently so a role-restricted table does not
       // prevent the rest of the dashboard from rendering.
@@ -580,7 +627,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final isSupervisor = role == 'supervisor';
     final isAccountant = role == 'accountant';
     final pages = <Widget>[
-      DashboardView(profile: profile, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
+      DashboardView(profile: profile, schoolInfo: schoolInfo, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
       if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
@@ -604,15 +651,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 class DashboardView extends StatelessWidget {
   final SchoolProfile? profile;
+  final Map<String, dynamic>? schoolInfo;
   final List<Student> students;
   final List<Teacher> teachers;
   final double payments, expenses;
   final bool online;
-  const DashboardView({super.key, required this.profile, required this.students, required this.teachers, required this.payments, required this.expenses, required this.online});
+  const DashboardView({super.key, required this.profile, required this.schoolInfo, required this.students, required this.teachers, required this.payments, required this.expenses, required this.online});
   Widget stat(String title, String value, IconData icon) => Card(child: ListTile(leading: CircleAvatar(child: Icon(icon)), title: Text(title), trailing: Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold))));
   @override
-  Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(14), children: [
+  Widget build(BuildContext context) {
+    final trialStatus = _schoolTrialStatus(schoolInfo);
+    final trialEnded = trialStatus == 'انتهت الفترة التجريبية';
+    return ListView(padding: const EdgeInsets.all(14), children: [
     Card(color: brandGreen, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(online ? '● متصل بالنظام' : '● دون اتصال', style: const TextStyle(color: Colors.white)), const SizedBox(height: 8), Text(profile?.username.isNotEmpty == true ? 'مرحباً ${profile!.username}' : 'مرحباً بك', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)), Text(profile?.role ?? 'مستخدم', style: const TextStyle(color: Colors.white70))]))),
+    if (trialStatus != null)
+      Card(
+        color: trialEnded ? const Color(0xFFFFE8E6) : const Color(0xFFE7F0EA),
+        child: ListTile(
+          leading: Icon(
+            trialEnded ? Icons.warning_amber_rounded : Icons.schedule,
+            color: trialEnded ? Colors.red.shade700 : brandGreen,
+          ),
+          title: const Text('حالة الفترة التجريبية / الترخيص'),
+          subtitle: Text(trialStatus),
+          isThreeLine: true,
+        ),
+      ),
     stat('الطلاب', '${students.length}', Icons.groups),
     if (profile?.role != 'supervisor')
       stat('المعلمون', '${teachers.length}', Icons.school),
@@ -620,7 +684,8 @@ class DashboardView extends StatelessWidget {
       stat('إجمالي المدفوعات', '${payments.toStringAsFixed(2)} د.ل', Icons.account_balance_wallet),
       stat('المصروفات', '${expenses.toStringAsFixed(2)} د.ل', Icons.receipt_long),
     ],
-  ]);
+    ]);
+  }
 }
 
 class StudentsView extends StatefulWidget {
@@ -925,15 +990,15 @@ class MoreView extends StatelessWidget {
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     if (isAdmin) Card(child:ListTile(
       leading: const Icon(Icons.cloud_upload_outlined),
-      title: const Text('النسخ الاحتياطي على Google Drive'),
-      subtitle: const Text('إنشاء نسخة من بيانات المدرسة ثم اختيار Google Drive للحفظ'),
+      title: const Text('حفظ نسخة احتياطية'),
+      subtitle: const Text('إنشاء ملف ثم اختيار Google Drive أو موقع حفظ آخر'),
       trailing: const Icon(Icons.chevron_left),
       onTap: () async {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('نسخة احتياطية للمدرسة'),
-            content: const Text('سيُنشأ ملف يحتوي على بيانات المدرسة. احفظه في حساب Google Drive موثوق ولا تشاركه مع الآخرين. ستفتح قائمة المشاركة لاختيار Google Drive.'),
+            content: const Text('سيُنشأ ملف JSON لبيانات المدرسة، ثم ستظهر نافذة اختيار مكان الحفظ. اختر Google Drive إن ظهر ضمن المواقع المتاحة، وتأكد من اختيار حساب المدرسة الصحيح.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
@@ -942,7 +1007,12 @@ class MoreView extends StatelessWidget {
         );
         if (confirmed != true || !context.mounted) return;
         try {
-          await BackupService.backupAndOpenShare(repo);
+          final savedLocation = await BackupService.backupAndSave(repo);
+          if (context.mounted && savedLocation != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('تم إرسال النسخة إلى موقع الحفظ الذي اخترته. تحقق من ظهور الملف داخل Google Drive قبل الاعتماد عليه.')),
+            );
+          }
         } catch (e) {
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
