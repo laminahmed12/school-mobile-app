@@ -1133,7 +1133,7 @@ class MoreView extends StatelessWidget {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('نسخة احتياطية للمدرسة'),
-            content: const Text('سيُنشأ ملف JSON لبيانات المدرسة، ثم ستظهر نافذة اختيار مكان الحفظ. اختر Google Drive إن ظهر ضمن المواقع المتاحة، وتأكد من اختيار حساب المدرسة الصحيح.'),
+            content: const Text('سيُنشأ ملف JSON ثم تفتح نافذة الحفظ في أندرويد. إذا أردت Google Drive، اضغط قائمة المواقع (☰) أعلى النافذة واختر Google Drive، ثم اختر المجلد واضغط «حفظ». إذا بقيت في «عمليات التنزيل»، فسيُحفظ الملف هناك على الجهاز.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
@@ -1145,7 +1145,7 @@ class MoreView extends StatelessWidget {
           final savedLocation = await BackupService.backupAndSave(repo);
           if (context.mounted && savedLocation != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم إرسال النسخة إلى موقع الحفظ الذي اخترته. تحقق من ظهور الملف داخل Google Drive قبل الاعتماد عليه.')),
+              const SnackBar(content: Text('تم حفظ ملف النسخة الاحتياطية في الموقع المحدد. إذا اخترت Google Drive، افتح Drive وتأكد من ظهور الملف قبل الاعتماد عليه.')),
             );
           }
         } catch (e) {
