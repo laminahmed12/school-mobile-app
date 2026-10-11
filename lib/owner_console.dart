@@ -71,6 +71,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     final name = TextEditingController(), code = TextEditingController();
     final username = TextEditingController(text: 'admin'), password = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    String licenseMode = 'trial';
     await showDialog(context: context, builder: (ctx) => AlertDialog(
       title: const Text('إنشاء مدرسة جديدة'),
       content: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -99,6 +100,33 @@ class _OwnerConsoleState extends State<OwnerConsole> {
               ? 'اكتب 3–20 حرفًا إنجليزيًا أو رقمًا، مثل ama'
               : null,
         ),
+        const SizedBox(height: 12),
+        const Align(
+          alignment: Alignment.centerRight,
+          child: Text('نوع التفعيل', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+        StatefulBuilder(
+          builder: (ctx, setChoice) => Column(
+            children: [
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                value: 'trial',
+                groupValue: licenseMode,
+                onChanged: creating ? null : (v) => setChoice(() => licenseMode = v!),
+                title: const Text('فترة تجريبية لمدة شهر'),
+                subtitle: const Text('تنتهي تلقائيًا بعد شهر إذا لم يُفعّل الترخيص الدائم'),
+              ),
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                value: 'permanent',
+                groupValue: licenseMode,
+                onChanged: creating ? null : (v) => setChoice(() => licenseMode = v!),
+                title: const Text('تفعيل دائم مباشرة'),
+                subtitle: const Text('تُنشأ المدرسة بترخيص دائم دون انتظار انتهاء التجربة'),
+              ),
+            ],
+          ),
+        ),
         TextFormField(controller: username, decoration: const InputDecoration(labelText: 'اسم مدير المدرسة')),
         TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة مرور المدير'), validator: (v) => v == null || v.length < 6 ? '6 خانات على الأقل' : null),
       ]))),
@@ -110,7 +138,8 @@ class _OwnerConsoleState extends State<OwnerConsole> {
           try {
             await callOwner('create_school', {
               'name': name.text.trim(), 'code': code.text.trim().toLowerCase(),
-              'admin_username': username.text.trim(), 'admin_password': password.text, 'currency': 'د.ل',
+              'admin_username': username.text.trim(), 'admin_password': password.text,
+              'currency': 'د.ل', 'license_mode': licenseMode,
             });
             if (ctx.mounted) Navigator.pop(ctx);
             await loadSchools();
@@ -314,7 +343,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
         Card(child: ListTile(
           leading: const Icon(Icons.add_business_outlined),
           title: const Text('إنشاء مدرسة جديدة'),
-          subtitle: const Text('بدء فترة تجريبية لمدة شهر؛ وبعدها يفعّل المالك الترخيص الدائم'),
+          subtitle: const Text('اختيار فترة تجريبية لمدة شهر أو تفعيل دائم عند إنشاء المدرسة'),
           trailing: const Icon(Icons.chevron_left),
           onTap: createSchool,
         )),
