@@ -1960,6 +1960,17 @@ class _PayrollViewState extends State<PayrollView> {
   Widget _payeeCard(Map<String, dynamic> person, {required bool isTeacher}) {
     final salary = _salary(person);
     final name = person['name']?.toString() ?? '—';
+    final payeeType = isTeacher ? 'teacher' : 'staff';
+    final payeeId = person['id']?.toString() ?? '';
+    final monthRows = transactions.where((tx) =>
+      tx['payee_type']?.toString() == payeeType &&
+      tx['payee_id']?.toString() == payeeId &&
+      _thisMonth(tx)).toList();
+    final salaryPaid = monthRows.where((tx) => tx['transaction_type'] == 'salary')
+        .fold<double>(0, (sum, tx) => sum + _amount(tx));
+    final advancePaid = monthRows.where((tx) => tx['transaction_type'] == 'advance')
+        .fold<double>(0, (sum, tx) => sum + _amount(tx));
+    final remaining = salary - salaryPaid - advancePaid;
     final subtitle = isTeacher
         ? (person['subject']?.toString().isNotEmpty == true ? person['subject'].toString() : 'معلم')
         : (person['role']?.toString() ?? 'موظف');
@@ -1970,7 +1981,11 @@ class _PayrollViewState extends State<PayrollView> {
           ListTile(
             leading: CircleAvatar(child: Icon(isTeacher ? Icons.school_outlined : Icons.badge_outlined)),
             title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text('$subtitle • الراتب الشهري: ${salary.toStringAsFixed(2)} د.ل'),
+            subtitle: Text(
+              '$subtitle • الراتب الشهري: ${salary.toStringAsFixed(2)} د.ل\\n'
+              'المصروف راتبًا: ${salaryPaid.toStringAsFixed(2)} • السلف: ${advancePaid.toStringAsFixed(2)} د.ل\\n'
+              '${remaining < -0.009 ? 'زيادة مصروفة' : 'المتبقي من الراتب'}: ${remaining.abs().toStringAsFixed(2)} د.ل',
+            ),
             trailing: widget.canManagePayees
                 ? IconButton(tooltip: 'تعديل الراتب', onPressed: () => editSalary(person, isTeacher: isTeacher), icon: const Icon(Icons.edit_outlined))
                 : null,
