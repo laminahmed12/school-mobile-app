@@ -13,6 +13,7 @@ import 'academic.dart';
 import 'student_profile.dart';
 import 'reports.dart';
 import 'school_setup.dart';
+import 'school_branding.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
 import 'backup_service.dart';
@@ -1075,6 +1076,7 @@ class MoreView extends StatelessWidget {
     )),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.branding_watermark_outlined),title:const Text('شعار المدرسة للطباعة'),subtitle:const Text('رفع الشعار ليظهر على التقارير وإيصالات PDF'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolBrandingView(repo:repo))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.manage_accounts),title:const Text('مستخدمو المدرسة'),subtitle:const Text('إدارة المسؤولين والمشرفين والمحاسبين'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>UserManagementView(repo:repo))))),
     Card(child:ListTile(leading:const Icon(Icons.fingerprint),title:const Text('الدخول بالبصمة'),subtitle:const Text('من المزيد ← الدخول بالبصمة. فعّل بصمة الهاتف أولاً من إعدادات الجهاز.'),onTap:()async{
       final service=DeviceSecurityService();
