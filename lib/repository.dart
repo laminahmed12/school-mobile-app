@@ -344,18 +344,21 @@ class SchoolRepository {
 
   Future<List<Map<String, dynamic>>> studentFeeAssessments(String studentId) async {
     final year = await db.from('academic_years')
-        .select('id,name')
+        .select('id')
         .eq('active', true)
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
-    final query = db.from('student_fee_assessments')
+    final activeYearId = year?['id']?.toString();
+    final rows = await db.from('student_fee_assessments')
         .select('id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at')
-        .eq('student_id', studentId);
-    final rows = year?['id'] != null
-        ? await query.eq('academic_year_id', year!['id']).order('created_at')
-        : await query.isFilter('academic_year_id', null).order('created_at');
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        .eq('student_id', studentId)
+        .order('created_at');
+    return (rows as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['academic_year_id'] == null ||
+            (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
@@ -365,13 +368,16 @@ class SchoolRepository {
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
-    final query = db.from('payments')
+    final activeYearId = year?['id']?.toString();
+    final rows = await db.from('payments')
         .select('id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id')
-        .eq('student_id', studentId);
-    final rows = year?['id'] != null
-        ? await query.eq('academic_year_id', year!['id']).order('payment_date', ascending: false)
-        : await query.isFilter('academic_year_id', null).order('payment_date', ascending: false);
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        .eq('student_id', studentId)
+        .order('payment_date', ascending: false);
+    return (rows as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['academic_year_id'] == null ||
+            (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+        .toList();
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
