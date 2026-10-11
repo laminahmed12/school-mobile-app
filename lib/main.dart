@@ -632,7 +632,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       DashboardView(profile: profile, schoolInfo: schoolInfo, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
       if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor, canSetFees: isAdmin),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
-      if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
+      if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh, canManageFees: isAdmin || isAccountant),
       MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
     ];
     final destinations = <NavigationDestination>[
@@ -779,6 +779,7 @@ class FinanceView extends StatelessWidget {
   final List<Student> students;
   final double payments, expenses;
   final Future<void> Function() onChanged;
+  final bool canManageFees;
 
   const FinanceView({
     super.key,
@@ -787,78 +788,176 @@ class FinanceView extends StatelessWidget {
     required this.payments,
     required this.expenses,
     required this.onChanged,
+    this.canManageFees = false,
   });
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
+  Widget build(BuildContext context) => Column(children: [
+    Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(children: [
+        Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))),
+        const SizedBox(width: 8),
+        Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل'))),
+      ]),
+    ),
+    if (canManageFees)
       Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))),
-            const SizedBox(width: 8),
-            Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل')))),
-          ],
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonalIcon(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => FeeManagementView(repo: repo, students: students),
+            )),
+            icon: const Icon(Icons.price_change_outlined),
+            label: const Text('إدارة الرسوم الدراسية حسب الفصل'),
+          ),
         ),
       ),
-      Expanded(
-        child: ListView.builder(
-          itemCount: students.length,
-          itemBuilder: (_, i) {
-            final s = students[i];
-            return ListTile(
-              title: Text(s.name),
-              subtitle: Text(s.className),
-              trailing: FilledButton.tonal(
-                onPressed: () => payment(context, s),
-                child: const Text('دفعة'),
-              ),
-            );
-          },
-        ),
-      ),
-    ],
+    Expanded(
+      child: students.isEmpty
+        ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
+        : ListView.builder(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+            itemCount: students.length,
+            itemBuilder: (_, i) {
+              final s = students[i];
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: repo.studentFinancialSummary(s.id),
+                      builder: (context, snapshot) {
+                        final summary = snapshot.data;
+                        final fees = (summary?['fees'] as num?)?.toDouble() ?? 0;
+                        final discount = (summary?['discount'] as num?)?.toDouble() ?? 0;
+                        final paid = (summary?['paid'] as num?)?.toDouble() ?? 0;
+                        final remaining = (summary?['remaining'] as num?)?.toDouble() ?? 0;
+                        final hasCredit = remaining < -0.009;
+                        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const CircleAvatar(child: Icon(Icons.school_outlined)),
+                            title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text('${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}'),
+                          ),
+                          if (snapshot.connectionState == ConnectionState.waiting)
+                            const LinearProgressIndicator(minHeight: 2)
+                          else if (snapshot.hasError)
+                            const Text('تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.', style: TextStyle(color: Colors.red))
+                          else
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              _moneyChip('الرسوم', fees),
+                              _moneyChip('الخصم', discount),
+                              _moneyChip('المدفوع', paid),
+                              _moneyChip(hasCredit ? 'رصيد دائن' : 'المتبقي', hasCredit ? -remaining : remaining,
+                                  emphasis: !hasCredit && remaining > 0.009),
+                            ]),
+                        ]);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: FilledButton.tonalIcon(
+                        onPressed: () => payment(context, s),
+                        icon: const Icon(Icons.payments_outlined),
+                        label: const Text('تسجيل دفعة'),
+                      )),
+                      const SizedBox(width: 8),
+                      Expanded(child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => StudentAccountView(repo: repo, student: s, canManageFees: canManageFees),
+                        )),
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: const Text('كشف الحساب'),
+                      )),
+                    ]),
+                  ]),
+                ),
+              );
+            },
+          ),
+    ),
+  ]);
+
+  Widget _moneyChip(String label, double value, {bool emphasis = false}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: emphasis ? const Color(0xFFFFE6D8) : const Color(0xFFE7F0EA),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Text('$label: ${value.toStringAsFixed(2)} د.ل', style: TextStyle(
+      fontSize: 12,
+      fontWeight: emphasis ? FontWeight.w800 : FontWeight.w500,
+      color: emphasis ? Colors.red.shade900 : null,
+    )),
   );
 
   Future<void> payment(BuildContext context, Student s) async {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
-    final value = await showDialog<double>(
+    List<Map<String, dynamic>> assessments = [];
+    try {
+      assessments = await repo.studentFeeAssessments(s.id);
+    } catch (_) {}
+    String? selectedFeeId = assessments.isEmpty ? null : assessments.first['id']?.toString();
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) => AlertDialog(
         title: Text('دفعة — ${s.name}'),
-        content: Column(
+        content: SingleChildScrollView(child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (assessments.isNotEmpty)
+              DropdownButtonFormField<String?>(
+                value: selectedFeeId,
+                decoration: const InputDecoration(labelText: 'تخصيص الدفعة للفصل'),
+                items: assessments.map((a) => DropdownMenuItem<String?>(
+                  value: a['id']?.toString(),
+                  child: Text('${a['term'] ?? 'فصل'} • ${((a['total_fee'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} د.ل'),
+                )).toList(),
+                onChanged: (v) => setDialogState(() => selectedFeeId = v),
+              ),
             TextField(
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'المبلغ د.ل'),
+              decoration: const InputDecoration(labelText: 'المبلغ المستلم (د.ل)'),
             ),
-            TextField(
-              controller: noteController,
-              decoration: const InputDecoration(labelText: 'ملاحظة'),
-            ),
+            TextField(controller: noteController, decoration: const InputDecoration(labelText: 'ملاحظة / رقم إيصال')),
           ],
-        ),
+        )),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          FilledButton(
-            onPressed: () {
-              final amount = double.tryParse(amountController.text.replaceAll(',', '.'));
-              if (amount == null || amount <= 0) return;
-              Navigator.pop(ctx, amount);
-            },
-            child: const Text('حفظ'),
-          ),
+          FilledButton(onPressed: () {
+            final amount = double.tryParse(amountController.text.replaceAll(',', '.'));
+            if (amount == null || amount <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل مبلغًا أكبر من صفر.')));
+              return;
+            }
+            final selected = assessments.where((a) => a['id']?.toString() == selectedFeeId).firstOrNull;
+            Navigator.pop(ctx, {
+              'amount': amount,
+              'note': noteController.text.trim(),
+              'fee_assessment_id': selectedFeeId,
+              'term': selected?['term']?.toString() ?? 'غير محدد',
+            });
+          }, child: const Text('حفظ الدفعة')),
         ],
-      ),
+      )),
     );
-    if (value == null) return;
-    final note = noteController.text.trim();
+    if (result == null) return;
+    final value = (result['amount'] as num).toDouble();
+    final note = result['note']?.toString() ?? '';
     try {
-      await repo.addPayment(studentId: s.id, amount: value, note: note);
+      await repo.addPayment(
+        studentId: s.id,
+        amount: value,
+        note: note,
+        term: result['term']?.toString() ?? 'غير محدد',
+        feeAssessmentId: result['fee_assessment_id']?.toString(),
+      );
       await onChanged();
     } catch (e) {
       if (context.mounted) {
@@ -874,7 +973,7 @@ class FinanceView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تم تسجيل الدفعة'),
-        content: const Text('هل تريد طباعة إيصال أو حفظه بصيغة PDF؟ سيظهر عليه شعار المدرسة إذا كان قد رُفع من إعدادات المدرسة.'),
+        content: const Text('هل تريد طباعة إيصال أو حفظه بصيغة PDF؟'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ليس الآن')),
           FilledButton.icon(
@@ -885,33 +984,266 @@ class FinanceView extends StatelessWidget {
         ],
       ),
     ) ?? false;
-
     if (makeReceipt && context.mounted) {
       try {
         await LaminPdfService.printPaymentReceipt(
-          repo: repo,
-          studentName: s.name,
-          className: s.className,
-          amount: value,
-          note: note,
+          repo: repo, studentName: s.name, className: s.className, amount: value, note: note,
         );
       } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('حُفظت الدفعة، لكن تعذر إنشاء الإيصال: ${e.toString().replaceFirst('Exception: ', '')}')),
-          );
-        }
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حُفظت الدفعة، لكن تعذر إنشاء الإيصال: ${friendlyError(e)}')),
+        );
       }
     }
-
     if (s.phone.isNotEmpty && context.mounted) {
-      await openWhatsApp(
-        context,
-        s.phone,
-        'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${value.toStringAsFixed(2)} د.ل.',
-      );
+      await openWhatsApp(context, s.phone,
+        'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${value.toStringAsFixed(2)} د.ل.');
     }
   }
+}
+
+class StudentAccountView extends StatefulWidget {
+  final SchoolRepository repo;
+  final Student student;
+  final bool canManageFees;
+  const StudentAccountView({super.key, required this.repo, required this.student, required this.canManageFees});
+  @override State<StudentAccountView> createState() => _StudentAccountViewState();
+}
+
+class _StudentAccountViewState extends State<StudentAccountView> {
+  bool loading = true;
+  String? error;
+  Map<String, dynamic> summary = {};
+  Map<String, dynamic>? parent;
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  Future<void> load() async {
+    if (mounted) setState(() { loading = true; error = null; });
+    try {
+      summary = await widget.repo.studentFinancialSummary(widget.student.id);
+      parent = await widget.repo.parent(widget.student.id);
+    } catch (e) {
+      error = friendlyError(e, fallback: 'تعذر تحميل كشف الحساب.');
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  double money(String key) => (summary[key] as num?)?.toDouble() ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final assessments = (summary['assessments'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    final payments = (summary['payments'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    final remaining = money('remaining');
+    return Scaffold(
+      appBar: AppBar(title: const Text('كشف حساب ولي الأمر'), actions: [
+        IconButton(onPressed: loading ? null : load, tooltip: 'تحديث', icon: const Icon(Icons.refresh)),
+        IconButton(onPressed: loading ? null : () async {
+          try {
+            await LaminPdfService.printStudentStatement(
+              repo: widget.repo,
+              studentName: widget.student.name,
+              className: widget.student.className,
+              guardianPhone: widget.student.phone,
+              summary: summary,
+            );
+          } catch (e) {
+            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء كشف الحساب PDF.'))),
+            );
+          }
+        }, tooltip: 'طباعة / PDF', icon: const Icon(Icons.picture_as_pdf_outlined)),
+      ]),
+      body: loading ? const Center(child: CircularProgressIndicator()) : error != null
+        ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Text(error!, textAlign: TextAlign.center)))
+        : RefreshIndicator(
+          onRefresh: load,
+          child: ListView(padding: const EdgeInsets.all(14), children: [
+            Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text(widget.student.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              Text('الصف: ${widget.student.className}'),
+              Text('ولي الأمر: ${parent?['parent_name'] ?? 'غير مسجل'}'),
+              Text('الهاتف: ${widget.student.phone.isNotEmpty ? widget.student.phone : parent?['phone'] ?? 'غير مسجل'}'),
+              Text('السنة الدراسية: ${summary['academic_year'] ?? 'غير محدد'}'),
+              const Divider(),
+              _summaryRow('إجمالي الرسوم', money('fees')),
+              _summaryRow('الخصومات', money('discount')),
+              _summaryRow('رصيد مرحّل', money('opening_balance')),
+              _summaryRow('إجمالي المدفوع', money('paid')),
+              _summaryRow(remaining < 0 ? 'رصيد دائن' : 'المتبقي', remaining.abs(), bold: true),
+            ]))),
+            if (widget.canManageFees)
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => FeeManagementView(repo: widget.repo, students: [widget.student], initialStudentId: widget.student.id)));
+                  await load();
+                },
+                icon: const Icon(Icons.edit_note),
+                label: const Text('تعديل رسوم الفصل'),
+              ),
+            const Padding(padding: EdgeInsets.fromLTRB(4, 12, 4, 6), child: Text('الرسوم حسب الفصل', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
+            if (assessments.isEmpty) const Card(child: ListTile(title: Text('لا توجد رسوم مسجلة لهذه السنة الدراسية.')))
+            else ...assessments.map((fee) {
+              final total = (fee['total_fee'] as num?)?.toDouble() ?? 0;
+              final discount = (fee['discount'] as num?)?.toDouble() ?? 0;
+              final relatedPaid = payments.where((p) => p['fee_assessment_id']?.toString() == fee['id']?.toString()).fold<double>(0, (sum, p) => sum + ((p['amount'] as num?)?.toDouble() ?? 0));
+              return Card(child: ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: Text(fee['term']?.toString() ?? 'الفصل الدراسي'),
+                subtitle: Text('الرسوم: ${total.toStringAsFixed(2)} • الخصم: ${discount.toStringAsFixed(2)} • المدفوع المخصص: ${relatedPaid.toStringAsFixed(2)} د.ل'),
+                trailing: Text('${(total - discount - relatedPaid).toStringAsFixed(2)} د.ل', style: const TextStyle(fontWeight: FontWeight.w800)),
+              ));
+            }),
+            const Padding(padding: EdgeInsets.fromLTRB(4, 14, 4, 6), child: Text('سجل الدفعات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
+            if (payments.isEmpty) const Card(child: ListTile(title: Text('لا توجد دفعات مسجلة.')))
+            else ...payments.map((p) => Card(child: ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: Text('${((p['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} د.ل'),
+              subtitle: Text('${p['payment_date'] ?? p['created_at']?.toString().split('T').first ?? ''} • ${p['term'] ?? 'غير محدد'}${(p['note']?.toString().isNotEmpty ?? false) ? ' • ${p['note']}' : ''}'),
+            ))),
+          ]),
+        ),
+    );
+  }
+
+  Widget _summaryRow(String label, double value, {bool bold = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Expanded(child: Text(label, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w500))),
+      Text('${value.toStringAsFixed(2)} د.ل', style: TextStyle(fontWeight: bold ? FontWeight.w900 : FontWeight.w600)),
+    ]),
+  );
+}
+
+class FeeManagementView extends StatefulWidget {
+  final SchoolRepository repo;
+  final List<Student> students;
+  final String? initialStudentId;
+  const FeeManagementView({super.key, required this.repo, required this.students, this.initialStudentId});
+  @override State<FeeManagementView> createState() => _FeeManagementViewState();
+}
+
+class _FeeManagementViewState extends State<FeeManagementView> {
+  final feeController = TextEditingController();
+  final discountController = TextEditingController(text: '0');
+  final noteController = TextEditingController();
+  List<Map<String, dynamic>> years = [];
+  String? studentId;
+  String? yearId;
+  String term = 'الفصل الأول';
+  bool loading = true, saving = false;
+  String? error;
+
+  @override
+  void initState() { super.initState(); load(); }
+
+  @override
+  void dispose() { feeController.dispose(); discountController.dispose(); noteController.dispose(); super.dispose(); }
+
+  Future<void> load() async {
+    try {
+      years = await widget.repo.academicYears();
+      studentId = widget.initialStudentId ?? (widget.students.isNotEmpty ? widget.students.first.id : null);
+      final active = years.where((y) => y['active'] == true).firstOrNull;
+      yearId = active?['id']?.toString();
+      await prefill();
+    } catch (e) { error = friendlyError(e, fallback: 'تعذر تحميل الرسوم.'); }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> prefill() async {
+    if (studentId == null) return;
+    try {
+      var query = db.from('student_fee_assessments').select('id,total_fee,discount,note,academic_year_id,academic_year_label,term')
+          .eq('student_id', studentId!).eq('term', term);
+      final row = yearId == null
+          ? await query.isFilter('academic_year_id', null).maybeSingle()
+          : await query.eq('academic_year_id', yearId!).maybeSingle();
+      feeController.text = row?['total_fee']?.toString() ?? '';
+      discountController.text = row?['discount']?.toString() ?? '0';
+      noteController.text = row?['note']?.toString() ?? '';
+    } catch (_) {
+      feeController.clear(); discountController.text = '0'; noteController.clear();
+    }
+  }
+
+  Future<void> save() async {
+    final fee = double.tryParse(feeController.text.replaceAll(',', '.'));
+    final discount = double.tryParse(discountController.text.replaceAll(',', '.')) ?? 0;
+    if (studentId == null || fee == null || fee < 0 || discount < 0 || discount > fee) {
+      setState(() => error = 'اختر الطالب وأدخل رسومًا صحيحة، ويجب ألا يتجاوز الخصم الرسوم.');
+      return;
+    }
+    setState(() { saving = true; error = null; });
+    try {
+      final year = years.where((y) => y['id']?.toString() == yearId).firstOrNull;
+      await widget.repo.saveStudentFeeAssessment(
+        studentId: studentId!,
+        term: term,
+        totalFee: fee,
+        discount: discount,
+        academicYearId: yearId,
+        academicYearLabel: year?['name']?.toString() ?? 'غير محدد',
+        note: noteController.text,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ رسوم الفصل الدراسي.')));
+      await prefill();
+    } catch (e) {
+      error = friendlyError(e, fallback: 'تعذر حفظ رسوم الفصل.');
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('إدارة الرسوم الدراسية')),
+    body: loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.all(16), children: [
+      Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('تحديد الرسوم حسب السنة والفصل', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: studentId,
+          decoration: const InputDecoration(labelText: 'الطالب'),
+          items: widget.students.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
+          onChanged: saving ? null : (v) async { setState(() => studentId = v); await prefill(); if (mounted) setState(() {}); },
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String?>(
+          value: yearId,
+          decoration: const InputDecoration(labelText: 'السنة الدراسية'),
+          items: [
+            const DropdownMenuItem<String?>(value: null, child: Text('غير محددة / لم تُنشأ سنة بعد')),
+            ...years.map((y) => DropdownMenuItem<String?>(value: y['id']?.toString(), child: Text('${y['name']}${y['active'] == true ? ' (نشطة)' : ''}'))),
+          ],
+          onChanged: saving ? null : (v) async { setState(() => yearId = v); await prefill(); if (mounted) setState(() {}); },
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          value: term,
+          decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
+          items: const [
+            DropdownMenuItem(value: 'الفصل الأول', child: Text('الفصل الأول')),
+            DropdownMenuItem(value: 'الفصل الثاني', child: Text('الفصل الثاني')),
+            DropdownMenuItem(value: 'الفصل الثالث', child: Text('الفصل الثالث')),
+          ],
+          onChanged: saving ? null : (v) async { setState(() => term = v ?? 'الفصل الأول'); await prefill(); if (mounted) setState(() {}); },
+        ),
+        const SizedBox(height: 10),
+        TextField(controller: feeController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'قيمة الفصل الدراسي (د.ل)')),
+        const SizedBox(height: 10),
+        TextField(controller: discountController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'الخصم (د.ل)')),
+        const SizedBox(height: 10),
+        TextField(controller: noteController, decoration: const InputDecoration(labelText: 'ملاحظة')),
+        if (years.isEmpty) const Padding(padding: EdgeInsets.only(top: 10), child: Text('لم تُنشأ سنة دراسية بعد. يمكنك حفظ الرسوم تحت "غير محدد"، أو إنشاء سنة من إعداد المدرسة لربط الحساب بها.', style: TextStyle(color: Colors.deepOrange))),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: const TextStyle(color: Colors.red))),
+        const SizedBox(height: 14),
+        FilledButton.icon(onPressed: saving ? null : save, icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_outlined), label: Text(saving ? 'جارِ الحفظ...' : 'حفظ الرسوم')),
+      ]))),
+    ]),
+  );
 }
 
 class UserManagementView extends StatefulWidget {
