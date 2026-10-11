@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'repository.dart';
+import 'pdf_service.dart';
 
 class ReportsView extends StatefulWidget {
   final SchoolRepository repo;
@@ -28,7 +29,24 @@ class _ReportsViewState extends State<ReportsView> {
   Widget build(BuildContext context) {
     final date = day.year.toString() + '-' + day.month.toString().padLeft(2, '0') + '-' + day.day.toString().padLeft(2, '0');
     return Scaffold(
-      appBar: AppBar(title: const Text('التقارير اليومية')),
+      appBar: AppBar(
+        title: const Text('التقارير اليومية'),
+        actions: [
+          IconButton(
+            tooltip: 'طباعة التقرير أو حفظه PDF',
+            onPressed: loading || data.isEmpty ? null : () async {
+              try {
+                await LaminPdfService.printDailyReport(repo: widget.repo, day: day, data: data);
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('تعذر إنشاء PDF: ${e.toString().replaceFirst('Exception: ', '')}')),
+                );
+              }
+            },
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
