@@ -50,8 +50,220 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     await showDialog(context: context, builder: (ctx) => AlertDialog(
       title: const Text('إنشاء مدرسة جديدة'),
       content: Form(key: formKey, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextFormField(controller: name, decoration: const InputDecoration(labelText: 'اسم المدرسة'), validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم المدرسة' : null),
-        TextFormField(controller: code, decoration: const InputDecoration(labelText: 'رمز المدرسة'), validator: (v) => v == null || v.trim().length < 3 ? 'أدخل رمز المدرسة' : null),
+        TextFormField(
+          controller: name,
+          decoration: const InputDecoration(
+            labelText: 'اسم المدرسة',
+            hintText: 'مثال: أجيال المستقبل',
+            helperText: 'الاسم الظاهر داخل التطبيق',
+          ),
+          validator: (v) => v == null || v.trim().length < 3
+              ? 'أدخل اسم المدرسة (3 أحرف على الأقل)'
+              : null,
+        ),
+        TextFormField(
+          controller: code,
+          autocorrect: false,
+          textCapitalization: TextCapitalization.none,
+          decoration: const InputDecoration(
+            labelText: 'رمز المدرسة (بالإنجليزية)',
+            hintText: 'مثال: ama أو ajyal2026',
+            helperText: '3–20 خانة: أحرف إنجليزية صغيرة وأرقام فقط',
+          ),
+          validator: (v) => v == null ||
+                  !RegExp(r'^[a-zA-Z0-9]{3,20}
+        TextFormField(controller: username, decoration: const InputDecoration(labelText: 'اسم مدير المدرسة')),
+        TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة مرور المدير'), validator: (v) => v == null || v.length < 6 ? '6 خانات على الأقل' : null),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: creating ? null : () async {
+          if (!formKey.currentState!.validate()) return;
+          setState(() => creating = true);
+          try {
+            await callOwner('create_school', {
+              'name': name.text.trim(), 'code': code.text.trim().toLowerCase(),
+              'admin_username': username.text.trim(), 'admin_password': password.text, 'currency': 'د.ل',
+            });
+            if (ctx.mounted) Navigator.pop(ctx);
+            await loadSchools();
+            if (mounted) message('تم إنشاء المدرسة بنجاح');
+          } catch (e) {
+            if (mounted) message(friendlyError(e), error: true);
+          } finally {
+            if (mounted) setState(() => creating = false);
+          }
+        }, child: const Text('إنشاء')),
+      ],
+    ));
+  }
+
+  Future<void> activateSchool(Map<String, dynamic> school) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تفعيل المدرسة'),
+        content: Text('سيتم تفعيل مدرسة ' + (school['name']?.toString() ?? school['code']?.toString() ?? '') +
+          ' من لوحة المالك. لن يحتاج العميل إلى إدخال رمز تفعيل.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تفعيل الآن')),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed) return;
+    try {
+      await callOwner('activate_school', {'school_id': school['id']});
+      await loadSchools();
+      if (mounted) message('تم تفعيل المدرسة. يمكن للعميل الدخول ببيانات حسابه المعتادة.');
+    } catch (e) {
+      if (mounted) message(friendlyError(e), error: true);
+    }
+  }
+
+  Future<void> showSchoolDetails(Map<String, dynamic> school) async {
+    try {
+      final data = await callOwner('school_details', {'school_id': school['id']});
+      final stats = data['stats'] is Map ? Map<String, dynamic>.from(data['stats'] as Map) : <String, dynamic>{};
+      final users = data['users'] is List
+          ? (data['users'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(school['name']?.toString() ?? 'تفاصيل المدرسة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("رمز المدرسة: ${school['code'] ?? '—'}"),
+                Text("الحالة: ${school['licensed'] == true ? 'ترخيص دائم' : 'فترة تجريبية'}"),
+                const Divider(),
+                Text("الطلاب: ${stats['students'] ?? 0}"),
+                Text("المعلمون: ${stats['teachers'] ?? 0}"),
+                Text("حسابات المدرسة: ${users.length}"),
+                const SizedBox(height: 8),
+                ...users.map((u) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(u['active'] == true ? Icons.person : Icons.person_off),
+                  title: Text("${u['username'] ?? '—'}"),
+                  subtitle: Text("${u['role'] ?? '—'} • ${u['active'] == true ? 'نشط' : 'موقوف'}"),
+                )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) message(friendlyError(e), error: true);
+    }
+  }
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('مركز المالك', style: TextStyle(fontWeight: FontWeight.w800)),
+      leading: IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+      actions: [IconButton(onPressed: loading ? null : loadSchools, icon: const Icon(Icons.refresh))],
+    ),
+    body: loading ? const Center(child: CircularProgressIndicator()) : RefreshIndicator(
+      onRefresh: loadSchools,
+      child: ListView(padding: const EdgeInsets.all(14), children: [
+        Card(color: _ownerGreen, child: const ListTile(
+          leading: CircleAvatar(child: Icon(Icons.admin_panel_settings)),
+          title: Text('لوحة المالك', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          subtitle: Text('إدارة المدارس والتراخيص الدائمة', style: TextStyle(color: Colors.white70)),
+        )),
+        if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: const Text('تعذر تحميل البيانات'), subtitle: Text(error!))),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Expanded(child: _ownerStat('المدارس', schools.length.toString(), Icons.apartment)),
+              const SizedBox(width: 8),
+              Expanded(child: _ownerStat('مفعّلة', schools.where((s) => s['licensed'] == true).length.toString(), Icons.verified)),
+              const SizedBox(width: 8),
+              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true).length.toString(), Icons.schedule)),
+            ],
+          ),
+        ),
+        Card(child: ListTile(
+          leading: const Icon(Icons.add_business_outlined),
+          title: const Text('إنشاء مدرسة جديدة'),
+          subtitle: const Text('إنشاء المدرسة وتفعيلها مباشرة؛ العميل يدخل ببيانات حسابه فقط'),
+          trailing: const Icon(Icons.chevron_left),
+          onTap: createSchool,
+        )),
+        const SizedBox(height: 8),
+        Text('المدارس (' + schools.length.toString() + ')', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        if (schools.isEmpty)
+          const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد مدارس بعد.')))
+        else
+          ...schools.map(schoolCard),
+      ]),
+    ),
+  );
+
+  Widget _ownerStat(String title, String value, IconData icon) => Card(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        children: [
+          Icon(icon, color: _ownerGreen),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          Text(title, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    ),
+  );
+
+  Widget schoolCard(Map<String, dynamic> school) {
+    final licensed = school['licensed'] == true;
+    final trial = school['trial_started_at'] != null;
+    final status = licensed ? 'ترخيص دائم ومفعّل' : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ListTile(
+          leading: CircleAvatar(child: Icon(licensed ? Icons.verified : Icons.school_outlined)),
+          title: Text(school['name']?.toString() ?? '—', style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text("الرمز: ${school['code'] ?? '—'}\n$status"),
+          isThreeLine: true,
+          onTap: () => showSchoolDetails(school),
+          trailing: Wrap(
+            spacing: 2,
+            children: [
+              IconButton(
+                tooltip: 'تفاصيل المدرسة',
+                onPressed: () => showSchoolDetails(school),
+                icon: const Icon(Icons.info_outline),
+              ),
+              if (licensed)
+                const Icon(Icons.check_circle, color: _ownerGreen)
+              else
+                IconButton(
+                  tooltip: 'تفعيل المدرسة',
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: () => activateSchool(school),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+).hasMatch(v.trim())
+              ? 'اكتب 3–20 حرفًا إنجليزيًا أو رقمًا، مثل ama'
+              : null,
+        ),
         TextFormField(controller: username, decoration: const InputDecoration(labelText: 'اسم مدير المدرسة')),
         TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة مرور المدير'), validator: (v) => v == null || v.length < 6 ? '6 خانات على الأقل' : null),
       ]))),
