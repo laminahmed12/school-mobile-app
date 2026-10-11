@@ -798,7 +798,7 @@ class FinanceView extends StatelessWidget {
       child: Row(children: [
         Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))),
         const SizedBox(width: 8),
-        Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل'))),
+        Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل')))),
       ]),
     ),
     if (canManageFees)
