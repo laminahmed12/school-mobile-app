@@ -21,6 +21,6 @@ class BackupService {
   }
   static Future<void> backupAndOpenShare(SchoolRepository repo) async {
     final file=await createLocalBackup(repo);
-    await SharePlus.instance.share(ShareParams(files:[XFile(file.path,mimeType:'application/json')],subject:'نسخة احتياطية لامين',text:'احفظ هذه النسخة داخل OneDrive الخاص بالمدرسة.'));
+    await SharePlus.instance.share(ShareParams(files:[XFile(file.path,mimeType:'application/json')],subject:'نسخة احتياطية لامين',text:'احفظ هذه النسخة داخل Google Drive الخاص بالمدرسة.'));
   }
 }
