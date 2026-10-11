@@ -4,6 +4,30 @@ import 'supabase_config.dart';
 
 const _ownerGreen = Color(0xFF155D4A);
 
+DateTime? _trialEndsAt(Map<String, dynamic> school) {
+  final raw = school['trial_started_at']?.toString();
+  if (raw == null || raw.isEmpty) return null;
+  final started = DateTime.tryParse(raw)?.toUtc();
+  if (started == null) return null;
+  final day = started.day;
+  final firstOfTargetMonth = DateTime.utc(started.year, started.month + 1, 1,
+      started.hour, started.minute, started.second, started.millisecond, started.microsecond);
+  final lastDay = DateTime.utc(firstOfTargetMonth.year, firstOfTargetMonth.month + 1, 0).day;
+  return DateTime.utc(firstOfTargetMonth.year, firstOfTargetMonth.month,
+      day > lastDay ? lastDay : day, started.hour, started.minute, started.second,
+      started.millisecond, started.microsecond);
+}
+
+String _trialLabel(Map<String, dynamic> school) {
+  if (school['licensed'] == true) return 'ترخيص دائم ومفعّل';
+  final ends = _trialEndsAt(school);
+  if (ends == null) return 'الفترة التجريبية غير محددة';
+  final remaining = ends.difference(DateTime.now().toUtc());
+  if (remaining <= Duration.zero) return 'انتهت الفترة التجريبية';
+  final days = (remaining.inSeconds / Duration.secondsPerDay).ceil();
+  return 'فترة تجريبية — متبقي $days يوم';
+}
+
 class OwnerConsole extends StatefulWidget {
   final String pin;
   const OwnerConsole({super.key, required this.pin});
@@ -202,7 +226,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                       children: [
                         Text("رمز المدرسة: ${currentSchool['code'] ?? '—'}"),
                         const SizedBox(height: 4),
-                        Text("الحالة: ${!active ? 'موقوفة من المالك' : currentSchool['licensed'] == true ? 'ترخيص دائم' : 'فترة تجريبية'}",
+                        Text("الحالة: ${!active ? 'موقوفة من المالك' : _trialLabel(currentSchool)}",
                             style: TextStyle(fontWeight: FontWeight.w700, color: active ? _ownerGreen : Colors.red.shade700)),
                         const Divider(height: 22),
                         Text("الطلاب: ${stats['students'] ?? 0}"),
@@ -283,14 +307,14 @@ class _OwnerConsoleState extends State<OwnerConsole> {
               const SizedBox(width: 8),
               Expanded(child: _ownerStat('مفعّلة', schools.where((s) => s['licensed'] == true && s['active'] != false).length.toString(), Icons.verified)),
               const SizedBox(width: 8),
-              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true && s['active'] != false).length.toString(), Icons.schedule)),
+              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true && s['active'] != false && (_trialEndsAt(s)?.isAfter(DateTime.now().toUtc()) ?? false)).length.toString(), Icons.schedule)),
             ],
           ),
         ),
         Card(child: ListTile(
           leading: const Icon(Icons.add_business_outlined),
           title: const Text('إنشاء مدرسة جديدة'),
-          subtitle: const Text('إنشاء المدرسة وتفعيلها مباشرة؛ العميل يدخل ببيانات حسابه فقط'),
+          subtitle: const Text('بدء فترة تجريبية لمدة شهر؛ وبعدها يفعّل المالك الترخيص الدائم'),
           trailing: const Icon(Icons.chevron_left),
           onTap: createSchool,
         )),
@@ -322,12 +346,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
   Widget schoolCard(Map<String, dynamic> school) {
     final licensed = school['licensed'] == true;
     final active = school['active'] != false;
-    final trial = school['trial_started_at'] != null;
-    final status = !active
-        ? 'موقوفة من المالك'
-        : licensed
-            ? 'ترخيص دائم ومفعّل'
-            : (trial ? 'فترة تجريبية' : 'غير مفعّلة');
+    final status = !active ? 'موقوفة من المالك' : _trialLabel(school);
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
