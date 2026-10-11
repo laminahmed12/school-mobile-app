@@ -377,14 +377,14 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
-    final values = await Future.wait([
-      studentFeeAssessments(studentId),
-      studentPayments(studentId),
-      db.from('academic_years').select('id,name').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle(),
-    ]);
-    final fees = (values[0] as List).cast<Map<String, dynamic>>();
-    final paymentRows = (values[1] as List).cast<Map<String, dynamic>>();
-    final year = values[2] as Map<String, dynamic>?;
+    final fees = await studentFeeAssessments(studentId);
+    final paymentRows = await studentPayments(studentId);
+    final year = await db.from('academic_years')
+        .select('id,name')
+        .eq('active', true)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
     double totalFee = 0, discount = 0, paid = 0;
     for (final row in fees) {
       totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
