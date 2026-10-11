@@ -976,8 +976,8 @@ class MoreView extends StatelessWidget {
             builder: (ctx) => AlertDialog(
               title: const Text('تأكيد استعادة البيانات'),
               content: Text(
-                'النسخة: ${envelope['school_name'] ?? 'المدرسة'}\\n'
-                'التاريخ: ${envelope['created_at'] ?? 'غير معروف'}\\n\\n'
+                'النسخة: ${envelope['school_name'] ?? 'المدرسة'}\n'
+                'التاريخ: ${envelope['created_at'] ?? 'غير معروف'}\n\n'
                 'ستُدمج السجلات الناقصة من النسخة مع البيانات الحالية. لن تُحذف السجلات الحالية، ولن تُستبدل السجلات المتطابقة.',
               ),
               actions: [
