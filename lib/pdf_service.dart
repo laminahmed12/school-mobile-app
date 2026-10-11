@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -25,7 +26,7 @@ class LaminPdfService {
     final font = await PdfGoogleFonts.notoNaskhArabicRegular();
     final bold = await PdfGoogleFonts.notoNaskhArabicBold();
     final logoBytes = branding['logo'] as List<int>?;
-    final logo = logoBytes == null ? null : pw.MemoryImage(logoBytes);
+    final logo = logoBytes == null ? null : pw.MemoryImage(Uint8List.fromList(logoBytes));
     final date = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
     final rows = <List<String>>[
       ['إجمالي الطلاب', '${data['students'] ?? 0}'],
