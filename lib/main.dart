@@ -1180,9 +1180,17 @@ class _FeeManagementViewState extends State<FeeManagementView> {
     try {
       var query = db.from('student_fee_assessments').select('id,total_fee,discount,note,academic_year_id,academic_year_label,term')
           .eq('student_id', studentId!).eq('term', term);
-      final row = yearId == null
+      var row = yearId == null
           ? await query.isFilter('academic_year_id', null).maybeSingle()
           : await query.eq('academic_year_id', yearId!).maybeSingle();
+      if (row == null && yearId != null) {
+        row = await db.from('student_fee_assessments')
+            .select('id,total_fee,discount,note,academic_year_id,academic_year_label,term')
+            .eq('student_id', studentId!)
+            .eq('term', term)
+            .isFilter('academic_year_id', null)
+            .maybeSingle();
+      }
       feeController.text = row?['total_fee']?.toString() ?? '';
       discountController.text = row?['discount']?.toString() ?? '0';
       noteController.text = row?['note']?.toString() ?? '';
