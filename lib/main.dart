@@ -14,6 +14,7 @@ import 'student_profile.dart';
 import 'reports.dart';
 import 'school_setup.dart';
 import 'school_branding.dart';
+import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
 import 'backup_service.dart';
@@ -729,10 +730,143 @@ class _AttendanceViewState extends State<AttendanceView> {
 }
 
 class FinanceView extends StatelessWidget {
-  final SchoolRepository repo; final List<Student> students; final double payments, expenses; final Future<void> Function() onChanged;
-  const FinanceView({super.key, required this.repo, required this.students, required this.payments, required this.expenses, required this.onChanged});
-  @override Widget build(BuildContext context) => Column(children: [Padding(padding: const EdgeInsets.all(12), child: Row(children: [Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))), const SizedBox(width:8), Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل'))))])), Expanded(child: ListView.builder(itemCount: students.length, itemBuilder: (_, i) { final s=students[i]; return ListTile(title:Text(s.name),subtitle:Text(s.className),trailing:FilledButton.tonal(onPressed:()=>payment(context,s),child:const Text('دفعة'))); }))]);
-  Future<void> payment(BuildContext context, Student s) async { final a=TextEditingController(), n=TextEditingController(); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('دفعة — ${s.name}'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل')),TextField(controller:n,decoration:const InputDecoration(labelText:'ملاحظة'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(v==null||v<=0)return;try{await repo.addPayment(studentId:s.id,amount:v,note:n.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();if(s.phone.isNotEmpty&&context.mounted){await openWhatsApp(context,s.phone,'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${v.toStringAsFixed(2)} د.ل.');}}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(friendlyError(e,fallback:'تعذر حفظ الدفعة.'))));}},child:const Text('حفظ'))])); }
+  final SchoolRepository repo;
+  final List<Student> students;
+  final double payments, expenses;
+  final Future<void> Function() onChanged;
+
+  const FinanceView({
+    super.key,
+    required this.repo,
+    required this.students,
+    required this.payments,
+    required this.expenses,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))),
+            const SizedBox(width: 8),
+            Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل')))),
+          ],
+        ),
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: students.length,
+          itemBuilder: (_, i) {
+            final s = students[i];
+            return ListTile(
+              title: Text(s.name),
+              subtitle: Text(s.className),
+              trailing: FilledButton.tonal(
+                onPressed: () => payment(context, s),
+                child: const Text('دفعة'),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
+
+  Future<void> payment(BuildContext context, Student s) async {
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+    final value = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('دفعة — ${s.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'المبلغ د.ل'),
+            ),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(labelText: 'ملاحظة'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () {
+              final amount = double.tryParse(amountController.text.replaceAll(',', '.'));
+              if (amount == null || amount <= 0) return;
+              Navigator.pop(ctx, amount);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (value == null) return;
+    final note = noteController.text.trim();
+    try {
+      await repo.addPayment(studentId: s.id, amount: value, note: note);
+      await onChanged();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ الدفعة.'))),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+    final makeReceipt = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تم تسجيل الدفعة'),
+        content: const Text('هل تريد طباعة إيصال أو حفظه بصيغة PDF؟ سيظهر عليه شعار المدرسة إذا كان قد رُفع من إعدادات المدرسة.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ليس الآن')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('إيصال PDF'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (makeReceipt && context.mounted) {
+      try {
+        await LaminPdfService.printPaymentReceipt(
+          repo: repo,
+          studentName: s.name,
+          className: s.className,
+          amount: value,
+          note: note,
+        );
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('حُفظت الدفعة، لكن تعذر إنشاء الإيصال: ${e.toString().replaceFirst('Exception: ', '')}')),
+          );
+        }
+      }
+    }
+
+    if (s.phone.isNotEmpty && context.mounted) {
+      await openWhatsApp(
+        context,
+        s.phone,
+        'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${value.toStringAsFixed(2)} د.ل.',
+      );
+    }
+  }
 }
 
 class UserManagementView extends StatefulWidget {
