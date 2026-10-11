@@ -124,7 +124,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
     }
   }
 
-  Future<void> setSchoolActive(Map<String, dynamic> school, bool active) async {
+  Future<bool> setSchoolActive(Map<String, dynamic> school, bool active) async {
     final name = school['name']?.toString() ?? school['code']?.toString() ?? 'المدرسة';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -143,13 +143,15 @@ class _OwnerConsoleState extends State<OwnerConsole> {
         ],
       ),
     ) ?? false;
-    if (!confirmed) return;
+    if (!confirmed) return false;
     try {
       await callOwner('set_school_active', {'school_id': school['id'], 'active': active});
       await loadSchools();
       if (mounted) message(active ? 'تمت إعادة تفعيل المدرسة.' : 'تم إيقاف المدرسة ومنع تسجيل الدخول إليها.');
+      return true;
     } catch (e) {
       if (mounted) message(friendlyError(e), error: true);
+      return false;
     }
   }
 
@@ -233,9 +235,10 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => setSchoolActive(currentSchool, !active).then((_) {
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          }),
+                          onPressed: () async {
+                            final changed = await setSchoolActive(currentSchool, !active);
+                            if (changed && ctx.mounted) Navigator.pop(ctx);
+                          },
                           icon: Icon(active ? Icons.pause_circle_outline : Icons.play_circle_outline),
                           label: Text(active ? 'إيقاف المدرسة' : 'إعادة التفعيل'),
                           style: active ? OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700) : null,
