@@ -18,6 +18,9 @@ import 'auth_service.dart';
 import 'backup_service.dart';
 
 const brandGreen = Color(0xFF155D4A);
+const brandGold = Color(0xFFD7B56D);
+const brandInk = Color(0xFF20312C);
+const brandCanvas = Color(0xFFF3F6F3);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,9 +47,57 @@ class LaminApp extends StatelessWidget {
     title: 'لامين',
     theme: ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
-      scaffoldBackgroundColor: const Color(0xFFF6F7F4),
-      inputDecorationTheme: const InputDecorationTheme(border: UnderlineInputBorder()),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: brandGreen,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: brandGreen,
+        secondary: brandGold,
+        surface: Colors.white,
+        onPrimary: Colors.white,
+      ),
+      scaffoldBackgroundColor: brandCanvas,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: brandCanvas,
+        foregroundColor: brandInk,
+        centerTitle: false,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 1.5,
+        shadowColor: brandInk.withValues(alpha: 0.10),
+        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: const Color(0xFFE7F0EA),
+        indicatorColor: const Color(0xFFCBE8DA),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) =>
+          TextStyle(fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD7E1DA)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: brandGreen, width: 1.8),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: brandGreen,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
     ),
     home: AuthGate(prefs: prefs),
   );
@@ -488,7 +539,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final isAccountant = role == 'accountant';
     final pages = <Widget>[
       DashboardView(profile: profile, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
-      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin),
+      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
       MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
@@ -507,7 +558,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return true;
       },
       child: Scaffold(
-      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') await repo.signOut(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
+      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') { try { await repo.signOut(); if (db.auth.currentSession != null) { throw Exception('لم يكتمل تسجيل الخروج. حاول مرة أخرى.'); } } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج.')))); } } }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: destinations),
       ),
@@ -576,7 +627,7 @@ class FinanceView extends StatelessWidget {
   final SchoolRepository repo; final List<Student> students; final double payments, expenses; final Future<void> Function() onChanged;
   const FinanceView({super.key, required this.repo, required this.students, required this.payments, required this.expenses, required this.onChanged});
   @override Widget build(BuildContext context) => Column(children: [Padding(padding: const EdgeInsets.all(12), child: Row(children: [Expanded(child: Card(child: ListTile(title: const Text('الداخل'), trailing: Text('${payments.toStringAsFixed(2)} د.ل')))), const SizedBox(width:8), Expanded(child: Card(child: ListTile(title: const Text('المصروف'), trailing: Text('${expenses.toStringAsFixed(2)} د.ل'))))])), Expanded(child: ListView.builder(itemCount: students.length, itemBuilder: (_, i) { final s=students[i]; return ListTile(title:Text(s.name),subtitle:Text(s.className),trailing:FilledButton.tonal(onPressed:()=>payment(context,s),child:const Text('دفعة'))); }))]);
-  Future<void> payment(BuildContext context, Student s) async { final a=TextEditingController(), n=TextEditingController(); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('دفعة — ${s.name}'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل')),TextField(controller:n,decoration:const InputDecoration(labelText:'ملاحظة'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(v==null||v<=0)return;try{await repo.addPayment(studentId:s.id,amount:v,note:n.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();if(s.phone.isNotEmpty&&context.mounted){await openWhatsApp(context,s.phone,'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${v.toStringAsFixed(2)} د.ل.');}}catch(_){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content:Text('تعذر حفظ الدفعة')));}},child:const Text('حفظ'))])); }
+  Future<void> payment(BuildContext context, Student s) async { final a=TextEditingController(), n=TextEditingController(); await showDialog(context:context,builder:(ctx)=>AlertDialog(title:Text('دفعة — ${s.name}'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:a,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ د.ل')),TextField(controller:n,decoration:const InputDecoration(labelText:'ملاحظة'))]),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('إلغاء')),FilledButton(onPressed:()async{final v=double.tryParse(a.text.replaceAll(',','.'));if(v==null||v<=0)return;try{await repo.addPayment(studentId:s.id,amount:v,note:n.text);if(ctx.mounted)Navigator.pop(ctx);await onChanged();if(s.phone.isNotEmpty&&context.mounted){await openWhatsApp(context,s.phone,'السلام عليكم، تم تسجيل دفعة للطالب ${s.name} بقيمة ${v.toStringAsFixed(2)} د.ل.');}}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(friendlyError(e,fallback:'تعذر حفظ الدفعة.'))));}},child:const Text('حفظ'))])); }
 }
 
 class UserManagementView extends StatefulWidget {
