@@ -173,12 +173,8 @@ class SchoolRepository {
   }
 
   Future<List<Teacher>> teachers() async {
-    try {
-      final rows = await db.from('teachers').select().order('name');
-      return (rows as List).map((e) => Teacher.fromMap(Map<String, dynamic>.from(e))).toList();
-    } catch (_) {
-      return [];
-    }
+    final rows = await db.from('teachers').select().order('name');
+    return (rows as List).map((e) => Teacher.fromMap(Map<String, dynamic>.from(e))).toList();
   }
 
   Future<List<SubjectItem>> subjects() async {
