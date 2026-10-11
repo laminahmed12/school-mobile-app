@@ -1168,7 +1168,6 @@ class MoreView extends StatelessWidget {
       },
     )),
     if (isAdmin) Card(child:ListTile(
-    if (isAdmin) Card(child:ListTile(
       leading: const Icon(Icons.restore_page_outlined),
       title: const Text('استعادة النسخة المحلية'),
       subtitle: const Text('استعادة أحدث نسخة محفوظة داخل التطبيق على هذا الجهاز'),
@@ -1222,6 +1221,7 @@ class MoreView extends StatelessWidget {
         }
       },
     )),
+    if (isAdmin) Card(child:ListTile(
       leading: const Icon(Icons.settings_backup_restore_outlined),
       title: const Text('استعادة نسخة احتياطية'),
       subtitle: const Text('اختيار ملف JSON محفوظ على الجهاز أو Google Drive'),
