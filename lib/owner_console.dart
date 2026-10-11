@@ -281,9 +281,9 @@ class _OwnerConsoleState extends State<OwnerConsole> {
             children: [
               Expanded(child: _ownerStat('المدارس', schools.length.toString(), Icons.apartment)),
               const SizedBox(width: 8),
-              Expanded(child: _ownerStat('مفعّلة', schools.where((s) => s['licensed'] == true).length.toString(), Icons.verified)),
+              Expanded(child: _ownerStat('مفعّلة', schools.where((s) => s['licensed'] == true && s['active'] != false).length.toString(), Icons.verified)),
               const SizedBox(width: 8),
-              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true).length.toString(), Icons.schedule)),
+              Expanded(child: _ownerStat('تجريبية', schools.where((s) => s['licensed'] != true && s['active'] != false).length.toString(), Icons.schedule)),
             ],
           ),
         ),
