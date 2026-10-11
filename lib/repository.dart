@@ -302,17 +302,196 @@ class SchoolRepository {
     });
   }
 
-  Future<void> addStudent({required String name, required String className, required String phone}) async {
-    await db.from('students').insert({'name': name.trim(), 'class_name': className.trim(), 'phone': phone.trim()});
+  Future<String> addStudent({
+    required String name,
+    required String className,
+    required String phone,
+    double termFee = 0,
+    String term = 'الفصل الأول',
+  }) async {
+    final result = await db.rpc('create_student_with_fee', params: {
+      'p_name': name.trim(),
+      'p_class_name': className.trim(),
+      'p_phone': phone.trim(),
+      'p_term_fee': termFee,
+      'p_term': term,
+    });
+    final id = result?.toString() ?? '';
+    if (id.isEmpty) throw Exception('لم يُرجع الخادم رقم الطالب الجديد.');
+    return id;
   }
 
-  Future<void> addTeacher({required String name, required String subject, String phone = ''}) async {
-    await db.from('teachers').insert({'name': name.trim(), 'subject': subject.trim(), 'phone': phone.trim()});
+  Future<void> addTeacher({
+    required String name,
+    required String subject,
+    String phone = '',
+    double salary = 0,
+  }) async {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.trim().length < 2) throw Exception('أدخل اسم المعلم.');
+    if (subject.trim().isEmpty) throw Exception('أدخل المادة التي يدرّسها.');
+    if (normalizedPhone.isNotEmpty && (normalizedPhone.length < 8 || normalizedPhone.length > 15)) {
+      throw Exception('رقم الهاتف يجب أن يكون من 8 إلى 15 رقمًا.');
+    }
+    if (salary < 0) throw Exception('الراتب لا يمكن أن يكون سالبًا.');
+    await db.from('teachers').insert({
+      'name': name.trim(),
+      'subject': subject.trim(),
+      'phone': normalizedPhone,
+      'salary': salary,
+    });
   }
 
-  Future<void> addPayment({required String studentId, required double amount, String note = ''}) async {
-    final year = await db.from('academic_years').select('id').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle();
-    await db.from('payments').insert({'student_id': studentId, 'academic_year_id': year?['id'], 'amount': amount, 'note': note.trim()});
+  Future<List<Map<String, dynamic>>> studentFeeAssessments(String studentId) async {
+    final year = await db.from('academic_years')
+        .select('id,name')
+        .eq('active', true)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    final query = db.from('student_fee_assessments')
+        .select('id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at')
+        .eq('student_id', studentId);
+    final rows = year?['id'] != null
+        ? await query.eq('academic_year_id', year!['id']).order('created_at')
+        : await query.isFilter('academic_year_id', null).order('created_at');
+    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
+    final year = await db.from('academic_years')
+        .select('id')
+        .eq('active', true)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    final query = db.from('payments')
+        .select('id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id')
+        .eq('student_id', studentId);
+    final rows = year?['id'] != null
+        ? await query.eq('academic_year_id', year!['id']).order('payment_date', ascending: false)
+        : await query.isFilter('academic_year_id', null).order('payment_date', ascending: false);
+    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
+    final values = await Future.wait([
+      studentFeeAssessments(studentId),
+      studentPayments(studentId),
+      db.from('academic_years').select('id,name').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle(),
+    ]);
+    final fees = (values[0] as List).cast<Map<String, dynamic>>();
+    final paymentRows = (values[1] as List).cast<Map<String, dynamic>>();
+    final year = values[2] as Map<String, dynamic>?;
+    double totalFee = 0, discount = 0, paid = 0;
+    for (final row in fees) {
+      totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+      discount += (row['discount'] as num?)?.toDouble() ?? 0;
+    }
+    for (final row in paymentRows) {
+      paid += (row['amount'] as num?)?.toDouble() ?? 0;
+    }
+    double opening = 0;
+    if (year?['id'] != null) {
+      try {
+        final rows = await db.from('student_opening_balances')
+            .select('amount')
+            .eq('student_id', studentId)
+            .eq('academic_year_id', year!['id']);
+        opening = (rows as List).fold<double>(0, (sum, row) =>
+            sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      } catch (_) {}
+    }
+    final due = totalFee - discount + opening;
+    return {
+      'academic_year': year?['name']?.toString() ?? (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
+      'fees': totalFee,
+      'discount': discount,
+      'opening_balance': opening,
+      'paid': paid,
+      'remaining': due - paid,
+      'assessments': fees,
+      'payments': paymentRows,
+    };
+  }
+
+  Future<void> saveStudentFeeAssessment({
+    required String studentId,
+    required String term,
+    required double totalFee,
+    double discount = 0,
+    String? academicYearId,
+    String academicYearLabel = 'غير محدد',
+    String note = '',
+  }) async {
+    if (totalFee < 0 || discount < 0 || discount > totalFee) {
+      throw Exception('تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.');
+    }
+    final p = await profile();
+    final schoolId = p?.schoolId;
+    if (schoolId == null || (p?.role != 'admin' && p?.role != 'owner' && p?.role != 'accountant')) {
+      throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
+    }
+    final filters = db.from('student_fee_assessments')
+        .select('id')
+        .eq('school_id', schoolId)
+        .eq('student_id', studentId)
+        .eq('term', term);
+    final existing = academicYearId == null
+        ? await filters.isFilter('academic_year_id', null).eq('academic_year_label', academicYearLabel).maybeSingle()
+        : await filters.eq('academic_year_id', academicYearId).maybeSingle();
+    final payload = {
+      'school_id': schoolId,
+      'student_id': studentId,
+      'academic_year_id': academicYearId,
+      'academic_year_label': academicYearLabel,
+      'term': term,
+      'total_fee': totalFee,
+      'discount': discount,
+      'note': note.trim(),
+      'created_by': db.auth.currentUser?.id,
+    };
+    if (existing?['id'] != null) {
+      await db.from('student_fee_assessments').update(payload).eq('id', existing!['id']);
+    } else {
+      await db.from('student_fee_assessments').insert(payload);
+    }
+  }
+
+  Future<void> addPayment({
+    required String studentId,
+    required double amount,
+    String note = '',
+    String term = 'غير محدد',
+    String? feeAssessmentId,
+  }) async {
+    if (amount <= 0) throw Exception('قيمة الدفعة يجب أن تكون أكبر من صفر.');
+    final year = await db.from('academic_years')
+        .select('id')
+        .eq('active', true)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    String? yearId = year?['id']?.toString();
+    if (feeAssessmentId != null && feeAssessmentId.isNotEmpty) {
+      final assessment = await db.from('student_fee_assessments')
+          .select('academic_year_id,term')
+          .eq('id', feeAssessmentId)
+          .eq('student_id', studentId)
+          .maybeSingle();
+      if (assessment == null) throw Exception('بند الرسوم المحدد غير موجود لهذا الطالب.');
+      yearId = assessment['academic_year_id']?.toString();
+      term = assessment['term']?.toString() ?? term;
+    }
+    await db.from('payments').insert({
+      'student_id': studentId,
+      'academic_year_id': yearId,
+      'fee_assessment_id': feeAssessmentId,
+      'term': term,
+      'payment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'amount': amount,
+      'note': note.trim(),
+    });
   }
 
   Future<Map<String,dynamic>> exportBackup() async {
