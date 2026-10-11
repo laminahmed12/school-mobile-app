@@ -95,7 +95,7 @@ class LaminPdfService {
     final font = await PdfGoogleFonts.notoNaskhArabicRegular();
     final bold = await PdfGoogleFonts.notoNaskhArabicBold();
     final logoBytes = branding['logo'] as List<int>?;
-    final logo = logoBytes == null ? null : pw.MemoryImage(logoBytes);
+    final logo = logoBytes == null ? null : pw.MemoryImage(Uint8List.fromList(logoBytes));
     final now = DateTime.now();
     final date = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     doc.addPage(pw.Page(
