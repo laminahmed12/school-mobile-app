@@ -33,6 +33,32 @@ class BackupService {
     return file;
   }
 
+  static Future<Map<String, dynamic>?> readLatestLocalBackup(SchoolRepository repo) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final backups = Directory('${dir.path}/LaameenBackups');
+    if (!await backups.exists()) return null;
+    final school = await repo.school();
+    final schoolId = school?['id']?.toString();
+    if (schoolId == null || schoolId.isEmpty) return null;
+    final files = await backups
+        .list()
+        .where((entry) => entry is File && entry.path.endsWith('_${schoolId}.json'))
+        .cast<File>()
+        .toList();
+    if (files.isEmpty) return null;
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    final decoded = jsonDecode(await files.first.readAsString());
+    if (decoded is! Map) throw Exception('تنسيق النسخة المحلية غير صالح.');
+    final envelope = Map<String, dynamic>.from(decoded);
+    if (envelope['format'] != 'lamin-school-backup' ||
+        envelope['version'] != 2 ||
+        envelope['school_id']?.toString() != schoolId ||
+        envelope['data'] is! Map) {
+      throw Exception('النسخة المحلية لا تطابق المدرسة الحالية.');
+    }
+    return envelope;
+  }
+
   static Future<Map<String, dynamic>?> pickBackupFile() async {
     final selection = await FilePicker.platform.pickFiles(
       type: FileType.custom,
