@@ -630,7 +630,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final isAccountant = role == 'accountant';
     final pages = <Widget>[
       DashboardView(profile: profile, schoolInfo: schoolInfo, students: students, teachers: teachers, payments: payments, expenses: expenses, online: online),
-      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor),
+      if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor, canSetFees: isAdmin),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh),
       MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, role: role),
@@ -644,7 +644,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ];
     if (tab >= pages.length) tab = 0;
     return Scaffold(
-      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') { try { await db.auth.signOut(scope: SignOutScope.local); await Future<void>.delayed(Duration.zero); if (db.auth.currentSession != null) { throw Exception('تعذر إنهاء الجلسة المحلية. أغلق التطبيق وافتحه ثم حاول مرة أخرى.'); } } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج.')))); } } }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
+      appBar: AppBar(title: const Text('لامين', style: TextStyle(fontWeight: FontWeight.w800)), actions: [IconButton(onPressed: loading ? null : refresh, icon: const Icon(Icons.refresh)), PopupMenuButton<String>(onSelected: (v) async { if (v == 'logout') { try { await db.auth.signOut(scope: SignOutScope.local); if (db.auth.currentSession != null) throw Exception('تعذر إنهاء الجلسة. حاول مرة أخرى.'); if (!mounted) return; Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute<void>(builder: (_) => AuthGate(prefs: widget.prefs)), (route) => false); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تسجيل الخروج.')))); } } }, itemBuilder: (_) => const [PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))])]),
       body: loading ? const Center(child: CircularProgressIndicator()) : pages[tab],
       bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: destinations),
     );
@@ -695,7 +695,8 @@ class StudentsView extends StatefulWidget {
   final List<Student> students;
   final Future<void> Function() onChanged;
   final bool canAdd;
-  const StudentsView({super.key, required this.repo, required this.students, required this.onChanged, this.canAdd = true});
+  final bool canSetFees;
+  const StudentsView({super.key, required this.repo, required this.students, required this.onChanged, this.canAdd = true, this.canSetFees = false});
   @override State<StudentsView> createState() => _StudentsViewState();
 }
 
@@ -709,9 +710,53 @@ class _StudentsViewState extends State<StudentsView> {
       Expanded(child: list.isEmpty ? const Center(child: Text('لا توجد نتائج')) : ListView.builder(padding: const EdgeInsets.all(10), itemCount: list.length, itemBuilder: (_, i) { final s = list[i]; return Card(child: ListTile(leading: CircleAvatar(child: Text(s.name.isEmpty ? '?' : s.name[0])), title: Text(s.name), subtitle: Text(s.className + (s.phone.isEmpty ? '' : ' • ${s.phone}')), trailing: IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StudentProfileView(repo: widget.repo, student: s))), icon: const Icon(Icons.chevron_left)))); }))
     ]);
   }
+
   Future<void> addStudent(BuildContext context) async {
-    final n = TextEditingController(), cl = TextEditingController(), p = TextEditingController();
-    await showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('طالب جديد'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم الطالب')), TextField(controller: cl, decoration: const InputDecoration(labelText: 'الصف / الفصل')), TextField(controller: p, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'WhatsApp ولي الأمر'))]), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')), FilledButton(onPressed: () async { if (n.text.trim().isEmpty || cl.text.trim().isEmpty) return; try { await widget.repo.addStudent(name: n.text, className: cl.text, phone: p.text); if (ctx.mounted) Navigator.pop(ctx); await widget.onChanged(); } catch (_) { if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('تعذر حفظ الطالب'))); } }, child: const Text('حفظ'))]));
+    final n = TextEditingController(), cl = TextEditingController(), p = TextEditingController(), fee = TextEditingController();
+    String term = 'الفصل الأول';
+    await showDialog<void>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) => AlertDialog(
+      title: const Text('طالب جديد'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: n, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'اسم الطالب')),
+        TextField(controller: cl, decoration: const InputDecoration(labelText: 'الصف / الفصل')),
+        TextField(controller: p, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'WhatsApp ولي الأمر')),
+        if (widget.canSetFees) ...[
+          const SizedBox(height: 10),
+          TextField(controller: fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'قيمة الفصل الدراسي (د.ل)', helperText: 'اختياري — يمكن تعديلها من المالية')),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: term,
+            decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
+            items: const [
+              DropdownMenuItem(value: 'الفصل الأول', child: Text('الفصل الأول')),
+              DropdownMenuItem(value: 'الفصل الثاني', child: Text('الفصل الثاني')),
+              DropdownMenuItem(value: 'الفصل الثالث', child: Text('الفصل الثالث')),
+            ],
+            onChanged: (v) => setDialogState(() => term = v ?? 'الفصل الأول'),
+          ),
+        ],
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: () async {
+          final amount = double.tryParse(fee.text.trim().replaceAll(',', '.')) ?? (fee.text.trim().isEmpty ? 0 : -1);
+          if (n.text.trim().length < 2 || cl.text.trim().isEmpty || amount < 0) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل اسم الطالب والصف وقيمة رسوم صحيحة.')));
+            return;
+          }
+          try {
+            await widget.repo.addStudent(name: n.text, className: cl.text, phone: p.text, termFee: amount, term: term);
+            if (ctx.mounted) Navigator.pop(ctx);
+            await widget.onChanged();
+            if (context.mounted && amount > 0) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الطالب ورسوم الفصل الدراسي.')));
+            }
+          } catch (e) {
+            if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر حفظ الطالب.'))));
+          }
+        }, child: const Text('حفظ')),
+      ],
+    )));
   }
 }
 
