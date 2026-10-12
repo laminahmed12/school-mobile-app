@@ -486,21 +486,13 @@ class SchoolRepository {
     String? feeAssessmentId,
   }) async {
     if (amount <= 0) throw Exception('قيمة الدفعة يجب أن تكون أكبر من صفر.');
-    final year = await db.from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    String? yearId = year?['id']?.toString();
     if (feeAssessmentId != null && feeAssessmentId.isNotEmpty) {
       final assessment = await db.from('student_fee_assessments')
-          .select('academic_year_id,term')
+          .select('term')
           .eq('id', feeAssessmentId)
           .eq('student_id', studentId)
           .maybeSingle();
       if (assessment == null) throw Exception('بند الرسوم المحدد غير موجود لهذا الطالب.');
-      yearId = assessment['academic_year_id']?.toString();
       term = assessment['term']?.toString() ?? term;
     }
     final idempotencyKey =
