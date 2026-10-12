@@ -184,7 +184,20 @@ class _DiscountManagementViewState extends State<DiscountManagementView> {
       ]))),
       if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline, color: Colors.red), title: Text(error!))),
       if (isAdmin) Card(child: ListTile(leading: const Icon(Icons.rule_folder_outlined), title: const Text('قواعد الخصم'), subtitle: Text(rules.length.toString() + ' قاعدة'), trailing: const Icon(Icons.add), onTap: createRule)),
-      ...rules.map((r) => Card(child: ListTile(leading: const Icon(Icons.rule), title: Text(r['name'].toString()), subtitle: Text(r['rule_type'].toString() + ' • ' + r['value'].toString() + (r['value_type'] == 'percent' ? '%' : ' د.ل') + ' • ' + (r['stacking_policy'] == 'stack' ? 'قابل للجمع' : 'خصم واحد')))),
+      ...rules.map((r) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.rule),
+          title: Text(r['name'].toString()),
+          subtitle: Text(
+            r['rule_type'].toString() +
+                ' • ' +
+                r['value'].toString() +
+                (r['value_type'] == 'percent' ? '%' : ' د.ل') +
+                ' • ' +
+                (r['stacking_policy'] == 'stack' ? 'قابل للجمع' : 'خصم واحد'),
+          ),
+        ),
+      )),
       if (awards.isEmpty) const Card(child: ListTile(title: Text('لا توجد طلبات خصم بعد'))),
       ...awards.map((a) {
         final status = a['status']?.toString() ?? 'pending';
