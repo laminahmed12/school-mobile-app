@@ -13,6 +13,12 @@ String friendlyError(Object error, {String fallback = 'تعذر تنفيذ ال�
   }
 
   final raw = error.toString().toLowerCase();
+  if (raw.contains('teachers_phone_check')) {
+    return 'تعذر حفظ رقم هاتف المعلم. اترك الحقل فارغاً أو أدخل رقماً من 8 إلى 15 رقماً. إذا استمر الخطأ، حدّث التطبيق واتصل بالإنترنت ثم أعد المحاولة.';
+  }
+  if (raw.contains('violates check constraint')) {
+    return 'رفضت قاعدة البيانات إحدى القيم المدخلة. راجع الاسم والتخصص ورقم الهاتف والمبلغ ثم حاول مرة أخرى.';
+  }
   if (raw.contains('socketfailed') ||
       raw.contains('failed host lookup') ||
       raw.contains('host lookup') ||
