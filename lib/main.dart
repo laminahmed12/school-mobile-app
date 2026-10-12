@@ -1434,15 +1434,20 @@ class _UserManagementViewState extends State<UserManagementView> {
     final token = TextEditingController(), drive = TextEditingController(), folder = TextEditingController();
     final ok = await showDialog<bool>(context: context, builder: (d) => AlertDialog(
       title: Text(granted ? 'إلغاء صلاحية OneDrive' : 'منح صلاحية OneDrive'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('المستخدم: ' + name),
-        if (!granted) TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'بريد Microsoft / OneDrive')),
+        const SizedBox(height: 10),
+        const Text('هذه صلاحية إدارية منفصلة عن صلاحيات لامين، لربط المستخدم بمجلد OneDrive محدد. منحها لا يرفع النسخ الاحتياطية تلقائيًا. لا تدخل كلمة مرور Microsoft هنا؛ يلزم رمز وصول ومعرّفات صحيحة من مسؤول الربط.'),
+        if (!granted) ...[
+          const SizedBox(height: 12),
+          TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'بريد Microsoft / OneDrive')),
+        ],
         const SizedBox(height: 8),
-        TextField(controller: token, obscureText: true, decoration: const InputDecoration(labelText: 'رمز Microsoft المؤقت')),
+        TextField(controller: token, obscureText: true, decoration: const InputDecoration(labelText: 'رمز وصول Microsoft (Access Token)')),
         const SizedBox(height: 8),
-        TextField(controller: drive, decoration: const InputDecoration(labelText: 'معرّف OneDrive Drive')),
+        TextField(controller: drive, decoration: const InputDecoration(labelText: 'معرّف مساحة OneDrive (Drive ID)')),
         const SizedBox(height: 8),
-        TextField(controller: folder, decoration: const InputDecoration(labelText: 'معرّف مجلد المدرسة')),
+        TextField(controller: folder, decoration: const InputDecoration(labelText: 'معرّف مجلد المدرسة (Folder ID)')),
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('إلغاء')),
@@ -1451,6 +1456,9 @@ class _UserManagementViewState extends State<UserManagementView> {
     )) ?? false;
     if (!ok) return;
     try {
+      if (token.text.trim().isEmpty) throw Exception('أدخل رمز وصول Microsoft الصالح، وليس كلمة المرور.');
+      if (drive.text.trim().isEmpty) throw Exception('أدخل معرّف مساحة OneDrive.');
+      if (folder.text.trim().isEmpty) throw Exception('أدخل معرّف مجلد المدرسة.');
       if (granted) {
         await widget.repo.revokeOneDriveAccess(id, microsoftAccessToken: token.text.trim(), driveId: drive.text.trim(), folderItemId: folder.text.trim());
       } else {
