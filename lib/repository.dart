@@ -150,7 +150,10 @@ class SchoolRepository {
     await db.rpc('set_student_promotion', params: {'p_student_id':studentId,'p_target_class_id':targetClassId,'p_status':status});
   }
 
-  Future<void> addClass({required String name, String section = '', String? academicYearId}) async {
+  Future<void> addClass({required String name, String section = '', String? academicYearId, int? gradeOrder}) async {
+    if (gradeOrder != null && (gradeOrder < 1 || gradeOrder > 20)) {
+      throw Exception('ترتيب الصف يجب أن يكون بين 1 و20.');
+    }
     var yearId = academicYearId;
     if (yearId == null || yearId.isEmpty) {
       final active = await db.from('academic_years')
@@ -164,6 +167,7 @@ class SchoolRepository {
     await db.from('classes').insert({
       'name': name.trim(),
       'section': section.trim(),
+      if (gradeOrder != null) 'grade_order': gradeOrder,
       if (yearId != null && yearId.isNotEmpty) 'academic_year_id': yearId,
     });
   }
