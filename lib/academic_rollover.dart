@@ -144,7 +144,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(value: targetYear, decoration: const InputDecoration(labelText: 'السنة الهدف'),
           items: years.where((y) => y['id'].toString() != sourceYear && y['is_closed'] != true).map((y) => DropdownMenuItem(value: y['id'].toString(), child: Text(y['name'].toString()))).toList(),
-          onChanged: working ? null : (v) => setState(() => targetYear = v)),
+          onChanged: working ? null : (v) => setState(() { targetYear = v; batchId = null; batch = null; items = []; })),
         const SizedBox(height: 8),
         FilledButton.icon(onPressed: working ? null : prepare, icon: const Icon(Icons.fact_check_outlined), label: Text(working ? 'جار الإعداد...' : 'إعداد المعاينة')),
       ],
