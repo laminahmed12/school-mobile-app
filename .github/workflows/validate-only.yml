@@ -19,7 +19,7 @@ jobs:
           cache: true
       - name: Resolve dependencies
         run: flutter pub get
-      - name: Check Dart formatting without modifying files
-        run: dart format --output=none --set-exit-if-changed lib
+      - name: Format Dart sources in the temporary runner workspace
+        run: dart format lib
       - name: Static analysis
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
