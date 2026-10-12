@@ -146,10 +146,6 @@ class SchoolRepository {
     return result?.toString();
   }
 
-  Future<void> promoteStudent(String studentId, String? targetClassId, {String status='active'}) async {
-    await db.rpc('set_student_promotion', params: {'p_student_id':studentId,'p_target_class_id':targetClassId,'p_status':status});
-  }
-
   Future<void> addClass({required String name, String section = '', String? academicYearId, int? gradeOrder}) async {
     if (gradeOrder != null && (gradeOrder < 1 || gradeOrder > 20)) {
       throw Exception('ترتيب الصف يجب أن يكون بين 1 و20.');
