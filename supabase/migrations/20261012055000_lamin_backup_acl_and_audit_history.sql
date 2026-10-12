@@ -20,7 +20,7 @@ declare v_payload jsonb; v_school uuid;
 begin
  v_payload:=public.export_backup_core_v4(p_school); v_school:=(v_payload->>'school_filter')::uuid;
  return v_payload || jsonb_build_object(
-  'audit_log',(select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at),'[]'::jsonb) from public.audit_log a where a.school_id=v_school),
+  'audit_log',(select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at),'[]'::jsonb) from public.audit_log a where a.school_id=v_school and a.details->>'restored_from_audit_id' is null),
   'audit_log_school_id',v_school);
 end $function$;
 revoke all on function public.export_backup_core_v4(uuid) from public,anon,authenticated;
