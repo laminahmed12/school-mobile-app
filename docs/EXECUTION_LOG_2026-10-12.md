@@ -25,3 +25,11 @@
 - The first validation run failed before static analysis because the repository contains pre-existing Dart formatting differences. The workflow was adjusted to format only in the temporary runner workspace rather than fail on those existing differences.
 - The latest validation run completed successfully: dependency resolution, temporary-workspace Dart formatting, and Flutter static analysis all passed (run: https://github.com/laminahmed12/school-mobile-app/actions/runs/38204168947).
 - No APK or Release build was run.
+
+## Follow-up security fix — 2026-10-12 10:10 Libya time (UTC+02)
+- Supabase security review found a NULL-role authorization edge case in `bootstrap_owner_school`: PL/pgSQL's `IF v_role <> 'owner'` does not reject a NULL role.
+- Applied migration `lamin_harden_owner_bootstrap_null_role_guard` to Supabase: role comparison now uses `IS DISTINCT FROM 'owner'`, requires an active owner profile, validates the school name, and aborts if the profile binding changes before update.
+- Read-only post-migration check confirmed the NULL-role guard and name validation are present.
+- Mirrored the migration in `supabase/migrations/20261012101000_lamin_harden_owner_bootstrap_null_role_guard.sql` on the isolated hardening branch.
+- This migration does not edit existing school/student records or license states. No Release/APK build was triggered.
+- Remaining work: review other privileged RPC authorization edges and finance UI coverage; resolve actionable security-advisor findings, run validation, and update this log before declaring completion.
