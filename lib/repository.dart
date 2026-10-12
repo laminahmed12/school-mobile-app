@@ -503,14 +503,15 @@ class SchoolRepository {
       yearId = assessment['academic_year_id']?.toString();
       term = assessment['term']?.toString() ?? term;
     }
-    await db.from('payments').insert({
-      'student_id': studentId,
-      'academic_year_id': yearId,
-      'fee_assessment_id': feeAssessmentId,
-      'term': term,
-      'payment_date': DateTime.now().toIso8601String().substring(0, 10),
-      'amount': amount,
-      'note': note.trim(),
+    final idempotencyKey =
+        '${db.auth.currentUser?.id ?? 'user'}_${studentId}_${DateTime.now().microsecondsSinceEpoch}';
+    await db.rpc('record_student_payment', params: {
+      'p_student_id': studentId,
+      'p_amount': amount,
+      'p_note': note.trim(),
+      'p_term': term,
+      'p_fee_assessment_id': feeAssessmentId,
+      'p_idempotency_key': idempotencyKey,
     });
   }
 
