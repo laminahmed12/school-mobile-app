@@ -1,4 +1,4 @@
-name: Build Lamin APK
+name: Validate Lamin (no APK release)
 on:
   push:
     branches: [main]
@@ -75,12 +75,4 @@ jobs:
       - run: flutter pub get
       - run: dart format lib
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - run: flutter build apk --release --no-tree-shake-icons
-      # APK build is the release gate. Emulator UI testing is intentionally separate so
-      # a slow CI emulator can never block delivery of a verified release APK.
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lamin-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
+      # Deliberately do not build or publish an APK during ongoing implementation.
