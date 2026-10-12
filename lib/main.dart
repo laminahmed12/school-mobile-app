@@ -17,7 +17,7 @@ import 'school_branding.dart';
 import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
-import 'backup_service.dart';
+import 'backup_view.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -653,6 +653,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (isAdmin || isSupervisor) StudentsView(repo: repo, students: students, onChanged: refresh, canAdd: isAdmin || isSupervisor, canSetFees: isAdmin),
       if (isAdmin || isSupervisor) AttendanceView(repo: repo, students: students),
       if (isAdmin || isAccountant) FinanceView(repo: repo, students: students, payments: payments, expenses: expenses, onChanged: refresh, canManageFees: isAdmin || isAccountant),
+      if (isAdmin) BackupView(repo: repo, onChanged: refresh),
       MoreView(repo: repo, prefs: widget.prefs, teachers: teachers, students: students, onChanged: refresh, onLogout: logout, role: role),
     ];
     final destinations = <NavigationDestination>[
@@ -660,6 +661,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (isAdmin || isSupervisor) const NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'الطلاب'),
       if (isAdmin || isSupervisor) const NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'الحضور'),
       if (isAdmin || isAccountant) const NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'المالية'),
+      if (isAdmin) const NavigationDestination(icon: Icon(Icons.storage_outlined), selectedIcon: Icon(Icons.storage), label: 'التخزين'),
       const NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'المزيد'),
     ];
     if (tab >= pages.length) tab = 0;
@@ -1630,167 +1632,6 @@ class MoreView extends StatelessWidget {
       )),
     )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
-    if (isAdmin) Card(child:ListTile(
-      leading: const Icon(Icons.save_alt_outlined),
-      title: const Text('نسخة احتياطية محلية'),
-      subtitle: const Text('حفظ نسخة داخل مساحة التطبيق على هذا الجهاز دون فتح نافذة خارجية'),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: () async {
-        try {
-          await BackupService.createLocalBackup(repo);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('تم إنشاء النسخة الاحتياطية محلياً على هذا الجهاز.')),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء النسخة المحلية.'))),
-            );
-          }
-        }
-      },
-    )),
-    if (isAdmin) Card(child:ListTile(
-      leading: const Icon(Icons.add_to_drive_outlined),
-      title: const Text('حفظ نسخة خارج التطبيق (Google Drive)'),
-      subtitle: const Text('اختر Google Drive من قائمة المواقع في نافذة الحفظ'),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: () async {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('حفظ نسخة في Google Drive'),
-            content: const Text('ستفتح نافذة نظام Android. اضغط القائمة أعلى النافذة، واختر Google Drive ثم المجلد المطلوب واضغط «حفظ». إذا بقي الموقع «التنزيلات»، فلن تُرفع النسخة إلى Drive.'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('اختيار الموقع')),
-            ],
-          ),
-        );
-        if (proceed != true || !context.mounted) return;
-        try {
-          final savedLocation = await BackupService.backupAndSave(repo);
-          if (context.mounted && savedLocation != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('اكتمل الحفظ في الموقع الذي اخترته. افتح Google Drive وتحقق من وجود الملف قبل الاعتماد عليه.')),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذر إنشاء ملف النسخة الاحتياطية.'))),
-            );
-          }
-        }
-      },
-    )),
-    if (isAdmin) Card(child:ListTile(
-      leading: const Icon(Icons.restore_page_outlined),
-      title: const Text('استعادة النسخة المحلية'),
-      subtitle: const Text('استعادة أحدث نسخة محفوظة داخل التطبيق على هذا الجهاز'),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: () async {
-        try {
-          final envelope = await BackupService.readLatestLocalBackup(repo);
-          if (envelope == null || !context.mounted) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('لا توجد نسخة محلية محفوظة لهذه المدرسة على هذا الجهاز.')),
-              );
-            }
-            return;
-          }
-          final currentSchool = await repo.school();
-          final currentSchoolId = currentSchool?['id']?.toString();
-          if (currentSchoolId == null || envelope['school_id']?.toString() != currentSchoolId) {
-            throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
-          }
-          final data = Map<String, dynamic>.from(envelope['data'] as Map);
-          if (data['format'] != 'lamin-school-backup-v2' ||
-              data['school_filter']?.toString() != currentSchoolId) {
-            throw Exception('محتوى النسخة المحلية لا يطابق المدرسة الحالية.');
-          }
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('تأكيد استعادة النسخة المحلية'),
-              content: const Text('ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟'),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
-              ],
-            ),
-          );
-          if (confirmed != true || !context.mounted) return;
-          final result = await repo.restoreBackup(data);
-          await onChanged();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("اكتملت الاستعادة المحلية. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}")),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت استعادة النسخة المحلية.'))),
-            );
-          }
-        }
-      },
-    )),
-    if (isAdmin) Card(child:ListTile(
-      leading: const Icon(Icons.settings_backup_restore_outlined),
-      title: const Text('استعادة نسخة احتياطية'),
-      subtitle: const Text('اختيار ملف JSON محفوظ على الجهاز أو Google Drive'),
-      trailing: const Icon(Icons.chevron_left),
-      onTap: () async {
-        try {
-          final envelope = await BackupService.pickBackupFile();
-          if (envelope == null || !context.mounted) return;
-          final currentSchool = await repo.school();
-          final currentSchoolId = currentSchool?['id']?.toString();
-          if (currentSchoolId == null || envelope['school_id']?.toString() != currentSchoolId) {
-            throw Exception('هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية بيانات المدارس.');
-          }
-          final data = Map<String, dynamic>.from(envelope['data'] as Map);
-          if (data['format'] != 'lamin-school-backup-v2' ||
-              data['school_filter']?.toString() != currentSchoolId) {
-            throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
-          }
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('تأكيد استعادة البيانات'),
-              content: Text(
-                'النسخة: ${envelope['school_name'] ?? 'المدرسة'}\n'
-                'التاريخ: ${envelope['created_at'] ?? 'غير معروف'}\n\n'
-                'ستُدمج السجلات الناقصة من النسخة مع البيانات الحالية. لن تُحذف السجلات الحالية، ولن تُستبدل السجلات المتطابقة.',
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
-              ],
-            ),
-          );
-          if (confirmed != true || !context.mounted) return;
-          final result = await repo.restoreBackup(data);
-          await onChanged();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('اكتملت الاستعادة الآمنة. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}')),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت استعادة النسخة الاحتياطية.'))),
-            );
-          }
-        }
-      },
-    )),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.settings),title:const Text('إعداد المدرسة'),subtitle:const Text('السنوات والصفوف والمواد'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolSetupView(repo:repo))))),
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.branding_watermark_outlined),title:const Text('شعار المدرسة للطباعة'),subtitle:const Text('رفع الشعار ليظهر على التقارير وإيصالات PDF'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SchoolBrandingView(repo:repo))))),
