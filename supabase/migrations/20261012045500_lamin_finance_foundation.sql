@@ -3,6 +3,7 @@
 alter table public.student_opening_balances
   add column if not exists source_academic_year_id uuid,
   add column if not exists source_fee_assessment_id uuid,
+  add column if not exists rollover_batch_id uuid,
   add column if not exists created_by uuid default auth.uid(),
   add column if not exists updated_at timestamptz not null default now(),
   add column if not exists updated_by uuid;
