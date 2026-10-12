@@ -488,34 +488,21 @@ class SchoolRepository {
     String note = '',
     String term = 'غير محدد',
     String? feeAssessmentId,
+    String? idempotencyKey,
   }) async {
     if (amount <= 0) throw Exception('قيمة الدفعة يجب أن تكون أكبر من صفر.');
-    final year = await db.from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    String? yearId = year?['id']?.toString();
-    if (feeAssessmentId != null && feeAssessmentId.isNotEmpty) {
-      final assessment = await db.from('student_fee_assessments')
-          .select('academic_year_id,term')
-          .eq('id', feeAssessmentId)
-          .eq('student_id', studentId)
-          .maybeSingle();
-      if (assessment == null) throw Exception('بند الرسوم المحدد غير موجود لهذا الطالب.');
-      yearId = assessment['academic_year_id']?.toString();
-      term = assessment['term']?.toString() ?? term;
-    }
-    await db.from('payments').insert({
-      'student_id': studentId,
-      'academic_year_id': yearId,
-      'fee_assessment_id': feeAssessmentId,
-      'term': term,
-      'payment_date': DateTime.now().toIso8601String().substring(0, 10),
-      'amount': amount,
-      'note': note.trim(),
+    if (amount > 100000000) throw Exception('قيمة الدفعة أكبر من الحد المسموح.');
+    final result = await db.rpc('record_student_payment', params: {
+      'p_student_id': studentId,
+      'p_amount': amount,
+      'p_note': note.trim(),
+      'p_term': term,
+      'p_fee_assessment_id': feeAssessmentId == null || feeAssessmentId.isEmpty ? null : feeAssessmentId,
+      'p_idempotency_key': idempotencyKey,
     });
+    if (result == null || result.toString().isEmpty) {
+      throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+    }
   }
 
   Future<Map<String,dynamic>> exportBackup() async {
