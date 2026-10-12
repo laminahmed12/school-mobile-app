@@ -23,4 +23,5 @@
 ## Validation
 - Added a branch-only validation workflow that resolves dependencies, formats Dart sources in the temporary runner workspace, and runs Flutter static analysis.
 - The first validation run failed before static analysis because the repository contains pre-existing Dart formatting differences. The workflow was adjusted to format only in the temporary runner workspace rather than fail on those existing differences.
-- Validation of the latest code revision is pending. This is not a Release build.
+- The latest validation run completed successfully: dependency resolution, temporary-workspace Dart formatting, and Flutter static analysis all passed (run: https://github.com/laminahmed12/school-mobile-app/actions/runs/38204168947).
+- No APK or Release build was run.
