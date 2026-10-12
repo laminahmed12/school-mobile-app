@@ -15,6 +15,7 @@ import 'reports.dart';
 import 'school_setup.dart';
 import 'school_branding.dart';
 import 'fee_schedule.dart';
+import 'discount_management.dart';
 import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
@@ -1621,6 +1622,7 @@ class MoreView extends StatelessWidget {
     return ListView(padding:const EdgeInsets.all(12),children:[
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم — إضافة وإدارة المعلمين'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TeacherManagementView(repo:repo,onChanged:onChanged))))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.price_check_outlined),title:const Text('الرسوم القياسية'),subtitle:const Text('إعداد رسوم كل صف وفصل حسب السنة الدراسية'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FeeScheduleView(role:role))))),
+    if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.discount_outlined),title:const Text('الخصومات والاعتمادات'),subtitle:const Text('قواعد الخصم وطلبات الاعتماد وسجل الموافقات'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DiscountManagementView(role:role))))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(
       leading: const Icon(Icons.payments_outlined),
