@@ -55,6 +55,7 @@ from pathlib import Path
 
 payment = Path("supabase/migrations/20261013041800_lamin_prioritize_selected_fee_payment.sql").read_text(encoding="utf-8")
 rollover = Path("supabase/migrations/20261013190000_lamin_rollover_balance_from_allocations.sql").read_text(encoding="utf-8")
+repository = Path("lib/repository.dart").read_text(encoding="utf-8")
 
 checks = {
     "payment idempotency uses conflict-safe insert": "on conflict (school_id,idempotency_key) where idempotency_key is not null do nothing" in payment.lower(),
@@ -70,6 +71,9 @@ checks = {
     "reviewed rollover previews are not silently replaced": "where batch_id=v_batch and reviewed" in rollover and "أوقفها وراجع قراراتها" in rollover,
     "new rollover preview is versioned": "'balance_formula_version',2" in rollover,
     "execution blocks stale rollover preview versions": "coalesce(NEW.preview->>'balance_formula_version','')<>'2'" in rollover,
+    "offline student cache is scoped by school ID": "final cacheKey = 'students_cache_\\$schoolId';" in repository,
+    "offline student reads fail closed without school scope": "if (schoolId == null || schoolId.isEmpty) return [];" in repository,
+    "offline student cache does not read the legacy shared key": "prefs.getString('students_cache')" not in repository,
 }
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
