@@ -123,7 +123,12 @@ class SchoolRepository {
 
   Future<List<Map<String, dynamic>>> academicYears() async {
     try {
-      return (await db.from('academic_years').select().order('created_at', ascending: false) as List)
+      final schoolId = (await profile())?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) return [];
+      return (await db.from('academic_years')
+          .select()
+          .eq('school_id', schoolId)
+          .order('created_at', ascending: false) as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (_) {
       return [];
@@ -132,7 +137,12 @@ class SchoolRepository {
 
   Future<List<Map<String, dynamic>>> classes() async {
     try {
-      return (await db.from('classes').select().order('name') as List)
+      final schoolId = (await profile())?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) return [];
+      return (await db.from('classes')
+          .select()
+          .eq('school_id', schoolId)
+          .order('name') as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (_) {
       return [];
