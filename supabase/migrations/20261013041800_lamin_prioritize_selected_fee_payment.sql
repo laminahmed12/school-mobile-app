@@ -14,7 +14,7 @@ begin
 end
 $preflight$;
 
-create unique index if not exists payments_school_idempotency_key_uidx
+create unique index if not exists payments_school_idempotency_key_uq
  on public.payments(school_id,idempotency_key)
  where idempotency_key is not null;
 
