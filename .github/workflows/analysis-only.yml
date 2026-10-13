@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - plan/lamin-finance-rollover-hardening
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -28,8 +31,8 @@ jobs:
           dart --version
       - name: Resolve dependencies
         run: flutter pub get
-      - name: Format Dart sources
-        run: dart format lib test
+      - name: Check Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Static analysis
         run: flutter analyze --no-pub --no-fatal-infos
       - name: Run tests
