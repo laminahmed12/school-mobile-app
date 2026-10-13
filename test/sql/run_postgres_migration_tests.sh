@@ -58,6 +58,7 @@ rollover = Path("supabase/migrations/20261013190000_lamin_rollover_balance_from_
 
 checks = {
     "payment idempotency uses conflict-safe insert": "on conflict (school_id,idempotency_key) where idempotency_key is not null do nothing" in payment.lower(),
+    "concurrent payments for one student are serialized before insertion": payment.lower().index("perform pg_catalog.pg_advisory_xact_lock") < payment.lower().index("insert into public.payments"),
     "payment retry validates student": "v_existing_student is distinct from p_student_id" in payment,
     "payment retry validates amount": "v_existing_amount is distinct from round(p_amount,2)" in payment,
     "explicit assessment is allocated first": "Explicit target first" in payment,
