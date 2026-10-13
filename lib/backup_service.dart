@@ -18,7 +18,8 @@ class BackupService {
     if (!await backups.exists()) await backups.create(recursive: true);
     final year = await repo.activeAcademicYearName() ?? 'current';
     final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'), '_');
-    final file = File('${backups.path}/lamin_${safeYear}_${schoolId}.json');
+    final timestamp = DateTime.now().toUtc().toIso8601String().replaceAll(':', '-');
+    final file = File('${backups.path}/lamin_${safeYear}_${timestamp}_${schoolId}.json');
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -101,6 +102,7 @@ class BackupService {
     final data = await repo.exportBackup();
     final year = await repo.activeAcademicYearName() ?? 'current';
     final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'), '_');
+    final timestamp = DateTime.now().toUtc().toIso8601String().replaceAll(':', '-');
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -114,7 +116,7 @@ class BackupService {
     final bytes = utf8.encode(const JsonEncoder.withIndent('  ').convert(envelope));
     return FilePicker.platform.saveFile(
       dialogTitle: 'حفظ النسخة الاحتياطية على Google Drive',
-      fileName: 'lamin_${safeYear}_${schoolId}.json',
+      fileName: 'lamin_${safeYear}_${timestamp}_${schoolId}.json',
       bytes: bytes,
     );
   }
