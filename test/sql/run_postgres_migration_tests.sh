@@ -71,7 +71,7 @@ checks = {
     "reviewed rollover previews are not silently replaced": "where batch_id=v_batch and reviewed" in rollover and "أوقفها وراجع قراراتها" in rollover,
     "new rollover preview is versioned": "'balance_formula_version',2" in rollover,
     "execution blocks stale rollover preview versions": "coalesce(NEW.preview->>'balance_formula_version','')<>'2'" in rollover,
-    "offline student cache is scoped by school ID": "final cacheKey = 'students_cache_\\$schoolId';" in repository,
+    "offline student cache is scoped by school ID": "final cacheKey = 'students_cache_$schoolId';" in repository,
     "offline student reads fail closed without school scope": "if (schoolId == null || schoolId.isEmpty) return [];" in repository,
     "offline student cache does not read the legacy shared key": "prefs.getString('students_cache')" not in repository,
 }
