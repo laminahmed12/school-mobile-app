@@ -59,6 +59,11 @@ repository = Path("lib/repository.dart").read_text(encoding="utf-8")
 summary_start = repository.index(" studentFinancialSummary(")
 summary_end = repository.index(" saveStudentFeeAssessment(", summary_start)
 financial_summary = repository[summary_start:summary_end]
+fees_start = repository.index(" studentFeeAssessments(")
+payments_start = repository.index(" studentPayments(", fees_start)
+summary_start = repository.index(" studentFinancialSummary(", payments_start)
+financial_fees = repository[fees_start:payments_start]
+financial_payments = repository[payments_start:summary_start]
 
 checks = {
     "payment idempotency uses conflict-safe insert": "on conflict (school_id,idempotency_key) where idempotency_key is not null do nothing" in payment.lower(),
@@ -78,6 +83,8 @@ checks = {
     "offline student reads fail closed without school scope": "if (schoolId == null || schoolId.isEmpty) return [];" in repository,
     "offline student cache does not read the legacy shared key": "prefs.getString('students_cache')" not in repository,
     "financial summary scopes active academic year to current school": ".eq('school_id', schoolId)" in financial_summary and ".eq('active', true)" in financial_summary,
+    "fee assessment query scopes active year to current school": ".eq('school_id', schoolId)" in financial_fees and ".eq('active', true)" in financial_fees,
+    "payment query scopes active year to current school": ".eq('school_id', schoolId)" in financial_payments and ".eq('active', true)" in financial_payments,
 }
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
