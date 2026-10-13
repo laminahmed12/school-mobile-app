@@ -62,7 +62,7 @@ begin
   select sfa.id,greatest(sfa.total_fee-sfa.discount
    -coalesce((select sum(pa.amount) from public.payment_allocations pa where pa.fee_assessment_id=sfa.id and pa.reversed_at is null),0)
    -coalesce((select sum(oldp.amount) from public.payments oldp where oldp.fee_assessment_id=sfa.id and oldp.id<>v_payment
-     and not exists(select 1 from public.payment_allocations olda where olda.payment_id=oldp.id and olda.reversed_at is null)),0),0) outstanding
+     and not exists(select 1 from public.payment_allocations olda where olda.payment_id=oldp.id)),0),0) outstanding
    into r from public.student_fee_assessments sfa
    where sfa.id=p_fee_assessment_id and sfa.school_id=v_school and sfa.student_id=p_student_id;
   v_take:=least(v_remaining,coalesce(r.outstanding,0));
@@ -83,7 +83,7 @@ begin
  for r in select sfa.id,greatest(sfa.total_fee-sfa.discount
   -coalesce((select sum(pa.amount) from public.payment_allocations pa where pa.fee_assessment_id=sfa.id and pa.reversed_at is null),0)
   -coalesce((select sum(oldp.amount) from public.payments oldp where oldp.fee_assessment_id=sfa.id and oldp.id<>v_payment
-    and not exists(select 1 from public.payment_allocations olda where olda.payment_id=oldp.id and olda.reversed_at is null)),0),0) outstanding
+    and not exists(select 1 from public.payment_allocations olda where olda.payment_id=oldp.id)),0),0) outstanding
   from public.student_fee_assessments sfa where sfa.school_id=v_school and sfa.student_id=p_student_id
    and (p_fee_assessment_id is null or sfa.id<>p_fee_assessment_id)
   order by sfa.due_date asc nulls last,sfa.created_at,sfa.id loop
