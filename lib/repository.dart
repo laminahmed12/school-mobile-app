@@ -41,10 +41,16 @@ class SchoolRepository {
   }
 
   Future<List<Student>> students() async {
+    // Never fall back to an unscoped cache: this device may be used by more
+    // than one school account. Keep offline data separated by the signed-in
+    // profile's school ID and fail closed when that scope cannot be resolved.
+    final schoolId = (await profile())?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return [];
+    final cacheKey = 'students_cache_$schoolId';
     try {
       final rows = await db.from('students').select().order('name');
       final list = (rows as List).map((e) => Student.fromMap(Map<String, dynamic>.from(e))).toList();
-      await prefs.setString('students_cache', jsonEncode(list.map((s) => {
+      await prefs.setString(cacheKey, jsonEncode(list.map((s) => {
         'id': s.id,
         'name': s.name,
         'class_name': s.className,
@@ -52,9 +58,17 @@ class SchoolRepository {
       }).toList()));
       return list;
     } catch (_) {
-      final raw = prefs.getString('students_cache');
+      final raw = prefs.getString(cacheKey);
       if (raw == null) return [];
-      return (jsonDecode(raw) as List).map((e) => Student.fromMap(Map<String, dynamic>.from(e))).toList();
+      try {
+        return (jsonDecode(raw) as List)
+            .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+      } catch (_) {
+        // A corrupt cache must not prevent the school from opening.
+        await prefs.remove(cacheKey);
+        return [];
+      }
     }
   }
 
