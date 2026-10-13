@@ -1,3 +1,23 @@
+-- 2026-10-13 20:xx UTC+02:00 (Libya).
+-- Fail closed if historical idempotency keys already collide within a school.
+-- This is required by the ON CONFLICT target below and makes concurrent retries safe.
+do $preflight$
+begin
+ if exists (
+  select 1 from public.payments
+  where idempotency_key is not null
+  group by school_id,idempotency_key
+  having count(*)>1
+ ) then
+  raise exception 'Migration blocked: duplicate non-null school payment idempotency keys require audited resolution';
+ end if;
+end
+$preflight$;
+
+create unique index if not exists payments_school_idempotency_key_uidx
+ on public.payments(school_id,idempotency_key)
+ where idempotency_key is not null;
+
 -- 2026-10-13 04:18 UTC+02:00 (Libya).
 -- A payment explicitly assigned to a fee assessment must satisfy that assessment first.
 -- Remaining amount then pays carried opening balances and finally other assessments.
