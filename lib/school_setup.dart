@@ -73,7 +73,7 @@ class _SchoolSetupViewState extends State<SchoolSetupView> {
                         subtitle: Text('${classes.length} صف/فصل'),
                         trailing: IconButton(onPressed: () => addClass(c), icon: const Icon(Icons.add)),
                       )),
-                      ...classes.map((x) => ListTile(title: Text('${x['name']}'), subtitle: Text('${x['section'] ?? ''}'))),
+                      ...classes.map((x) => ListTile(title: Text('${x['name']}'), subtitle: Text('ترتيب الصف: ${x['grade_order'] ?? 'غير محدد'} • ${x['section'] ?? ''}'))),
                       Card(child: ListTile(
                         leading: const Icon(Icons.menu_book),
                         title: const Text('المواد الدراسية'),
@@ -107,22 +107,28 @@ class _SchoolSetupViewState extends State<SchoolSetupView> {
   }
 
   Future<void> addClass(BuildContext c) async {
-    final n = TextEditingController(), s = TextEditingController();
+    final n = TextEditingController(), s = TextEditingController(), order = TextEditingController();
     await showDialog(context: c, builder: (dialog) => AlertDialog(
       title: const Text('صف / فصل'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: n, decoration: const InputDecoration(labelText: 'الصف')),
+        TextField(controller: n, decoration: const InputDecoration(labelText: 'اسم الصف')),
+        TextField(controller: order, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'ترتيب الصف الدراسي', helperText: 'مثال: 1 للصف الأول، 2 للصف الثاني')),
         TextField(controller: s, decoration: const InputDecoration(labelText: 'الفصل / الشعبة')),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إلغاء')),
         FilledButton(onPressed: () async {
-          if (n.text.trim().isEmpty) return;
-          try { await widget.repo.addClass(name: n.text, section: s.text); if (dialog.mounted) Navigator.pop(dialog); await load(); }
-          catch (_) { if (dialog.mounted) ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(content: Text('تعذر حفظ الصف'))); }
+          final gradeOrder = int.tryParse(order.text.trim());
+          if (n.text.trim().isEmpty || gradeOrder == null || gradeOrder < 1 || gradeOrder > 20) {
+            ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(content: Text('أدخل اسم الصف وترتيبه من 1 إلى 20.')));
+            return;
+          }
+          try { await widget.repo.addClass(name: n.text, section: s.text, gradeOrder: gradeOrder); if (dialog.mounted) Navigator.pop(dialog); await load(); }
+          catch (e) { if (dialog.mounted) ScaffoldMessenger.of(dialog).showSnackBar(SnackBar(content: Text('تعذر حفظ الصف: ' + e.toString()))); }
         }, child: const Text('حفظ')),
       ],
     ));
+    n.dispose(); s.dispose(); order.dispose();
   }
 
   Future<void> addSubject(BuildContext c) async {

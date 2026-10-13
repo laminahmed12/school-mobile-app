@@ -1,0 +1,108 @@
+name: Build Lamin Trial APK (isolated backend only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lamin-trial-apk
+  cancel-in-progress: true
+
+jobs:
+  build-trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+
+      - name: Require isolated test backend
+        env:
+          TRIAL_SUPABASE_URL: ${{ secrets.LAMIN_TRIAL_SUPABASE_URL }}
+          TRIAL_SUPABASE_KEY: ${{ secrets.LAMIN_TRIAL_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TRIAL_SUPABASE_URL}" ] || [ -z "${TRIAL_SUPABASE_KEY}" ]; then
+            echo "::error::Trial build blocked. Configure LAMIN_TRIAL_SUPABASE_URL and LAMIN_TRIAL_SUPABASE_PUBLISHABLE_KEY with a separate test project. Production credentials are not accepted as a fallback."
+            exit 1
+          fi
+          case "${TRIAL_SUPABASE_URL}" in
+            https://*.supabase.co) ;;
+            *) echo "::error::Trial Supabase URL must be an HTTPS Supabase project URL."; exit 1 ;;
+          esac
+          if [ "${TRIAL_SUPABASE_URL}" = "https://stbrhcgzfxvpayfnnqfl.supabase.co" ]; then
+            echo "::error::Refusing to build trial APK against the production Supabase project."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+
+      - name: Apply Lamin Android identity
+        run: |
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
+          cat > android/app/src/main/res/values/lamin_launcher.xml <<'EOF'
+          <resources><color name="lamin_launcher_background">#155D4A</color></resources>
+          EOF
+          cat > android/app/src/main/res/drawable/ic_lamin_launcher_foreground.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#FFFFFFFF" android:pathData="M8,35 L54,17 L100,35 L54,53 Z"/>
+            <path android:fillColor="#FFFFFFFF" android:pathData="M28,44 L28,61 C43,72 65,72 80,61 L80,44 L54,55 Z"/>
+            <path android:fillColor="#FFD7B56D" android:pathData="M27,70 C37,64 45,66 54,72 C63,66 71,64 81,70 L81,82 C70,76 62,78 54,84 C46,78 38,76 27,82 Z"/>
+          </vector>
+          EOF
+          for icon in ic_launcher.xml ic_launcher_round.xml; do
+            cat > "android/app/src/main/res/mipmap-anydpi-v26/$icon" <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/lamin_launcher_background"/>
+            <foreground android:drawable="@drawable/ic_lamin_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+          done
+          sed -i 's/android:label="[^"]*"/android:label="لامين - تجربة"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
+          cat > android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt <<'EOF'
+          package com.adreemk.school.lamin_school
+          import io.flutter.embedding.android.FlutterFragmentActivity
+          class MainActivity : FlutterFragmentActivity()
+          EOF
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Format Dart sources
+        run: dart format lib test
+
+      - name: Run Flutter unit tests
+        run: flutter test --no-pub
+
+      - name: Build trial APK against isolated Supabase
+        env:
+          TRIAL_SUPABASE_URL: ${{ secrets.LAMIN_TRIAL_SUPABASE_URL }}
+          TRIAL_SUPABASE_KEY: ${{ secrets.LAMIN_TRIAL_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build apk --release --no-tree-shake-icons \
+            --dart-define=SUPABASE_URL="${TRIAL_SUPABASE_URL}" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="${TRIAL_SUPABASE_KEY}" \
+            --dart-define=LAMIN_TRIAL_BUILD=true
+
+      - name: Upload trial APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-trial-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14

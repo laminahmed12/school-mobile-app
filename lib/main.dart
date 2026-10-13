@@ -14,6 +14,9 @@ import 'student_profile.dart';
 import 'reports.dart';
 import 'school_setup.dart';
 import 'school_branding.dart';
+import 'fee_schedule.dart';
+import 'discount_management.dart';
+import 'academic_rollover.dart';
 import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
@@ -93,6 +96,40 @@ class LaminApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'لامين',
+    builder: (context, child) {
+      if (!isTrialBuild) return child ?? const SizedBox.shrink();
+      return Column(
+        children: [
+          Material(
+            color: const Color(0xFFFFE7B3),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science_outlined, color: Color(0xFF704600)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'نسخة تجريبية: أدخل بيانات وهمية فقط. قد تُحذف بيانات التجربة أثناء الفحص والتصحيح.',
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(
+                          color: Color(0xFF704600),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: child ?? const SizedBox.shrink()),
+        ],
+      );
+    },
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -1630,6 +1667,9 @@ class MoreView extends StatelessWidget {
     final isAccountant = role == 'accountant';
     return ListView(padding:const EdgeInsets.all(12),children:[
     if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.school),title:const Text('المعلمون'),subtitle:Text('${teachers.length} معلم — إضافة وإدارة المعلمين'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>TeacherManagementView(repo:repo,onChanged:onChanged))))),
+    if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.price_check_outlined),title:const Text('الرسوم القياسية'),subtitle:const Text('إعداد رسوم كل صف وفصل حسب السنة الدراسية'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FeeScheduleView(role:role))))),
+    if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.discount_outlined),title:const Text('الخصومات والاعتمادات'),subtitle:const Text('قواعد الخصم وطلبات الاعتماد وسجل الموافقات'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DiscountManagementView(role:role))))),
+    if (isAdmin) Card(child:ListTile(leading:const Icon(Icons.event_repeat_outlined),title:const Text('ترحيل السنة الدراسية'),subtitle:const Text('مراجعة قرارات الطلاب والأرصدة قبل إقفال السنة'),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const AcademicRolloverView())))),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.receipt_long),title:const Text('مصروف جديد'),subtitle:const Text('تسجيل مصروف المدرسة'),onTap:()=>expense(context))),
     if (isAdmin || isAccountant) Card(child:ListTile(
       leading: const Icon(Icons.payments_outlined),

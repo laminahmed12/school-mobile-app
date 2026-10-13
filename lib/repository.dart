@@ -1,3 +1,4 @@
+import 'finance_summary.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
@@ -146,11 +147,10 @@ class SchoolRepository {
     return result?.toString();
   }
 
-  Future<void> promoteStudent(String studentId, String? targetClassId, {String status='active'}) async {
-    await db.rpc('set_student_promotion', params: {'p_student_id':studentId,'p_target_class_id':targetClassId,'p_status':status});
-  }
-
-  Future<void> addClass({required String name, String section = '', String? academicYearId}) async {
+  Future<void> addClass({required String name, String section = '', String? academicYearId, int? gradeOrder}) async {
+    if (gradeOrder != null && (gradeOrder < 1 || gradeOrder > 20)) {
+      throw Exception('ترتيب الصف يجب أن يكون بين 1 و20.');
+    }
     var yearId = academicYearId;
     if (yearId == null || yearId.isEmpty) {
       final active = await db.from('academic_years')
@@ -164,6 +164,7 @@ class SchoolRepository {
     await db.from('classes').insert({
       'name': name.trim(),
       'section': section.trim(),
+      if (gradeOrder != null) 'grade_order': gradeOrder,
       if (yearId != null && yearId.isNotEmpty) 'academic_year_id': yearId,
     });
   }
@@ -385,33 +386,39 @@ class SchoolRepository {
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
-    double totalFee = 0, discount = 0, paid = 0;
-    for (final row in fees) {
-      totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
-      discount += (row['discount'] as num?)?.toDouble() ?? 0;
-    }
-    for (final row in paymentRows) {
-      paid += (row['amount'] as num?)?.toDouble() ?? 0;
-    }
-    double opening = 0;
-    if (year?['id'] != null) {
-      try {
-        final rows = await db.from('student_opening_balances')
-            .select('amount')
+
+    final openingRows = year?['id'] == null
+        ? <Map<String, dynamic>>[]
+        : (await db.from('student_opening_balances')
+            .select('id,amount')
             .eq('student_id', studentId)
-            .eq('academic_year_id', year!['id']);
-        opening = (rows as List).fold<double>(0, (sum, row) =>
-            sum + ((row['amount'] as num?)?.toDouble() ?? 0));
-      } catch (_) {}
-    }
-    final due = totalFee - discount + opening;
+            .eq('academic_year_id', year!['id']) as List)
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+
+    // Read the complete allocation history for this student, including reversed
+    // rows, so a reversed allocation is never mistaken for a legacy unallocated payment.
+    final allocationRows = (await db.from('payment_allocations')
+        .select('payment_id,fee_assessment_id,opening_balance_id,amount,reversed_at')
+        .eq('student_id', studentId) as List)
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+
+    final totals = calculateStudentFinancialTotals(
+      fees: fees,
+      payments: paymentRows,
+      openingBalances: openingRows,
+      allocationRows: allocationRows,
+    );
+
     return {
-      'academic_year': year?['name']?.toString() ?? (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
-      'fees': totalFee,
-      'discount': discount,
-      'opening_balance': opening,
-      'paid': paid,
-      'remaining': due - paid,
+      'academic_year': year?['name']?.toString() ??
+          (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
+      'fees': totals['fees'],
+      'discount': totals['discount'],
+      'opening_balance': totals['opening_balance'],
+      'paid': totals['paid'],
+      'remaining': totals['remaining'],
       'assessments': fees,
       'payments': paymentRows,
     };
@@ -484,34 +491,21 @@ class SchoolRepository {
     String note = '',
     String term = 'غير محدد',
     String? feeAssessmentId,
+    String? idempotencyKey,
   }) async {
     if (amount <= 0) throw Exception('قيمة الدفعة يجب أن تكون أكبر من صفر.');
-    final year = await db.from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    String? yearId = year?['id']?.toString();
-    if (feeAssessmentId != null && feeAssessmentId.isNotEmpty) {
-      final assessment = await db.from('student_fee_assessments')
-          .select('academic_year_id,term')
-          .eq('id', feeAssessmentId)
-          .eq('student_id', studentId)
-          .maybeSingle();
-      if (assessment == null) throw Exception('بند الرسوم المحدد غير موجود لهذا الطالب.');
-      yearId = assessment['academic_year_id']?.toString();
-      term = assessment['term']?.toString() ?? term;
-    }
-    await db.from('payments').insert({
-      'student_id': studentId,
-      'academic_year_id': yearId,
-      'fee_assessment_id': feeAssessmentId,
-      'term': term,
-      'payment_date': DateTime.now().toIso8601String().substring(0, 10),
-      'amount': amount,
-      'note': note.trim(),
+    if (amount > 100000000) throw Exception('قيمة الدفعة أكبر من الحد المسموح.');
+    final result = await db.rpc('record_student_payment', params: {
+      'p_student_id': studentId,
+      'p_amount': amount,
+      'p_note': note.trim(),
+      'p_term': term,
+      'p_fee_assessment_id': feeAssessmentId == null || feeAssessmentId.isEmpty ? null : feeAssessmentId,
+      'p_idempotency_key': idempotencyKey,
     });
+    if (result == null || result.toString().isEmpty) {
+      throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+    }
   }
 
   Future<Map<String,dynamic>> exportBackup() async {
