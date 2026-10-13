@@ -9,24 +9,33 @@ as $function$
 declare
  v_school uuid:=private.my_school(); v_role text:=private.my_role(); v_year uuid; v_payment uuid;
  v_term text:=coalesce(nullif(btrim(p_term),''),'غير محدد'); v_remaining numeric(12,2):=round(coalesce(p_amount,0),2);
- r record; v_take numeric(12,2);
+ r record; v_take numeric(12,2); v_existing_student uuid; v_existing_amount numeric(12,2); v_existing_assessment uuid;
 begin
  if auth.uid() is null or v_school is null then raise exception 'يجب تسجيل الدخول إلى المدرسة أولاً'; end if;
  if v_role not in ('owner','admin','accountant') then raise exception 'ليست لديك صلاحية تسجيل الدفعات'; end if;
- if p_amount is null or p_amount<=0 or p_amount>100000000 then raise exception 'قيمة الدفعة غير صحيحة'; end if;
+ if p_amount is null or round(p_amount,2)<=0 or p_amount>100000000 then raise exception 'قيمة الدفعة غير صحيحة'; end if;
  if length(coalesce(p_note,''))>200 then raise exception 'الملاحظة طويلة أكثر من اللازم'; end if;
+ if p_idempotency_key is not null and (length(p_idempotency_key)=0 or length(p_idempotency_key)>200) then raise exception 'مفتاح الدفعة غير صالح'; end if;
  if not exists(select 1 from public.students s where s.id=p_student_id and s.school_id=v_school) then raise exception 'الطالب غير موجود ضمن المدرسة الحالية'; end if;
- if p_idempotency_key is not null then
-  select p.id into v_payment from public.payments p where p.school_id=v_school and p.idempotency_key=p_idempotency_key;
-  if v_payment is not null then return v_payment; end if;
- end if;
  select ay.id into v_year from public.academic_years ay where ay.school_id=v_school and ay.active=true and coalesce(ay.is_closed,false)=false order by ay.starts_on desc nulls last,ay.created_at desc limit 1;
  if p_fee_assessment_id is not null then
   select sfa.term into v_term from public.student_fee_assessments sfa where sfa.id=p_fee_assessment_id and sfa.school_id=v_school and sfa.student_id=p_student_id;
   if not found then raise exception 'بند الرسوم المحدد لا يخص هذا الطالب'; end if;
  end if;
  insert into public.payments(school_id,student_id,academic_year_id,fee_assessment_id,term,payment_date,amount,note,created_by,idempotency_key)
- values(v_school,p_student_id,v_year,p_fee_assessment_id,v_term,current_date,round(p_amount,2),btrim(coalesce(p_note,'')),auth.uid(),p_idempotency_key) returning id into v_payment;
+ values(v_school,p_student_id,v_year,p_fee_assessment_id,v_term,current_date,round(p_amount,2),btrim(coalesce(p_note,'')),auth.uid(),p_idempotency_key)
+ on conflict (school_id,idempotency_key) where idempotency_key is not null do nothing
+ returning id into v_payment;
+ if v_payment is null then
+  select p.id,p.student_id,p.amount,p.fee_assessment_id into v_payment,v_existing_student,v_existing_amount,v_existing_assessment
+  from public.payments p where p.school_id=v_school and p.idempotency_key=p_idempotency_key;
+  if v_payment is null then raise exception 'تعذر التحقق من الدفعة المكررة؛ أعد المحاولة'; end if;
+  if v_existing_student is distinct from p_student_id or v_existing_amount is distinct from round(p_amount,2)
+    or v_existing_assessment is distinct from p_fee_assessment_id then
+   raise exception 'مفتاح الدفعة مستخدم مسبقاً لبيانات مختلفة';
+  end if;
+  return v_payment;
+ end if;
 
  -- Explicit target first: do not silently apply a fee-specific payment to older debt.
  if p_fee_assessment_id is not null then
