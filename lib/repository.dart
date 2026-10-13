@@ -11,7 +11,14 @@ class SchoolRepository {
     final u = db.auth.currentUser;
     if (u == null) return null;
     final row = await db.from('profiles').select().eq('user_id', u.id).maybeSingle();
-    return row == null ? null : SchoolProfile.fromMap(row);
+    if (row == null) return null;
+    final profile = SchoolProfile.fromMap(row);
+    final schoolId = profile.schoolId;
+    if (schoolId != null && schoolId.isNotEmpty) {
+      // Cache tenant scope per authenticated user for offline reads only.
+      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    }
+    return profile;
   }
 
   Future<Map<String, dynamic>?> school() async {
@@ -40,10 +47,22 @@ class SchoolRepository {
   }
 
   Future<List<Student>> students() async {
+    // Never read a shared unscoped cache: devices can be used by multiple
+    // school accounts. Offline data is isolated by the authenticated tenant.
+    final user = db.auth.currentUser;
+    if (user == null) return [];
+    String? schoolId;
+    try {
+      schoolId = (await profile())?.schoolId;
+    } catch (_) {
+      schoolId = prefs.getString('school_id_cache_${user.id}');
+    }
+    if (schoolId == null || schoolId.isEmpty) return [];
+    final cacheKey = 'students_cache_${schoolId}';
     try {
       final rows = await db.from('students').select().order('name');
       final list = (rows as List).map((e) => Student.fromMap(Map<String, dynamic>.from(e))).toList();
-      await prefs.setString('students_cache', jsonEncode(list.map((s) => {
+      await prefs.setString(cacheKey, jsonEncode(list.map((s) => {
         'id': s.id,
         'name': s.name,
         'class_name': s.className,
@@ -51,9 +70,16 @@ class SchoolRepository {
       }).toList()));
       return list;
     } catch (_) {
-      final raw = prefs.getString('students_cache');
+      final raw = prefs.getString(cacheKey);
       if (raw == null) return [];
-      return (jsonDecode(raw) as List).map((e) => Student.fromMap(Map<String, dynamic>.from(e))).toList();
+      try {
+        return (jsonDecode(raw) as List)
+            .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+      } catch (_) {
+        await prefs.remove(cacheKey);
+        return [];
+      }
     }
   }
 
