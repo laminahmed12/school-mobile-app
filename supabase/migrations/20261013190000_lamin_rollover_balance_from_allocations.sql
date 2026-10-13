@@ -42,7 +42,7 @@ begin
           where p.school_id=sid and p.student_id=r.student_id
             and p.fee_assessment_id=f.id and p.academic_year_id=p_source_year
             and not exists(select 1 from public.payment_allocations pa
-              where pa.payment_id=p.id and pa.reversed_at is null)),0),0))
+              where pa.payment_id=p.id)),0),0))
       from public.student_fee_assessments f
       where f.school_id=sid and f.student_id=r.student_id and f.academic_year_id=p_source_year
     ),0)
