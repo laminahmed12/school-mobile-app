@@ -59,6 +59,11 @@ repository = Path("lib/repository.dart").read_text(encoding="utf-8")
 summary_start = repository.index(" studentFinancialSummary(")
 summary_end = repository.index(" saveStudentFeeAssessment(", summary_start)
 financial_summary = repository[summary_start:summary_end]
+years_start = repository.index(" academicYears()")
+classes_start = repository.index(" classes()", years_start)
+add_year_start = repository.index(" addAcademicYear(", classes_start)
+academic_year_list = repository[years_start:classes_start]
+class_list = repository[classes_start:add_year_start]
 fees_start = repository.index(" studentFeeAssessments(")
 payments_start = repository.index(" studentPayments(", fees_start)
 summary_start = repository.index(" studentFinancialSummary(", payments_start)
@@ -85,6 +90,8 @@ checks = {
     "financial summary scopes active academic year to current school": ".eq('school_id', schoolId)" in financial_summary and ".eq('active', true)" in financial_summary,
     "fee assessment query scopes active year to current school": ".eq('school_id', schoolId)" in financial_fees and ".eq('active', true)" in financial_fees,
     "payment query scopes active year to current school": ".eq('school_id', schoolId)" in financial_payments and ".eq('active', true)" in financial_payments,
+    "academic year list is scoped to current school": ".eq('school_id', schoolId)" in academic_year_list,
+    "class list is scoped to current school": ".eq('school_id', schoolId)" in class_list,
 }
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
