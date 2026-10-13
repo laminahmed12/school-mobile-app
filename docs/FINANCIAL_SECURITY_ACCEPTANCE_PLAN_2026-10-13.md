@@ -82,3 +82,21 @@ Do not merge the payment migration, change production RLS/function grants, or bu
 ## User intervention required
 
 Creating the disposable Supabase branch requires the organization's billing/cost confirmation through the Supabase connector. No production change should be used as a substitute. If the connector asks for organization ID and cost acknowledgment, request those details before branch creation.
+
+
+## Additional blockers found in read-only function review (2026-10-13)
+
+### Rollover balance calculation — blocking
+The current production `prepare_academic_rollover` calculates source debt as opening balances plus fee assessments minus the full sum of payments recorded in the source year. The payment RPC can allocate part of a payment to an older opening balance, so subtracting the whole payment from the source-year debt can understate the amount carried forward.
+
+Required correction before merge:
+- Calculate unpaid amounts by each source-year fee assessment and each source-year opening balance using active, non-reversed `payment_allocations`.
+- Define a compatibility rule for legacy payments that have no allocations, without counting the same payment both through allocations and through the legacy fallback.
+- Test a payment split between a prior-year opening balance and current-year assessment; expected carried balance must reconcile to the outstanding obligations exactly.
+- Include graduation/transfer cases in the same reconciliation; preserve any debt according to the product's documented policy.
+
+### Excess payments — blocking product/accounting decision
+The payment RPC records the full payment amount, but allocation loops stop when no outstanding obligations remain. The remainder is therefore not assigned to a fee or opening balance. Until a credit/advance ledger and student statement display exist, either reject excess payments transactionally or explicitly implement a customer-credit balance; never silently subtract the full amount from an outstanding balance report.
+
+### Current verification state
+These are source-level findings, not changes to production. The relevant SQL tests cannot be honestly marked passed without a disposable database. No paid Supabase branch was created because the cost was declined.
