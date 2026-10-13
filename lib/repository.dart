@@ -387,11 +387,6 @@ class SchoolRepository {
         .limit(1)
         .maybeSingle();
 
-    final feeIds = fees
-        .map((row) => row['id']?.toString())
-        .whereType<String>()
-        .where((id) => id.isNotEmpty)
-        .toSet();
     final openingRows = year?['id'] == null
         ? <Map<String, dynamic>>[]
         : (await db.from('student_opening_balances')
