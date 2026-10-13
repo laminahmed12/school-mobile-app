@@ -1,3 +1,4 @@
+import 'finance_summary.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
@@ -408,69 +409,21 @@ class SchoolRepository {
         .map((row) => Map<String, dynamic>.from(row))
         .toList();
 
-    final allocatedPaymentIds = allocationRows
-        .map((row) => row['payment_id']?.toString())
-        .whereType<String>()
-        .toSet();
-    final feeAllocated = <String, double>{};
-    final openingAllocated = <String, double>{};
-    for (final row in allocationRows) {
-      if (row['reversed_at'] != null) continue;
-      final amount = (row['amount'] as num?)?.toDouble() ?? 0;
-      final feeId = row['fee_assessment_id']?.toString();
-      final openingId = row['opening_balance_id']?.toString();
-      if (feeId != null && feeIds.contains(feeId)) {
-        feeAllocated.update(feeId, (value) => value + amount, ifAbsent: () => amount);
-      }
-      if (openingId != null) {
-        openingAllocated.update(openingId, (value) => value + amount, ifAbsent: () => amount);
-      }
-    }
-
-    // Compatibility for old records: only deduct a payment from the assessment
-    // explicitly linked to it, and only if that payment has never had allocation
-    // rows. Never spread an unallocated legacy payment across unrelated debts.
-    final legacyPaidByFee = <String, double>{};
-    for (final row in paymentRows) {
-      final paymentId = row['id']?.toString();
-      final feeId = row['fee_assessment_id']?.toString();
-      if (paymentId == null || feeId == null || !feeIds.contains(feeId) ||
-          allocatedPaymentIds.contains(paymentId)) {
-        continue;
-      }
-      final amount = (row['amount'] as num?)?.toDouble() ?? 0;
-      legacyPaidByFee.update(feeId, (value) => value + amount, ifAbsent: () => amount);
-    }
-
-    double totalFee = 0, discount = 0, opening = 0, paid = 0, remaining = 0;
-    for (final row in fees) {
-      final id = row['id']?.toString();
-      final fee = (row['total_fee'] as num?)?.toDouble() ?? 0;
-      final reduction = (row['discount'] as num?)?.toDouble() ?? 0;
-      totalFee += fee;
-      discount += reduction;
-      final applied = (id == null ? 0 : (feeAllocated[id] ?? 0)) +
-          (id == null ? 0 : (legacyPaidByFee[id] ?? 0));
-      paid += applied;
-      remaining += (fee - reduction - applied).clamp(0, double.infinity).toDouble();
-    }
-    for (final row in openingRows) {
-      final id = row['id']?.toString();
-      final amount = (row['amount'] as num?)?.toDouble() ?? 0;
-      opening += amount;
-      final applied = id == null ? 0 : (openingAllocated[id] ?? 0);
-      paid += applied;
-      remaining += (amount - applied).clamp(0, double.infinity).toDouble();
-    }
+    final totals = calculateStudentFinancialTotals(
+      fees: fees,
+      payments: paymentRows,
+      openingBalances: openingRows,
+      allocationRows: allocationRows,
+    );
 
     return {
       'academic_year': year?['name']?.toString() ??
           (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
-      'fees': totalFee,
-      'discount': discount,
-      'opening_balance': opening,
-      'paid': paid,
-      'remaining': remaining,
+      'fees': totals['fees'],
+      'discount': totals['discount'],
+      'opening_balance': totals['opening_balance'],
+      'paid': totals['paid'],
+      'remaining': totals['remaining'],
       'assessments': fees,
       'payments': paymentRows,
     };
