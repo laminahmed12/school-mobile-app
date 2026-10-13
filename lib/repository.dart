@@ -12,7 +12,15 @@ class SchoolRepository {
     final u = db.auth.currentUser;
     if (u == null) return null;
     final row = await db.from('profiles').select().eq('user_id', u.id).maybeSingle();
-    return row == null ? null : SchoolProfile.fromMap(row);
+    if (row == null) return null;
+    final profile = SchoolProfile.fromMap(row);
+    final schoolId = profile.schoolId;
+    if (schoolId != null && schoolId.isNotEmpty) {
+      // Cache only the tenant scope, keyed by authenticated user. This is
+      // used for read-only offline cache lookup; it never grants server access.
+      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    }
+    return profile;
   }
 
   Future<Map<String, dynamic>?> school() async {
@@ -44,7 +52,16 @@ class SchoolRepository {
     // Never fall back to an unscoped cache: this device may be used by more
     // than one school account. Keep offline data separated by the signed-in
     // profile's school ID and fail closed when that scope cannot be resolved.
-    final schoolId = (await profile())?.schoolId;
+    final user = db.auth.currentUser;
+    if (user == null) return [];
+    String? schoolId;
+    try {
+      schoolId = (await profile())?.schoolId;
+    } catch (_) {
+      // profile() needs the network. On offline reads, use only the last
+      // tenant ID previously fetched for this same authenticated user.
+      schoolId = prefs.getString('school_id_cache_${user.id}');
+    }
     if (schoolId == null || schoolId.isEmpty) return [];
     final cacheKey = 'students_cache_$schoolId';
     try {
