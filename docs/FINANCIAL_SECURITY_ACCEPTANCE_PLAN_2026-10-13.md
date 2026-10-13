@@ -146,3 +146,12 @@ Required safe correction:
 
 ### Flutter financial summary — ledger reconciliation still required
 `SchoolRepository.studentFinancialSummary` currently calculates `remaining` as current fees minus discounts plus opening balances minus the sum of payment amounts for the active year. This does not follow payment allocations and can misstate debt when a payment settles an opening balance, is split across obligations, or has reversed allocation history. It must be reconciled to active allocation rows plus a narrowly defined legacy-payment fallback before release. This requires a dedicated unit/integration test and is not yet changed here.
+
+
+## Ledger-based Flutter summary update (2026-10-13, Libya time UTC+02:00)
+
+- Updated `SchoolRepository.studentFinancialSummary` to calculate outstanding fees and opening balances from active, non-reversed allocation rows rather than subtracting every payment total from the whole debt.
+- For legacy payments, the summary only deducts a payment from its explicitly linked fee assessment when that payment has no allocation history at all. Reversed allocations remain part of the history check and therefore are not misclassified as never-allocated payments.
+- The summary's `paid` value now means amounts applied to the current year's listed obligations, not the raw total of all payment receipts. The separate `payments` list remains available for receipt history.
+- This is a source change only. Flutter CI has not yet completed successfully for the latest commit, and no unit/integration test has yet validated the new allocation-aware summary. It remains a release blocker until analysis, tests, role/RLS access, and representative historical-data cases pass.
+- Follow-up issue: the current rollover preparation RPC reuses existing draft/reviewed batches without recalculating them. A safe explicit stale-preview invalidation/refresh path is still required before rollover release.
