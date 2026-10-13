@@ -84,7 +84,7 @@ Do not merge the payment migration, change production RLS/function grants, or bu
 
 - Updated migration `20261013041800_lamin_prioritize_selected_fee_payment.sql` on the review branch to preflight duplicate non-null `(school_id, idempotency_key)` values and create a partial unique index before using `ON CONFLICT`. If duplicates exist, migration aborts without deleting or rewriting financial records.
 - This closes the source-level missing-uniqueness prerequisite, but **is not database-tested** and has not been applied to production. Confirm the index definition and migration behavior on a disposable database before merge.
-- The migration still does not resolve the excess-payment policy. It can leave part of a recorded payment unallocated after all obligations are satisfied. Treat this as a release blocker until excess is rejected transactionally or a student-credit ledger and statement behavior are implemented and tested.
+- Follow-up: migration `20261013041800_lamin_prioritize_selected_fee_payment.sql` now raises an exception if any amount remains after allocating against outstanding obligations. PostgreSQL rolls back the function transaction on this exception, so the payment and any allocations created during that call are not committed. This is the selected interim policy (reject excess payments); it still requires disposable-database tests for exact, partial, and excess amounts, including selected-fee priority and legacy payments. Do not mark the behavior integration-tested until those cases run against a complete test schema.
 - No paid Supabase branch was created because recurring branch cost was explicitly declined. Production remains unchanged by this follow-up.
 
 
@@ -172,3 +172,9 @@ Required safe correction:
 - The warning is a trivial unused getter, but I have **not** changed `main` or merged anything. It should be removed in the source branch that owns that file when reconciling the incoming base. Do not suppress the warning merely to obtain a green check.
 - This test run does not yet include financial summary allocation tests or full PostgreSQL RPC integration tests. A green Flutter test step is useful progress, not release approval.
 - Latest observed checks on branch commit `5ebd98602f1ea98870f8865c987742d6eb4ec380`: PostgreSQL syntax/static harness passed; separate validation workflow passed; Flutter unit tests passed (17); analysis remains blocked by the warning above. No APK was released.
+
+
+## Offline student cache follow-up (2026-10-14, Libya time UTC+02:00)
+
+- Review branch change `0fe67f5719cb4e6d888343fb2e44d520455817e1` caches the last successfully fetched school ID under the authenticated user's ID. If fetching the profile fails during offline access, the student-list cache lookup can use only that user's last-known school scope. Server queries still rely on authenticated Supabase/RLS access; the local scope cache is not an authorization mechanism.
+- Validation still required: Flutter CI on this commit and a regression test covering online profile fetch followed by offline cache read, plus sign-out/account-switch isolation. Do not merge until verified.
