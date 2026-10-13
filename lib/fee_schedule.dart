@@ -79,7 +79,7 @@ class _FeeScheduleViewState extends State<FeeScheduleView> {
           validator: (v) { final n = double.tryParse((v ?? '').trim().replaceAll(',', '.')); return n == null || n < 0 ? 'أدخل مبلغًا صحيحًا' : null; }),
         const SizedBox(height: 10),
         TextFormField(controller: due, decoration: const InputDecoration(labelText: 'تاريخ الاستحقاق (اختياري YYYY-MM-DD)'),
-          validator: (v) { final s = (v ?? '').trim(); if (s.isEmpty) return null; return RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s) ? null : 'استخدم الصيغة YYYY-MM-DD'; }),
+          validator: (v) { final s = (v ?? '').trim(); if (s.isEmpty) return null; return isValidIsoDate(s) ? null : 'أدخل تاريخًا صحيحًا بالصيغة YYYY-MM-DD'; }),
         const SizedBox(height: 10),
         TextFormField(controller: note, maxLength: 200, decoration: const InputDecoration(labelText: 'ملاحظة (اختيارية)')),
         SwitchListTile(value: active, contentPadding: EdgeInsets.zero, title: const Text('الجدول فعال'), onChanged: (v) => setDialog(() => active = v)),
