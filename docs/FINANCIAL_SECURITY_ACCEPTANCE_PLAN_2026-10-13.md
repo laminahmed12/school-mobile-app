@@ -124,3 +124,11 @@ These are source-level findings, not changes to production. The relevant SQL tes
 - Corrected the legacy-payment fallback in both payment allocation and rollover preview logic: a payment is considered legacy/unallocated only when it has **no allocation rows at all**. A payment with reversed allocations must not be treated as a fresh legacy payment, because that could subtract its amount again and understate debt.
 - Updated commits: `c54d376a539911cc0f6f9f95d1be200d7432e5d2` (payment RPC) and `6d9f77081e68a74840eb3e8248c0806bbbb5a858` (rollover preview).
 - This is a source-level correction only; PostgreSQL execution and financial reconciliation tests are still required before merge or release.
+
+
+## Free CI regression harness added (2026-10-13, Libya time UTC+02:00)
+
+- Added `test/sql/run_postgres_migration_tests.sh`, which runs against the disposable PostgreSQL service in GitHub Actions. It checks a split payment across an opening balance and a current-year fee, a genuinely unallocated legacy payment, and a payment with reversed allocation history; it also applies source-level guards to the payment and rollover migrations.
+- The workflow now finds and runs this harness automatically. The harness is a regression fixture, **not** a substitute for executing the complete Supabase migrations against a fully provisioned isolated schema. The baseline schema/auth dependencies are not included as a self-contained migration set in this repository.
+- Latest branch comparison against `main`: 76 commits ahead, 7 behind, 35 changed files; branch is diverged. Do not merge directly. First reconcile the seven incoming commits and rerun the full free CI suite.
+- Current verification is repository/source inspection only. A successful GitHub Actions run has not yet been confirmed from the available workflow-run results; do not describe tests as passed until the actual run is visible.
