@@ -392,10 +392,16 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
+    final p = await profile();
+    final schoolId = p?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف حساب المستحقات لحماية بيانات المدارس.');
+    }
     final fees = await studentFeeAssessments(studentId);
     final paymentRows = await studentPayments(studentId);
     final year = await db.from('academic_years')
         .select('id,name')
+        .eq('school_id', schoolId)
         .eq('active', true)
         .order('created_at', ascending: false)
         .limit(1)
