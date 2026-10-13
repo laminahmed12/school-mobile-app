@@ -37,6 +37,12 @@ begin
  if length(coalesce(p_note,''))>200 then raise exception 'الملاحظة طويلة أكثر من اللازم'; end if;
  if p_idempotency_key is not null and (length(p_idempotency_key)=0 or length(p_idempotency_key)>200) then raise exception 'مفتاح الدفعة غير صالح'; end if;
  if not exists(select 1 from public.students s where s.id=p_student_id and s.school_id=v_school) then raise exception 'الطالب غير موجود ضمن المدرسة الحالية'; end if;
+
+ -- Serialize payments for the same student. Without this transaction-scoped lock,
+ -- concurrent requests can both read the same outstanding balance and over-allocate it.
+ perform pg_catalog.pg_advisory_xact_lock(
+   pg_catalog.hashtextextended(v_school::text || ':' || p_student_id::text, 0)
+ );
  select ay.id into v_year from public.academic_years ay where ay.school_id=v_school and ay.active=true and coalesce(ay.is_closed,false)=false order by ay.starts_on desc nulls last,ay.created_at desc limit 1;
  if p_fee_assessment_id is not null then
   select sfa.term into v_term from public.student_fee_assessments sfa where sfa.id=p_fee_assessment_id and sfa.school_id=v_school and sfa.student_id=p_student_id;
