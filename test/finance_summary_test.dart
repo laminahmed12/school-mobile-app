@@ -120,5 +120,65 @@ void main() {
       expect(totals['remaining'], 0);
       expect(totals['paid'], 25);
     });
+
+    test('partial allocations from multiple receipts reconcile by obligation', () {
+      final totals = calculateStudentFinancialTotals(
+        fees: [
+          {'id': 'fee-1', 'total_fee': 120, 'discount': 20},
+        ],
+        payments: [
+          {'id': 'pay-1', 'amount': 35, 'fee_assessment_id': 'fee-1'},
+          {'id': 'pay-2', 'amount': 25, 'fee_assessment_id': 'fee-1'},
+        ],
+        openingBalances: [
+          {'id': 'opening-1', 'amount': 40},
+        ],
+        allocationRows: [
+          {
+            'payment_id': 'pay-1',
+            'fee_assessment_id': 'fee-1',
+            'opening_balance_id': null,
+            'amount': 35,
+            'reversed_at': null,
+          },
+          {
+            'payment_id': 'pay-2',
+            'fee_assessment_id': null,
+            'opening_balance_id': 'opening-1',
+            'amount': 25,
+            'reversed_at': null,
+          },
+        ],
+      );
+
+      expect(totals['fees'], 120);
+      expect(totals['discount'], 20);
+      expect(totals['paid'], 60);
+      expect(totals['remaining'], 80);
+    });
+
+    test('reversed opening-balance allocations do not reduce carried debt', () {
+      final totals = calculateStudentFinancialTotals(
+        fees: [],
+        payments: [
+          {'id': 'pay-1', 'amount': 15, 'fee_assessment_id': null},
+        ],
+        openingBalances: [
+          {'id': 'opening-1', 'amount': 50},
+        ],
+        allocationRows: [
+          {
+            'payment_id': 'pay-1',
+            'fee_assessment_id': null,
+            'opening_balance_id': 'opening-1',
+            'amount': 15,
+            'reversed_at': '2026-10-14T00:00:00Z',
+          },
+        ],
+      );
+
+      expect(totals['paid'], 0);
+      expect(totals['remaining'], 50);
+    });
   });
 }
