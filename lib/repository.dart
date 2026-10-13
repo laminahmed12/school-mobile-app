@@ -452,7 +452,7 @@ class SchoolRepository {
       final applied = (id == null ? 0 : (feeAllocated[id] ?? 0)) +
           (id == null ? 0 : (legacyPaidByFee[id] ?? 0));
       paid += applied;
-      remaining += (fee - reduction - applied).clamp(0, double.infinity);
+      remaining += (fee - reduction - applied).clamp(0, double.infinity).toDouble();
     }
     for (final row in openingRows) {
       final id = row['id']?.toString();
@@ -460,7 +460,7 @@ class SchoolRepository {
       opening += amount;
       final applied = id == null ? 0 : (openingAllocated[id] ?? 0);
       paid += applied;
-      remaining += (amount - applied).clamp(0, double.infinity);
+      remaining += (amount - applied).clamp(0, double.infinity).toDouble();
     }
 
     return {
