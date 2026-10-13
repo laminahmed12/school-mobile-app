@@ -145,7 +145,15 @@ class SchoolRepository {
 
   Future<String?> activeAcademicYearName() async {
     try {
-      final row = await db.from('academic_years').select('name').eq('active', true).order('created_at', ascending: false).limit(1).maybeSingle();
+      final schoolId = (await profile())?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) return null;
+      final row = await db.from('academic_years')
+          .select('name')
+          .eq('school_id', schoolId)
+          .eq('active', true)
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
       return row?['name']?.toString();
     } catch (_) { return null; }
   }
@@ -354,8 +362,13 @@ class SchoolRepository {
   }
 
   Future<List<Map<String, dynamic>>> studentFeeAssessments(String studentId) async {
+    final schoolId = (await profile())?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف جلب الرسوم لحماية بيانات المدارس.');
+    }
     final year = await db.from('academic_years')
         .select('id')
+        .eq('school_id', schoolId)
         .eq('active', true)
         .order('created_at', ascending: false)
         .limit(1)
@@ -373,8 +386,13 @@ class SchoolRepository {
   }
 
   Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
+    final schoolId = (await profile())?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف جلب المدفوعات لحماية بيانات المدارس.');
+    }
     final year = await db.from('academic_years')
         .select('id')
+        .eq('school_id', schoolId)
         .eq('active', true)
         .order('created_at', ascending: false)
         .limit(1)
