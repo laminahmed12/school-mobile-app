@@ -44,6 +44,22 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Verify PostgreSQL service
         run: psql -v ON_ERROR_STOP=1 -c 'select version();'
+      - name: Parse SQL migration syntax
+        run: |
+          python3 -m pip install --user pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          if not files:
+              raise SystemExit("No SQL migrations found")
+          for path in files:
+              try:
+                  parse_sql(path.read_text(encoding="utf-8"))
+              except Exception as exc:
+                  raise SystemExit(f"SQL parse failed in {path}: {exc}")
+          print(f"PostgreSQL parser accepted {len(files)} migration files")
+          PY
       - name: Check migration files are non-empty and ordered
         shell: bash
         run: |
