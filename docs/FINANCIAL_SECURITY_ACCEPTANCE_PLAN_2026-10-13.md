@@ -109,3 +109,11 @@ The payment RPC records the full payment amount, but allocation loops stop when 
 
 ### Current verification state
 These are source-level findings, not changes to production. The relevant SQL tests cannot be honestly marked passed without a disposable database. No paid Supabase branch was created because the cost was declined.
+
+
+## Further changes on the review branch (2026-10-13, Libya time UTC+02:00)
+
+- Payment RPC now raises an exception if allocation loops leave any amount unallocated. PostgreSQL function exceptions roll back the payment insert and allocation writes in the same transaction. This implements the conservative policy of rejecting payments greater than outstanding debt until a student-credit ledger exists.
+- Added `20261013190000_lamin_rollover_balance_from_allocations.sql`, which recalculates the rollover preview balance from opening-balance and fee-assessment obligations less active, non-reversed allocations. A legacy payment with no active allocations is deducted only when explicitly linked to the matching assessment, rather than being subtracted indiscriminately from all source-year debt.
+- **Legacy data caveat:** older payments with no allocation and no explicit fee-assessment link cannot be reliably assigned to an obligation by this function. Such cases require an auditable reconciliation policy before rollover; do not assume the revised preview is complete for those records. Existing draft rollover batches also retain their saved preview until a new batch is prepared.
+- These are source changes only. They have not been applied to a disposable Supabase branch or production. SQL syntax, transaction rollback, legacy reconciliation, and end-to-end financial totals remain unverified.
