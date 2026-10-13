@@ -95,6 +95,40 @@ class LaminApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'لامين',
+    builder: (context, child) {
+      if (!isTrialBuild) return child ?? const SizedBox.shrink();
+      return Column(
+        children: [
+          Material(
+            color: const Color(0xFFFFE7B3),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.science_outlined, color: Color(0xFF704600)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'نسخة تجريبية: أدخل بيانات وهمية فقط. قد تُحذف بيانات التجربة أثناء الفحص والتصحيح.',
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(
+                          color: Color(0xFF704600),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: child ?? const SizedBox.shrink()),
+        ],
+      );
+    },
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
