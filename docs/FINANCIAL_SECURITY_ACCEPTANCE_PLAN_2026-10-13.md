@@ -132,3 +132,17 @@ These are source-level findings, not changes to production. The relevant SQL tes
 - The workflow now finds and runs this harness automatically. The harness is a regression fixture, **not** a substitute for executing the complete Supabase migrations against a fully provisioned isolated schema. The baseline schema/auth dependencies are not included as a self-contained migration set in this repository.
 - Latest branch comparison against `main`: 76 commits ahead, 7 behind, 35 changed files; branch is diverged. Do not merge directly. First reconcile the seven incoming commits and rerun the full free CI suite.
 - Current verification is repository/source inspection only. A successful GitHub Actions run has not yet been confirmed from the available workflow-run results; do not describe tests as passed until the actual run is visible.
+
+
+## Additional issue found during continued review (2026-10-13, Libya time UTC+02:00)
+
+### Existing rollover draft can retain stale balance preview — blocking
+The revised `prepare_academic_rollover` returns an existing `draft` or `reviewed` batch before recalculating its items. Therefore, deploying the corrected balance formula does not refresh a draft batch that was created under the old formula, and calling prepare again returns the same stale batch. The earlier statement that a new batch can simply be prepared is not guaranteed by the current RPC behavior.
+
+Required safe correction:
+- Do not silently delete or rewrite rollover items that have already been reviewed or may be audit-relevant.
+- Add an explicit, authorized refresh/rebuild flow that records the old batch as superseded/cancelled with an audit reason, or otherwise version the preview calculation and block execution of batches created under an older version.
+- Test that a stale batch cannot execute without re-review and that refresh never duplicates target enrollments or opening balances.
+
+### Flutter financial summary — ledger reconciliation still required
+`SchoolRepository.studentFinancialSummary` currently calculates `remaining` as current fees minus discounts plus opening balances minus the sum of payment amounts for the active year. This does not follow payment allocations and can misstate debt when a payment settles an opening balance, is split across obligations, or has reversed allocation history. It must be reconciled to active allocation rows plus a narrowly defined legacy-payment fallback before release. This requires a dedicated unit/integration test and is not yet changed here.
