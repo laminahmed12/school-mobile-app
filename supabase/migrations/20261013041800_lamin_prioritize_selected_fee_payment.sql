@@ -1,4 +1,4 @@
--- 2026-10-13 20:xx UTC+02:00 (Libya).
+-- 2026-10-13 (Libya time, UTC+02:00).
 -- Fail closed if historical idempotency keys already collide within a school.
 -- This is required by the ON CONFLICT target below and makes concurrent retries safe.
 do $preflight$
