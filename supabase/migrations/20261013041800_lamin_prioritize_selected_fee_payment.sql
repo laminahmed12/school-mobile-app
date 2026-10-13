@@ -91,6 +91,9 @@ begin
   insert into public.payment_allocations(school_id,student_id,payment_id,fee_assessment_id,amount,created_by) values(v_school,p_student_id,v_payment,r.id,v_take,auth.uid());
   v_remaining:=v_remaining-v_take;
  end loop;
+ if v_remaining>0 then
+  raise exception 'قيمة الدفعة تتجاوز إجمالي المديونية المتبقية؛ لم تُسجّل الدفعة. راجع رصيد الطالب أولاً';
+ end if;
  return v_payment;
 end
 $function$;
