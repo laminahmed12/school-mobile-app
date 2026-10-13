@@ -88,9 +88,9 @@ Do not merge the payment migration, change production RLS/function grants, or bu
 - No paid Supabase branch was created because recurring branch cost was explicitly declined. Production remains unchanged by this follow-up.
 
 
-## User intervention required
+## Free-only validation boundary
 
-Creating the disposable Supabase branch requires the organization's billing/cost confirmation through the Supabase connector. No production change should be used as a substitute. If the connector asks for organization ID and cost acknowledgment, request those details before branch creation.
+Do not create a paid Supabase branch and do not ask the user to approve any paid service. Use GitHub Actions with disposable PostgreSQL and synthetic fixtures, plus local/static validation, as far as the repository schema permits. Do not apply review-branch SQL to production. If a test cannot be run without credentials or a paid resource, document it as blocked and continue with all independent free checks.
 
 
 ## Additional blockers found in read-only function review (2026-10-13)
@@ -117,3 +117,10 @@ These are source-level findings, not changes to production. The relevant SQL tes
 - Added `20261013190000_lamin_rollover_balance_from_allocations.sql`, which recalculates the rollover preview balance from opening-balance and fee-assessment obligations less active, non-reversed allocations. A legacy payment with no active allocations is deducted only when explicitly linked to the matching assessment, rather than being subtracted indiscriminately from all source-year debt.
 - **Legacy data caveat:** older payments with no allocation and no explicit fee-assessment link cannot be reliably assigned to an obligation by this function. Such cases require an auditable reconciliation policy before rollover; do not assume the revised preview is complete for those records. Existing draft rollover batches also retain their saved preview until a new batch is prepared.
 - These are source changes only. They have not been applied to a disposable Supabase branch or production. SQL syntax, transaction rollback, legacy reconciliation, and end-to-end financial totals remain unverified.
+
+
+## Additional ledger correction (2026-10-13, Libya time UTC+02:00)
+
+- Corrected the legacy-payment fallback in both payment allocation and rollover preview logic: a payment is considered legacy/unallocated only when it has **no allocation rows at all**. A payment with reversed allocations must not be treated as a fresh legacy payment, because that could subtract its amount again and understate debt.
+- Updated commits: `c54d376a539911cc0f6f9f95d1be200d7432e5d2` (payment RPC) and `6d9f77081e68a74840eb3e8248c0806bbbb5a858` (rollover preview).
+- This is a source-level correction only; PostgreSQL execution and financial reconciliation tests are still required before merge or release.
