@@ -79,6 +79,15 @@ Do not merge the payment migration, change production RLS/function grants, or bu
 - test evidence and commit IDs are recorded here;
 - a final Flutter analyze/test run passes.
 
+
+## Follow-up hardening change (2026-10-13, Libya time UTC+02:00)
+
+- Updated migration `20261013041800_lamin_prioritize_selected_fee_payment.sql` on the review branch to preflight duplicate non-null `(school_id, idempotency_key)` values and create a partial unique index before using `ON CONFLICT`. If duplicates exist, migration aborts without deleting or rewriting financial records.
+- This closes the source-level missing-uniqueness prerequisite, but **is not database-tested** and has not been applied to production. Confirm the index definition and migration behavior on a disposable database before merge.
+- The migration still does not resolve the excess-payment policy. It can leave part of a recorded payment unallocated after all obligations are satisfied. Treat this as a release blocker until excess is rejected transactionally or a student-credit ledger and statement behavior are implemented and tested.
+- No paid Supabase branch was created because recurring branch cost was explicitly declined. Production remains unchanged by this follow-up.
+
+
 ## User intervention required
 
 Creating the disposable Supabase branch requires the organization's billing/cost confirmation through the Supabase connector. No production change should be used as a substitute. If the connector asks for organization ID and cost acknowledgment, request those details before branch creation.
