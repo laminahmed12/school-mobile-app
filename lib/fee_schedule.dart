@@ -291,7 +291,6 @@ class _FeeScheduleViewState extends State<FeeScheduleView> {
     ])),
   );
 }
-).hasMatch(s) ? null : 'استخدم الصيغة YYYY-MM-DD'; }),
         const SizedBox(height: 10),
         TextFormField(controller: note, maxLength: 200, decoration: const InputDecoration(labelText: 'ملاحظة (اختيارية)')),
         SwitchListTile(value: active, contentPadding: EdgeInsets.zero, title: const Text('الجدول فعال'), onChanged: (v) => setDialog(() => active = v)),
