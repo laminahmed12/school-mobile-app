@@ -1,8 +1,7 @@
-name: Build Lamin Trial APK (isolated backend only)
+name: Build Lamin Trial APK (deferred; isolated backend only)
 
 on:
-  push:
-    branches: ["plan/lamin-finance-rollover-hardening"]
+  # Trial builds are intentionally manual-only until the main release is ready.
   workflow_dispatch:
 
 permissions:
