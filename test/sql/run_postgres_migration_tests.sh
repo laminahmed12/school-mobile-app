@@ -65,6 +65,10 @@ checks = {
     "legacy fallback requires no allocation rows": payment.count("not exists(select 1 from public.payment_allocations olda where olda.payment_id=oldp.id)") == 2,
     "rollover uses allocation ledger": "where pa.opening_balance_id=ob.id and pa.reversed_at is null" in rollover and "where pa.fee_assessment_id=f.id and pa.reversed_at is null" in rollover,
     "rollover legacy fallback excludes any payment with allocation history": "where pa.payment_id=p.id)" in rollover,
+    "old unreviewed rollover previews are superseded, not reused": "status='cancelled'" in rollover and "Superseded by allocation-ledger balance formula v2" in rollover,
+    "reviewed rollover previews are not silently replaced": "where batch_id=v_batch and reviewed" in rollover and "أوقفها وراجع قراراتها" in rollover,
+    "new rollover preview is versioned": "'balance_formula_version',2" in rollover,
+    "execution blocks stale rollover preview versions": "coalesce(NEW.preview->>'balance_formula_version','')<>'2'" in rollover,
 }
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
