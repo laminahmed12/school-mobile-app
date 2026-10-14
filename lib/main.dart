@@ -18,6 +18,8 @@ import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
 import 'backup_view.dart';
+import 'fee_schedule.dart';
+import 'discount_management.dart';
 import 'backup_service.dart';
 
 const brandGreen = Color(0xFF155D4A);
@@ -1639,6 +1641,20 @@ class MoreView extends StatelessWidget {
       onTap: () => Navigator.push(context, MaterialPageRoute(
         builder: (_) => PayrollView(repo: repo, onChanged: onChanged, canManagePayees: isAdmin),
       )),
+    )),
+    if (isAdmin || isAccountant) Card(child:ListTile(
+      leading: const Icon(Icons.price_check_outlined),
+      title: const Text('الرسوم القياسية'),
+      subtitle: const Text('إعداد رسوم كل صف وفصل حسب السنة الدراسية'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FeeScheduleView(role: role))),
+    )),
+    if (isAdmin || isAccountant) Card(child:ListTile(
+      leading: const Icon(Icons.discount_outlined),
+      title: const Text('الخصومات والاعتمادات'),
+      subtitle: const Text('قواعد الخصم وطلبات الاعتماد وسجل الموافقات'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DiscountManagementView(role: role))),
     )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),
