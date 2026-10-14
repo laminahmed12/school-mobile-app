@@ -18,9 +18,9 @@ $counts$;
 INSERT INTO auth.users(id) VALUES
  ('00000000-0000-4000-8000-000000000001'),
  ('00000000-0000-4000-8000-000000000002');
-INSERT INTO public.schools(id,code,name) VALUES
- ('10000000-0000-4000-8000-000000000001','lamtesta','Lamīn Test School A'),
- ('10000000-0000-4000-8000-000000000002','lamtestb','Lamīn Test School B');
+INSERT INTO public.schools(id,code,name,licensed) VALUES
+ ('10000000-0000-4000-8000-000000000001','lamtesta','Lamīn Test School A',true),
+ ('10000000-0000-4000-8000-000000000002','lamtestb','Lamīn Test School B',true);
 INSERT INTO public.profiles(user_id,school_id,username,role,active,must_change_password) VALUES
  ('00000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','testadmina','admin',true,false),
  ('00000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002','testadminb','admin',true,false);
