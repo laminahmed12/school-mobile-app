@@ -53,7 +53,7 @@ begin
  update public.rollover_batches set status='completed',completed_at=now(),updated_by=auth.uid(),preview=preview||jsonb_build_object('created_enrollments',v_students,'opening_balances',v_balances) where id=p_batch_id;
  return jsonb_build_object('ok',true,'created_enrollments',v_students,'opening_balances',v_balances,'message','اكتمل الترحيل وتم إقفال السنوات السابقة.');
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.export_backup(p_school uuid DEFAULT NULL::uuid)
@@ -70,7 +70,7 @@ begin
   'audit_log',(select coalesce(jsonb_agg(to_jsonb(a) order by a.created_at),'[]'::jsonb)
     from public.audit_log a where a.school_id=v_school and a.details->>'restored_from_audit_id' is null),
   'audit_log_school_id',v_school);
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.export_backup_core_v2(p_school uuid DEFAULT NULL::uuid)
@@ -130,5 +130,5 @@ begin
     'backup_registry',(select coalesce(jsonb_agg(to_jsonb(t)),'[]') from public.backup_registry t where t.school_id=v_school)
   );
 end
-$function$
+$function$;
 
