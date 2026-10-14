@@ -205,7 +205,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                       DropdownMenuItem(value: 'transfer', child: Text('منتقل')),
                       DropdownMenuItem(value: 'exclude', child: Text('عدم الترحيل')),
                     ],
-                    onChanged: busy ? null : (v) => setState(() => decisions[id] = v ?? 'exclude'),
+                    onChanged: busy ? null : (v) => setState(() { decisions[id] = v ?? 'exclude'; item['reviewed'] = false; }),
                   ),
                   if (needsClass) DropdownButtonFormField<String>(
                     value: targetClassesList.any((c) => c['id'].toString() == targetClasses[id]) ? targetClasses[id] : null,
@@ -214,7 +214,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                       value: c['id'].toString(),
                       child: Text('${c['name']}${(c['section'] ?? '').toString().isEmpty ? '' : ' — ${c['section']}'}'),
                     )).toList(),
-                    onChanged: busy ? null : (v) => setState(() => targetClasses[id] = v),
+                    onChanged: busy ? null : (v) => setState(() { targetClasses[id] = v; item['reviewed'] = false; }),
                   ),
                   const SizedBox(height: 8),
                   Row(children: [
