@@ -160,33 +160,31 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                   ),
                 ),
                 StatefulBuilder(
-                  builder: (ctx, setChoice) => Column(
-                    children: [
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'trial',
-                        groupValue: licenseMode,
-                        onChanged: creating
-                            ? null
-                            : (v) => setChoice(() => licenseMode = v!),
-                        title: const Text('فترة تجريبية لمدة شهر'),
-                        subtitle: const Text(
-                          'تنتهي تلقائيًا بعد شهر إذا لم يُفعّل الترخيص الدائم',
+                  builder: (ctx, setChoice) => RadioGroup<String>(
+                    groupValue: licenseMode,
+                    onChanged: creating
+                        ? null
+                        : (v) => setChoice(() => licenseMode = v!),
+                    child: Column(
+                      children: [
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          value: 'trial',
+                          title: const Text('فترة تجريبية لمدة شهر'),
+                          subtitle: const Text(
+                            'تنتهي تلقائيًا بعد شهر إذا لم يُفعّل الترخيص الدائم',
+                          ),
                         ),
-                      ),
-                      RadioListTile<String>(
-                        contentPadding: EdgeInsets.zero,
-                        value: 'permanent',
-                        groupValue: licenseMode,
-                        onChanged: creating
-                            ? null
-                            : (v) => setChoice(() => licenseMode = v!),
-                        title: const Text('تفعيل دائم مباشرة'),
-                        subtitle: const Text(
-                          'تُنشأ المدرسة بترخيص دائم دون انتظار انتهاء التجربة',
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          value: 'permanent',
+                          title: const Text('تفعيل دائم مباشرة'),
+                          subtitle: const Text(
+                            'تُنشأ المدرسة بترخيص دائم دون انتظار انتهاء التجربة',
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 TextFormField(
