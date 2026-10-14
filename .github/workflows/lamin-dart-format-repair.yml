@@ -1,0 +1,89 @@
+name: Repair Dart formatting (isolated)
+
+on:
+  push:
+    branches:
+      - fix/lamin-dart-format-20261014
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lamin-dart-format-repair
+  cancel-in-progress: false
+
+jobs:
+  format-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/lamin-dart-format-20261014
+          fetch-depth: 0
+
+      - name: Set up Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Run Dart formatter
+        run: dart format .
+
+      - name: Review diff and reject non-Dart changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- Changed files ---'
+          git status --short
+          changed="$(git diff --name-only)"
+          if [[ -z "$changed" ]]; then
+            echo 'Formatter produced no changes.'
+          else
+            while IFS= read -r file; do
+              [[ "$file" == *.dart ]] || { echo "Unexpected non-Dart change: $file"; exit 1; }
+            done <<< "$changed"
+            echo '--- Diff stat ---'
+            git diff --stat
+            echo '--- Full formatter diff ---'
+            git --no-pager diff -- .
+            git diff --check
+          fi
+
+      - name: Commit formatter-only changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- '*.dart'
+            git commit -m "style: apply Dart formatter"
+            git push origin HEAD:fix/lamin-dart-format-20261014
+          fi
+          echo "FORMAT_REPAIR_SHA=$(git rev-parse HEAD)" | tee -a "$GITHUB_STEP_SUMMARY"
+          git status --short
+
+      - name: Verify formatting without modifying checkout
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter tests
+        run: flutter test
+
+      - name: Record tested SHA and summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Dart formatting repair'
+            echo "- Tested commit: $(git rev-parse HEAD)"
+            echo "- Format check, analyze, and test outcomes are recorded in the preceding steps."
+            echo '- PostgreSQL migration-chain validation is intentionally not run by this workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
