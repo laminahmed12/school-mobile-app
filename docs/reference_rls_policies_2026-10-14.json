@@ -1,0 +1,997 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "pg_policies read-only",
+  "policies": [
+    {
+      "schemaname": "public",
+      "tablename": "academic_years",
+      "policyname": "academic_years_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "attendance",
+      "policyname": "attendance_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_log",
+      "policyname": "audit_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "policyname": "backup_registry_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "policyname": "backup_registry_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "policyname": "backup_registry_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(school_id = private.my_school())",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "policyname": "backup_registry_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "(school_id = private.my_school())"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "policyname": "class_subjects_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "policyname": "classes_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "policyname": "lamin_discount_rules_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "policyname": "lamin_discount_rules_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "policyname": "lamin_discount_rules_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "policyname": "lamin_discount_rules_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "policyname": "expenses_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "policyname": "expenses_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "policyname": "expenses_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "policyname": "expenses_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "policyname": "lamin_fee_schedules_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "policyname": "lamin_fee_schedules_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "policyname": "lamin_fee_schedules_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "policyname": "lamin_fee_schedules_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "policyname": "lamin_financial_adjustments_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "policyname": "lamin_financial_adjustments_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "policyname": "lamin_financial_adjustments_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "policyname": "grades_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "policyname": "grades_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "policyname": "grades_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "policyname": "grades_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "onedrive_access_audit",
+      "policyname": "onedrive_access_audit_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "onedrive_access_audit",
+      "policyname": "onedrive_access_audit_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "policyname": "lamin_payment_allocations_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "policyname": "lamin_payment_allocations_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "policyname": "lamin_payment_allocations_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "policyname": "payments_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "policyname": "payments_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "policyname": "payments_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_periods",
+      "policyname": "lamin_payroll_periods_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_periods",
+      "policyname": "lamin_payroll_periods_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "policyname": "payroll_transactions_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "policyname": "payroll_transactions_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])) AND (created_by = ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "policyname": "payroll_transactions_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "policyname": "payroll_transactions_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR ((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text)) OR (( SELECT private.my_role() AS my_role) = 'owner'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "policyname": "lamin_rollover_batches_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "policyname": "lamin_rollover_batches_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "policyname": "lamin_rollover_batches_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "policyname": "lamin_rollover_items_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "policyname": "lamin_rollover_items_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "policyname": "lamin_rollover_items_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "salary_assignments",
+      "policyname": "lamin_salary_assignments_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "salary_assignments",
+      "policyname": "lamin_salary_assignments_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "salary_assignments",
+      "policyname": "lamin_salary_assignments_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "school_branding",
+      "policyname": "school_branding_insert_admin",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "school_branding",
+      "policyname": "school_branding_select_same_school",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) OR (( SELECT private.my_role() AS my_role) = 'owner'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "school_branding",
+      "policyname": "school_branding_update_admin",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "policyname": "schools_owner_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(( SELECT private.my_role() AS my_role) = 'owner'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "policyname": "schools_owner_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.my_role() AS my_role) = 'owner'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "policyname": "schools_owner_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(( SELECT private.my_role() AS my_role) = 'owner'::text)",
+      "with_check": "(( SELECT private.my_role() AS my_role) = 'owner'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "policyname": "schools_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((id = ( SELECT private.my_school() AS my_school)) OR (( SELECT private.my_role() AS my_role) = 'owner'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff",
+      "policyname": "staff_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff",
+      "policyname": "staff_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff_payments",
+      "policyname": "staff_payments_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "policyname": "behavior_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "policyname": "behavior_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "policyname": "behavior_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "policyname": "lamin_discount_awards_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])) AND (status = 'pending'::text) AND ((requested_by IS NULL) OR (requested_by = ( SELECT auth.uid() AS uid))) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "policyname": "lamin_discount_awards_read",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "policyname": "lamin_discount_awards_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "policyname": "student_enrollments_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "policyname": "student_enrollments_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "policyname": "student_enrollments_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(school_id = private.my_school())",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "policyname": "student_enrollments_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": "(school_id = private.my_school())"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "policyname": "student_fee_assessments_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "policyname": "student_fee_assessments_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])) AND ((created_by IS NULL) OR (created_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "policyname": "student_fee_assessments_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "policyname": "student_fee_assessments_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "policyname": "fees_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "policyname": "fees_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'accountant'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "policyname": "fees_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "policyname": "opening_balances_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "policyname": "opening_balances_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "policyname": "opening_balances_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(school_id = private.my_school())",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "policyname": "opening_balances_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text])))",
+      "with_check": "(school_id = private.my_school())"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_parents",
+      "policyname": "student_parents_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "policyname": "student_results_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "policyname": "students_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "policyname": "students_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "policyname": "students_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(school_id = ( SELECT private.my_school() AS my_school))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "policyname": "students_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "policyname": "subjects_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "policyname": "subjects_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "policyname": "subjects_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'supervisor'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "policyname": "teachers_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "policyname": "teachers_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "policyname": "teachers_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = ANY (ARRAY['admin'::text, 'owner'::text, 'accountant'::text, 'supervisor'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "policyname": "teachers_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))",
+      "with_check": "((school_id = ( SELECT private.my_school() AS my_school)) AND (( SELECT private.my_role() AS my_role) = 'admin'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_deletion_audit",
+      "policyname": "user_deletion_audit_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_deletion_audit",
+      "policyname": "user_deletion_audit_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['owner'::text, 'admin'::text])))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_notifications",
+      "policyname": "whatsapp_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text, 'accountant'::text])))",
+      "with_check": "((school_id = private.my_school()) AND (private.my_role() = ANY (ARRAY['admin'::text, 'owner'::text, 'supervisor'::text, 'accountant'::text])))"
+    }
+  ]
+}
