@@ -57,7 +57,8 @@ class BackupView extends StatelessWidget {
         throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
       }
       final data = Map<String, dynamic>.from(envelope['data'] as Map);
-      if (data['format'] != 'lamin-school-backup-v2' || data['school_filter']?.toString() != schoolId) {
+      if (!['lamin-school-backup-v2', 'lamin-school-backup-v3'].contains(data['format']) ||
+          data['school_filter']?.toString() != schoolId) {
         throw Exception('محتوى النسخة المحلية لا يطابق المدرسة الحالية.');
       }
       final confirmed = await showDialog<bool>(
@@ -90,7 +91,8 @@ class BackupView extends StatelessWidget {
         throw Exception('هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية البيانات.');
       }
       final data = Map<String, dynamic>.from(envelope['data'] as Map);
-      if (data['format'] != 'lamin-school-backup-v2' || data['school_filter']?.toString() != schoolId) {
+      if (!['lamin-school-backup-v2', 'lamin-school-backup-v3'].contains(data['format']) ||
+          data['school_filter']?.toString() != schoolId) {
         throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
       }
       final confirmed = await showDialog<bool>(
