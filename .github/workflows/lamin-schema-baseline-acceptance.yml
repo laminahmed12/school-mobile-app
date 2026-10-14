@@ -1,0 +1,69 @@
+name: Lamin schema baseline acceptance
+on:
+  push:
+    branches:
+      - experiment/lamin-db-schema-baseline-20261015
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clean-baseline-and-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_DB: lamin_baseline_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lamin_baseline_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: lamin_baseline_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Verify disposable database is empty
+        run: |
+          psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','v','m','f') AND n.nspname NOT LIKE 'pg_%';" | grep -x '0'
+      - name: Create test-only Supabase auth stubs
+        run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/test_bootstrap.sql
+      - name: Build schema from catalog-derived baseline
+        run: |
+          set -euo pipefail
+          for f in \
+            supabase/baselines/20261015/0001_tables_sequences.sql \
+            supabase/baselines/20261015/0002_private_routines.sql \
+            supabase/baselines/20261015/0003_public_routines_a_d.sql \
+            supabase/baselines/20261015/0004_public_routines_execute_export.sql \
+            supabase/baselines/20261015/0005_public_routines_export_lamin.sql \
+            supabase/baselines/20261015/0006_public_routines_validation.sql \
+            supabase/baselines/20261015/0007_public_routines_rollover_finance.sql \
+            supabase/baselines/20261015/0008_public_routines_restore.sql \
+            supabase/baselines/20261015/0009_public_routines_remaining.sql \
+            supabase/baselines/20261015/0010_defaults_constraints_indexes_views.sql \
+            supabase/baselines/20261015/0011_security_policies_triggers_grants.sql; do
+            echo "Applying $f"
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Compare generated schema to live reference fingerprint
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -At -f supabase/baselines/20261015/schema_fingerprint.sql > actual_schema_manifest.json
+          diff -u supabase/baselines/20261015/reference_schema_manifest.json actual_schema_manifest.json
+      - name: Test tenant isolation, finance, backup, and restore
+        run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
