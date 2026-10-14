@@ -5,7 +5,7 @@ BEGIN
   SELECT count(*) INTO n FROM pg_class c JOIN pg_namespace s ON s.oid=c.relnamespace WHERE s.nspname='public' AND c.relkind='r';
   IF n <> 40 THEN RAISE EXCEPTION 'expected 40 application tables, got %', n; END IF;
   SELECT count(*) INTO n FROM pg_policies WHERE schemaname='public';
-  IF n <> 99 THEN RAISE EXCEPTION 'expected 99 RLS policies, got %', n; END IF;
+  IF n <> 102 THEN RAISE EXCEPTION 'expected 102 RLS policies after accepted owner-policy delta, got %', n; END IF;
   SELECT count(*) INTO n FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace s ON s.oid=c.relnamespace WHERE s.nspname='public' AND NOT t.tgisinternal;
   IF n <> 32 THEN RAISE EXCEPTION 'expected 32 user triggers, got %', n; END IF;
   SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname IN ('public','private') AND p.prokind='f';
