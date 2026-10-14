@@ -72,3 +72,34 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Create separate existing-schema upgrade database
+        run: createdb lamin_upgrade_test
+      - name: Build reference schema for upgrade-path test
+        run: |
+          set -euo pipefail
+          export PGDATABASE=lamin_upgrade_test
+          psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/test_bootstrap.sql
+          for f in \
+            supabase/baselines/20261015/0001_tables_sequences.sql \
+            supabase/baselines/20261015/0002_private_routines.sql \
+            supabase/baselines/20261015/0003_public_routines_a_d.sql \
+            supabase/baselines/20261015/0004_public_routines_execute_export.sql \
+            supabase/baselines/20261015/0005_public_routines_export_lamin.sql \
+            supabase/baselines/20261015/0006_public_routines_validation.sql \
+            supabase/baselines/20261015/0007_public_routines_rollover_finance.sql \
+            supabase/baselines/20261015/0008_public_routines_restore.sql \
+            supabase/baselines/20261015/0009_public_routines_remaining.sql \
+            supabase/baselines/20261015/0010_defaults_constraints_indexes_views.sql \
+            supabase/baselines/20261015/0011_security_policies_triggers_grants.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+          psql -X -v ON_ERROR_STOP=1 -At -f supabase/baselines/20261015/schema_fingerprint.sql > upgrade_before_manifest.json
+          diff -u supabase/baselines/20261015/reference_schema_manifest.json upgrade_before_manifest.json
+      - name: Seed existing rows before upgrade
+        run: PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/upgrade_seed.sql
+      - name: Apply selective schema upgrade
+        run: PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
+      - name: Verify upgrade preserves data and target behavior
+        run: |
+          PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_upgrade.sql
+          PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
