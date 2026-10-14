@@ -9,6 +9,27 @@ import 'models.dart';
 import 'repository.dart';
 import 'supabase_config.dart';
 import 'whatsapp.dart';
+
+final Map<String, String> _pendingPaymentKeys = {};
+
+String _paymentSignature({
+  required String studentId,
+  required double amount,
+  required String note,
+  required String? feeAssessmentId,
+}) => <String>[
+  studentId,
+  amount.toStringAsFixed(2),
+  feeAssessmentId ?? '',
+  note,
+].join('\\u001f');
+
+String _paymentIdempotencyKey(String signature, String studentId) {
+  return _pendingPaymentKeys.putIfAbsent(
+    signature,
+    () => 'pay_${studentId}_${DateTime.now().toUtc().microsecondsSinceEpoch}',
+  );
+}
 import 'academic.dart';
 import 'student_profile.dart';
 import 'reports.dart';
@@ -727,26 +748,6 @@ class StudentsView extends StatefulWidget {
 
 class _StudentsViewState extends State<StudentsView> {
   String q = '';
-  final Map<String, String> _pendingPaymentKeys = {};
-
-  String _paymentSignature({
-    required String studentId,
-    required double amount,
-    required String note,
-    required String? feeAssessmentId,
-  }) => <String>[
-    studentId,
-    amount.toStringAsFixed(2),
-    feeAssessmentId ?? '',
-    note,
-  ].join('\u001f');
-
-  String _paymentIdempotencyKey(String signature, String studentId) {
-    return _pendingPaymentKeys.putIfAbsent(
-      signature,
-      () => 'pay_${studentId}_${DateTime.now().toUtc().microsecondsSinceEpoch}',
-    );
-  }
   @override
   Widget build(BuildContext context) {
     final list = widget.students.where((s) => s.name.contains(q) || s.className.contains(q) || s.phone.contains(q)).toList();
