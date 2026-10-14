@@ -102,6 +102,7 @@ checks = {
 }
 
 backup = Path("supabase/migrations/20261014080000_complete_financial_backup_restore.sql").read_text(encoding="utf-8")
+backup_view = Path("lib/backup_view.dart").read_text(encoding="utf-8")
 rollover_closure = Path("supabase/migrations/20261014050000_fix_academic_rollover_year_closing.sql").read_text(encoding="utf-8")
 required_backup_tables = [
     "fee_schedules", "discount_rules", "student_discount_awards", "school_branding",
@@ -117,6 +118,19 @@ checks.update({
     "audit restore is school-scoped and idempotent":
         "audit_log_school_id" in backup and "restored_from_audit_id" in backup
         and "WHERE x.school_id = v_school" in backup,
+    "new backup exports use the validated v3 payload format":
+        "'format','lamin-school-backup-v3'" in backup,
+    "restore remains backward-compatible with v2 and accepts v3":
+        "NOT IN ('lamin-school-backup-v2','lamin-school-backup-v3')" in backup,
+    "incomplete v3 backups are rejected before any restore insert":
+        "IF p_backup->>'format' = 'lamin-school-backup-v3' THEN" in backup
+        and "jsonb_typeof(p_backup->v_table) IS DISTINCT FROM 'array'" in backup
+        and "النسخة غير مكتملة" in backup
+        and backup.index("v3 exports carry a complete table manifest")
+            < backup.index("Preload parent rows required by opening balances"),
+    "backup UI accepts v2 and v3 internal payloads":
+        backup_view.count("lamin-school-backup-v3") == 2
+        and backup_view.count("lamin-school-backup-v2") == 2,
     "rollover closes only its source year":
         "where school_id = sid and id = b.source_academic_year_id" in rollover_closure
         and "id<>b.target_academic_year_id" not in rollover_closure,
