@@ -69,6 +69,12 @@ for item in migrations:
     check_file(item, "migration " + str(item.get("version")))
 
 check_file(data.get("bootstrap"), "test bootstrap")
+suites = data.get("verification_suites")
+required_suites = {"schema_invariants", "rls_authorization", "tenant_isolation", "backup_restore"}
+if not isinstance(suites, dict) or not required_suites.issubset(suites):
+    fail("verification_suites must provide reviewed SQL for schema_invariants, rls_authorization, tenant_isolation, and backup_restore")
+for suite_name in sorted(required_suites):
+    check_file(suites[suite_name], "verification suite " + suite_name)
 if MODE == "upgrade":
     baseline = data.get("upgrade_baseline")
     if not isinstance(baseline, dict):
