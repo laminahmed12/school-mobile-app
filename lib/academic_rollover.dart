@@ -53,14 +53,6 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
     return 'طالب غير معروف';
   }
 
-  String _decisionLabel(String value) => switch (value) {
-    'promote' => 'ناجح — ينتقل للصف التالي',
-    'repeat' => 'راسب — يعيد الصف',
-    'graduate' => 'متخرج',
-    'transfer' => 'منتقل',
-    _ => 'استبعاد من الترحيل',
-  };
-
   Future<void> prepare() async {
     if (sourceYear == null || targetYear == null || sourceYear == targetYear) {
       _message('اختر السنة الحالية وسنة جديدة مختلفة.'); return;
