@@ -7,8 +7,6 @@ class BackupView extends StatelessWidget {
   final Future<void> Function() onChanged;
   const BackupView({super.key, required this.repo, required this.onChanged});
 
-  bool get _allowed => true;
-
   void _message(BuildContext context, String text, {bool error = false}) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
