@@ -64,7 +64,7 @@ class SchoolRepository {
     if (schoolId == null || schoolId.isEmpty) return [];
     final cacheKey = 'students_cache_$schoolId';
     try {
-      final rows = await db.from('students').select().order('name');
+      final rows = await db.from('students').select().eq('school_id', schoolId).order('name');
       final list = (rows as List).map((e) => Student.fromMap(Map<String, dynamic>.from(e))).toList();
       await prefs.setString(cacheKey, jsonEncode(list.map((s) => {
         'id': s.id,
@@ -203,10 +203,15 @@ class SchoolRepository {
     if (gradeOrder != null && (gradeOrder < 1 || gradeOrder > 20)) {
       throw Exception('ترتيب الصف يجب أن يكون بين 1 و20.');
     }
+    final schoolId = (await profile())?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف إنشاء الصف لحماية بيانات المدارس.');
+    }
     var yearId = academicYearId;
     if (yearId == null || yearId.isEmpty) {
       final active = await db.from('academic_years')
           .select('id')
+          .eq('school_id', schoolId)
           .eq('active', true)
           .order('created_at', ascending: false)
           .limit(1)
@@ -214,6 +219,7 @@ class SchoolRepository {
       yearId = active?['id']?.toString();
     }
     await db.from('classes').insert({
+      'school_id': schoolId,
       'name': name.trim(),
       'section': section.trim(),
       if (gradeOrder != null) 'grade_order': gradeOrder,
@@ -450,6 +456,7 @@ class SchoolRepository {
     final activeYearId = year?['id']?.toString();
     final rows = await db.from('student_fee_assessments')
         .select('id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at')
+        .eq('school_id', schoolId)
         .eq('student_id', studentId)
         .order('created_at');
     return (rows as List)
@@ -474,6 +481,7 @@ class SchoolRepository {
     final activeYearId = year?['id']?.toString();
     final rows = await db.from('payments')
         .select('id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id')
+        .eq('school_id', schoolId)
         .eq('student_id', studentId)
         .order('payment_date', ascending: false);
     return (rows as List)
@@ -503,6 +511,7 @@ class SchoolRepository {
         ? <Map<String, dynamic>>[]
         : (await db.from('student_opening_balances')
             .select('id,amount')
+            .eq('school_id', schoolId)
             .eq('student_id', studentId)
             .eq('academic_year_id', year!['id']) as List)
             .map((row) => Map<String, dynamic>.from(row))
@@ -512,6 +521,7 @@ class SchoolRepository {
     // rows, so a reversed allocation is never mistaken for a legacy unallocated payment.
     final allocationRows = (await db.from('payment_allocations')
         .select('payment_id,fee_assessment_id,opening_balance_id,amount,reversed_at')
+        .eq('school_id', schoolId)
         .eq('student_id', studentId) as List)
         .map((row) => Map<String, dynamic>.from(row))
         .toList();
