@@ -5,14 +5,19 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Nightly full validation at 04:23 Africa/Tripoli (02:23 UTC).
+    - cron: '23 2 * * *'
 permissions:
   contents: read
 concurrency:
-  group: lamin-apk-${{ github.ref }}
+  # Keep rapid pushes cancellable, but never let a push cancel the nightly run.
+  group: lamin-apk-${{ github.ref }}-${{ github.event_name == 'schedule' && github.run_id || 'push' }}
   cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
