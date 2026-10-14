@@ -22,7 +22,7 @@ String _paymentSignature({
   amount.toStringAsFixed(2),
   feeAssessmentId ?? '',
   note,
-].join('\\u001f');
+].join('\u001f');
 
 String _paymentIdempotencyKey(String signature, String studentId) {
   return _pendingPaymentKeys.putIfAbsent(
