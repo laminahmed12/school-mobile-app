@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'academic_rollover.dart';
 import 'repository.dart';
 import 'models.dart';
 
@@ -57,6 +58,13 @@ class _SchoolSetupViewState extends State<SchoolSetupView> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(12),
                     children: [
+                      Card(child: ListTile(
+                        leading: const Icon(Icons.swap_horiz),
+                        title: const Text('ترحيل السنة الدراسية'),
+                        subtitle: const Text('مراجعة نتيجة كل طالب وأقساطه قبل اعتماد السنة الجديدة'),
+                        trailing: const Icon(Icons.chevron_left),
+                        onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => AcademicRolloverView(repo: widget.repo))),
+                      )),
                       Card(child: ListTile(
                         leading: const Icon(Icons.event),
                         title: const Text('السنوات الدراسية'),
