@@ -14,7 +14,7 @@ begin
  return v_payload || jsonb_build_object(
   'payment_allocations',(select coalesce(jsonb_agg(to_jsonb(a)),'[]'::jsonb) from public.payment_allocations a where a.school_id=(v_payload->>'school_filter')::uuid)
  );
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.export_backup_core_v4(p_school uuid DEFAULT NULL::uuid)
@@ -34,7 +34,7 @@ begin
   'payroll_periods',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.payroll_periods t where t.school_id=v_school),
   'salary_assignments',(select coalesce(jsonb_agg(to_jsonb(t)),'[]'::jsonb) from public.salary_assignments t where t.school_id=v_school)
  );
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.grant_onedrive_access(p_user_id uuid, p_permission_id text)
@@ -53,7 +53,7 @@ begin
  update profiles set onedrive_access_granted=true,onedrive_permission_id=nullif(trim(p_permission_id),''),onedrive_granted_at=now(),onedrive_revoked_at=null where user_id=p_user_id and school_id=sid;
  insert into onedrive_access_audit(school_id,target_user_id,target_username,action,permission_id) values(sid,u.user_id,u.username,'grant',nullif(trim(p_permission_id),''));
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.import_students(p_rows jsonb)
@@ -91,7 +91,7 @@ begin
     v_id := null;
   end loop;
   return jsonb_build_object('inserted', v_ins, 'skipped', v_skip);
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_capture_manual_discount()
@@ -115,7 +115,7 @@ begin
  end if;
  return NEW;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_guard_rollover_year_state()
@@ -135,7 +135,7 @@ begin
  end if;
  return NEW;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_set_updated_at()
@@ -148,7 +148,7 @@ begin
   if NEW.updated_by is null then NEW.updated_by := auth.uid(); end if;
   return NEW;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_sync_award_discount()
@@ -172,5 +172,5 @@ begin
  perform set_config('lamin.sync_award_discount','off',true);
  if TG_OP='DELETE' then return OLD; else return NEW; end if;
 end
-$function$
+$function$;
 
