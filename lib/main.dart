@@ -1845,7 +1845,7 @@ class _PayrollViewState extends State<PayrollView> {
               '${remaining < -0.009 ? 'زيادة مصروفة' : 'المتبقي من الراتب'}: ${remaining.abs().toStringAsFixed(2)} د.ل',
             ),
             trailing: widget.canManagePayees
-                ? IconButton(tooltip: 'تعديل الراتب', onPressed: () => editSalary(person, isTeacher: isTeacher), icon: const Icon(Icons.edit_outlined))
+                ? IconButton(tooltip: 'تعديل بيانات', onPressed: () => editPayee(person, isTeacher: isTeacher), icon: const Icon(Icons.edit_outlined))
                 : null,
           ),
           Padding(
@@ -1889,6 +1889,48 @@ class _PayrollViewState extends State<PayrollView> {
     );
   }
 
+  Future<void> editPayee(Map<String, dynamic> person, {required bool isTeacher}) async {
+    final name = TextEditingController(text: person['name']?.toString() ?? '');
+    final detail = TextEditingController(text: (isTeacher ? person['subject'] : person['role'])?.toString() ?? '');
+    final phone = TextEditingController(text: person['phone']?.toString() ?? '');
+    final salary = TextEditingController(text: _salary(person).toStringAsFixed(2));
+    final value = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('تعديل ${isTeacher ? 'بيانات المعلم' : 'بيانات الموظف'}'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')),
+          TextField(controller: detail, decoration: InputDecoration(labelText: isTeacher ? 'المادة / التخصص' : 'الوظيفة')),
+          TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم الهاتف')),
+          TextField(controller: salary, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'الراتب الشهري (د.ل)')),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(onPressed: () {
+            final amount = double.tryParse(salary.text.trim().replaceAll(',', '.'));
+            if (name.text.trim().length < 2 || detail.text.trim().isEmpty || amount == null || amount < 0) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('تحقق من الاسم والمادة أو الوظيفة والراتب.')));
+              return;
+            }
+            Navigator.pop(ctx, {'name': name.text.trim(), 'detail': detail.text.trim(), 'phone': phone.text.trim(), 'salary': amount});
+          }, child: const Text('حفظ التعديلات')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    try {
+      if (isTeacher) {
+        await widget.repo.updateTeacher(teacherId: person['id'].toString(), name: value['name'] as String, subject: value['detail'] as String, phone: value['phone'] as String, salary: value['salary'] as double);
+      } else {
+        await widget.repo.updateStaffMember(staffId: person['id'].toString(), name: value['name'] as String, role: value['detail'] as String, phone: value['phone'] as String, salary: value['salary'] as double);
+      }
+      await load();
+      await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث البيانات بنجاح.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذر تحديث البيانات.'))));
+    }
+  }
   Future<void> editSalary(Map<String, dynamic> person, {required bool isTeacher}) async {
     final controller = TextEditingController(text: _salary(person).toStringAsFixed(2));
     final value = await showDialog<double>(
