@@ -1,0 +1,305 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "Supabase migration-history metadata API, read-only",
+  "entry_count": 74,
+  "entries": [
+    {
+      "version": "20260924214051",
+      "name": "001_core_tables"
+    },
+    {
+      "version": "20260924214123",
+      "name": "002_rls_policies_rpcs"
+    },
+    {
+      "version": "20260927042618",
+      "name": "003_school_operations"
+    },
+    {
+      "version": "20260927043018",
+      "name": "004_academic_results"
+    },
+    {
+      "version": "20260927044205",
+      "name": "005_staff_and_class_subjects"
+    },
+    {
+      "version": "20260928070724",
+      "name": "bootstrap_owner_school"
+    },
+    {
+      "version": "20261002023925",
+      "name": "003_attendance_rpc"
+    },
+    {
+      "version": "20261003150831",
+      "name": "004_audit_skip_deleted_school"
+    },
+    {
+      "version": "20261006010111",
+      "name": "005_expenses_controls"
+    },
+    {
+      "version": "20261006100649",
+      "name": "006_backup_export_restore"
+    },
+    {
+      "version": "20261008002800",
+      "name": "20261008_security_performance_hardening"
+    },
+    {
+      "version": "20261008002821",
+      "name": "20261008_rls_policy_performance_cleanup"
+    },
+    {
+      "version": "20261008012010",
+      "name": "20261008_trial_and_one_time_license"
+    },
+    {
+      "version": "20261008015725",
+      "name": "20261008_lamin_annual_data_backup_and_school_code"
+    },
+    {
+      "version": "20261008015732",
+      "name": "20261008_lamin_school_code_normalization"
+    },
+    {
+      "version": "20261008020046",
+      "name": "20261008_lamin_fix_owner_bootstrap_school_binding"
+    },
+    {
+      "version": "20261008020108",
+      "name": "20261008_lamin_privileged_rpc_hardening"
+    },
+    {
+      "version": "20261008020118",
+      "name": "20261008_lamin_annual_data_fk_indexes"
+    },
+    {
+      "version": "20261008020133",
+      "name": "20261008_lamin_promotion_and_financial_carryover"
+    },
+    {
+      "version": "20261008020139",
+      "name": "20261008_lamin_backup_completeness"
+    },
+    {
+      "version": "20261008022735",
+      "name": "20261008_lamin_manager_controlled_onedrive_access"
+    },
+    {
+      "version": "20261008022751",
+      "name": "20261008_lamin_onedrive_role_guard"
+    },
+    {
+      "version": "20261008054322",
+      "name": "20261008_lamin_owner_gate_rate_limit"
+    },
+    {
+      "version": "20261008054329",
+      "name": "20261008_lamin_license_school_binding"
+    },
+    {
+      "version": "20261008064039",
+      "name": "20261008_lamin_license_atomic_redemption"
+    },
+    {
+      "version": "20261011003123",
+      "name": "allow_payments_without_preconfigured_student_fee"
+    },
+    {
+      "version": "20261011003147",
+      "name": "allow_supervisors_to_add_students"
+    },
+    {
+      "version": "20261011030248",
+      "name": "school_activation_state_and_payroll"
+    },
+    {
+      "version": "20261011030317",
+      "name": "enforce_school_suspension_and_payroll_read_access"
+    },
+    {
+      "version": "20261011030455",
+      "name": "preserve_active_trial_access_when_school_is_enabled"
+    },
+    {
+      "version": "20261011030720",
+      "name": "include_payroll_records_in_school_backups"
+    },
+    {
+      "version": "20261011030753",
+      "name": "validate_payroll_recipient_school"
+    },
+    {
+      "version": "20261011054843",
+      "name": "allow_supervisors_to_read_teachers"
+    },
+    {
+      "version": "20261011055003",
+      "name": "complete_school_backup_and_safe_restore"
+    },
+    {
+      "version": "20261011082055",
+      "name": "school_branding_logo_for_printouts"
+    },
+    {
+      "version": "20261011185512",
+      "name": "fix_trial_school_backup_permissions"
+    },
+    {
+      "version": "20261011195220",
+      "name": "student_finance_ledger_and_fee_assessments"
+    },
+    {
+      "version": "20261011195704",
+      "name": "include_term_finance_and_branding_in_backups"
+    },
+    {
+      "version": "20261011195728",
+      "name": "enforce_school_scope_for_fee_years"
+    },
+    {
+      "version": "20261012025856",
+      "name": "lamin_finance_foundation_audit_and_fee_rules"
+    },
+    {
+      "version": "20261012025918",
+      "name": "lamin_backup_support_finance_foundation"
+    },
+    {
+      "version": "20261012030006",
+      "name": "lamin_audit_trigger_align_existing_schema"
+    },
+    {
+      "version": "20261012030028",
+      "name": "lamin_finance_audit_timestamps_and_restore_order"
+    },
+    {
+      "version": "20261012030109",
+      "name": "lamin_finance_rls_and_fk_index_cleanup"
+    },
+    {
+      "version": "20261012030321",
+      "name": "lamin_auto_fee_schedule_at_enrollment"
+    },
+    {
+      "version": "20261012030408",
+      "name": "lamin_payment_allocations_and_amount_guard"
+    },
+    {
+      "version": "20261012030421",
+      "name": "lamin_backup_include_payment_allocations"
+    },
+    {
+      "version": "20261012030454",
+      "name": "lamin_rollover_adjustments_and_payroll_periods"
+    },
+    {
+      "version": "20261012030515",
+      "name": "lamin_backup_include_adjustments_rollover_payroll_periods"
+    },
+    {
+      "version": "20261012030603",
+      "name": "lamin_backup_rpc_execute_restrictions"
+    },
+    {
+      "version": "20261012030615",
+      "name": "lamin_backup_audit_history_and_rpc_acl"
+    },
+    {
+      "version": "20261012030742",
+      "name": "lamin_finance_foreign_key_index_coverage"
+    },
+    {
+      "version": "20261012030944",
+      "name": "lamin_atomic_payment_recording_and_allocation"
+    },
+    {
+      "version": "20261012031043",
+      "name": "lamin_discount_approval_and_assessment_sync"
+    },
+    {
+      "version": "20261012031054",
+      "name": "lamin_fix_discount_sync_trigger_record_return"
+    },
+    {
+      "version": "20261012031158",
+      "name": "lamin_preserve_manual_discount_baseline"
+    },
+    {
+      "version": "20261012031250",
+      "name": "lamin_academic_rollover_preview_and_execute"
+    },
+    {
+      "version": "20261012031306",
+      "name": "lamin_rollover_preserve_all_student_debts"
+    },
+    {
+      "version": "20261012031327",
+      "name": "lamin_rollover_review_each_student"
+    },
+    {
+      "version": "20261012031455",
+      "name": "lamin_enforce_single_active_year_and_rollover"
+    },
+    {
+      "version": "20261012031554",
+      "name": "lamin_link_opening_balances_to_rollover_batch"
+    },
+    {
+      "version": "20261012031650",
+      "name": "lamin_backup_exclude_restored_audit_copies"
+    },
+    {
+      "version": "20261012031751",
+      "name": "lamin_disable_unsafe_legacy_rollover_bypasses"
+    },
+    {
+      "version": "20261012031804",
+      "name": "lamin_disable_legacy_student_promotion_rpc"
+    },
+    {
+      "version": "20261012031908",
+      "name": "lamin_rls_performance_cleanup"
+    },
+    {
+      "version": "20261012031957",
+      "name": "lamin_require_approval_for_manual_discount_changes"
+    },
+    {
+      "version": "20261012032029",
+      "name": "lamin_restore_rollover_dependency_order"
+    },
+    {
+      "version": "20261012032223",
+      "name": "lamin_rollover_validate_year_states"
+    },
+    {
+      "version": "20261012032249",
+      "name": "lamin_guard_rollover_year_state"
+    },
+    {
+      "version": "20261012042741",
+      "name": "lamin_tenant_scope_academic_year_finance_links"
+    },
+    {
+      "version": "20261012042902",
+      "name": "lamin_scope_opening_balance_provenance"
+    },
+    {
+      "version": "20261012064423",
+      "name": "lamin_covering_indexes_for_finance_fk_20261012"
+    },
+    {
+      "version": "20261012080946",
+      "name": "lamin_harden_owner_bootstrap_null_role_guard"
+    },
+    {
+      "version": "20261012191847",
+      "name": "allow_optional_teacher_phone"
+    }
+  ],
+  "note": "Version/name history only. No migration SQL bodies or application data are included. This is the recorded history, not proof that repository files match."
+}
