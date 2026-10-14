@@ -26,11 +26,18 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
   Future<void> load() async {
     setState(() { loading = true; });
     try {
-      years = (await db.from('academic_years').select('id,name,active,is_closed').order('created_at', ascending: false) as List)
+      final schoolId = (await widget.repo.profile())?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) {
+        throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف ترحيل السنة لحماية بيانات المدارس.');
+      }
+      years = (await db.from('academic_years').select('id,name,active,is_closed')
+          .eq('school_id', schoolId).order('created_at', ascending: false) as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
-      classes = (await db.from('classes').select('id,name,section,academic_year_id').order('name') as List)
+      classes = (await db.from('classes').select('id,name,section,academic_year_id,grade_order')
+          .eq('school_id', schoolId).order('name') as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
-      students = (await db.from('students').select('id,name,class_name,phone').order('name') as List)
+      students = (await db.from('students').select('id,name,class_name,phone')
+          .eq('school_id', schoolId).order('name') as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
       final active = years.where((y) => y['active'] == true && y['is_closed'] != true).toList();
       final targets = years.where((y) => y['active'] != true && y['is_closed'] != true).toList();
@@ -74,8 +81,13 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
 
   Future<void> _loadItems() async {
     if (batchId == null) return;
+    final schoolId = (await widget.repo.profile())?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف تحميل قرارات الترحيل.');
+    }
     final rows = await db.from('rollover_items')
         .select('id,student_id,decision,target_class_id,source_balance,reviewed')
+        .eq('school_id', schoolId)
         .eq('batch_id', batchId!).order('created_at');
     items = (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
     decisions = {for (final i in items) i['id'].toString(): i['decision'].toString()};
@@ -92,13 +104,17 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
     }
     setState(() { busy = true; });
     try {
+      final schoolId = (await widget.repo.profile())?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) {
+        throw Exception('تعذر تحديد المدرسة الحالية؛ أُوقف حفظ قرار الترحيل.');
+      }
       await db.from('rollover_items').update({
         'decision': decision,
         'target_class_id': (decision == 'promote' || decision == 'repeat') ? classId : null,
         'reviewed': true,
         'reviewed_by': db.auth.currentUser?.id,
         'reviewed_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', id).eq('batch_id', batchId!);
+      }).eq('school_id', schoolId).eq('id', id).eq('batch_id', batchId!);
       await _loadItems();
       _message('تم حفظ قرار ${_studentName(item['student_id']?.toString())}.');
     } catch (e) {
