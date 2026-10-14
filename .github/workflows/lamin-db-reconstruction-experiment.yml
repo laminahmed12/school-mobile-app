@@ -1,0 +1,111 @@
+name: Lamīn DB baseline reconstruction experiment
+
+on:
+  push:
+    branches:
+      - experiment/lamin-db-baseline-reconstruction-20261014
+    paths:
+      - '.github/workflows/lamin-db-reconstruction-experiment.yml'
+      - 'supabase/migrations/**'
+      - 'test/sql/**'
+      - 'docs/reference_schema_catalog_2026-10-14.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-baseline-gate:
+    name: Isolated PostgreSQL baseline gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lamin_test
+          POSTGRES_PASSWORD: lamin_test_only
+          POSTGRES_DB: lamin_reconstruction_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lamin_test -d lamin_reconstruction_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout experiment
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Verify isolated empty database
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lamin_test
+          PGPASSWORD: lamin_test_only
+          PGDATABASE: lamin_reconstruction_test
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -Atc 'SELECT version();' > postgres-version.txt
+          psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema');" > user-table-count.txt
+          test "$(cat user-table-count.txt)" = "0"
+
+      - name: Require original baseline sources before replay
+        id: source_gate
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lamin_test
+          PGPASSWORD: lamin_test_only
+          PGDATABASE: lamin_reconstruction_test
+        run: |
+          set -euo pipefail
+          baseline='supabase/migrations/20260924214051_001_core_tables.sql'
+          bootstrap='test/sql/supabase_test_bootstrap.sql'
+          {
+            echo "Experiment branch: $GITHUB_REF_NAME"
+            echo "Commit: $GITHUB_SHA"
+            echo "PostgreSQL:"
+            cat postgres-version.txt
+            echo "Empty user-table count: $(cat user-table-count.txt)"
+            echo "Baseline migration present: $([ -f "$baseline" ] && echo yes || echo no)"
+            echo "SQL test bootstrap present: $([ -f "$bootstrap" ] && echo yes || echo no)"
+          } > reconstruction-gate-evidence.txt
+          if [ ! -f "$baseline" ] || [ ! -f "$bootstrap" ]; then
+            echo "::error::Cannot replay the historical chain: original baseline migration and/or test bootstrap is missing. No replacement SQL will be generated from current-state schema metadata."
+            exit 1
+          fi
+          echo "Both source files exist; a separate provenance review is still required before applying them."
+
+      - name: Apply complete migration chain
+        if: success()
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lamin_test
+          PGPASSWORD: lamin_test_only
+          PGDATABASE: lamin_reconstruction_test
+        run: |
+          set -euo pipefail
+          # This step is reachable only after both missing files are present.
+          # Supabase-specific auth roles/functions still require a verified bootstrap.
+          psql -v ON_ERROR_STOP=1 -f test/sql/supabase_test_bootstrap.sql
+          while IFS= read -r file; do
+            psql -v ON_ERROR_STOP=1 -f "$file"
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print | sort)
+
+      - name: Upload experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-db-baseline-reconstruction-evidence
+          path: |
+            postgres-version.txt
+            user-table-count.txt
+            reconstruction-gate-evidence.txt
+          if-no-files-found: warn
+          retention-days: 14
