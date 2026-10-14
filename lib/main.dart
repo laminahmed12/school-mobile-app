@@ -10,6 +10,19 @@ import 'repository.dart';
 import 'supabase_config.dart';
 import 'whatsapp.dart';
 
+import 'academic.dart';
+import 'student_profile.dart';
+import 'reports.dart';
+import 'school_setup.dart';
+import 'school_branding.dart';
+import 'pdf_service.dart';
+import 'owner_console.dart';
+import 'auth_service.dart';
+import 'backup_view.dart';
+import 'fee_schedule.dart';
+import 'discount_management.dart';
+import 'backup_service.dart';
+
 final Map<String, String> _pendingPaymentKeys = {};
 
 String _paymentSignature({
@@ -30,18 +43,6 @@ String _paymentIdempotencyKey(String signature, String studentId) {
     () => 'pay_${studentId}_${DateTime.now().toUtc().microsecondsSinceEpoch}',
   );
 }
-import 'academic.dart';
-import 'student_profile.dart';
-import 'reports.dart';
-import 'school_setup.dart';
-import 'school_branding.dart';
-import 'pdf_service.dart';
-import 'owner_console.dart';
-import 'auth_service.dart';
-import 'backup_view.dart';
-import 'fee_schedule.dart';
-import 'discount_management.dart';
-import 'backup_service.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
