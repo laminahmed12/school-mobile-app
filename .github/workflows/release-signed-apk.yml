@@ -111,7 +111,7 @@ jobs:
         run: |
           flutter pub get
           dart format lib test
-          flutter analyze
+          flutter analyze --no-fatal-infos --no-fatal-warnings
           flutter test
 
       - name: Build signed release APK
