@@ -58,6 +58,7 @@ class ResultItem {
   final String id,studentId,term,examName;
   final double score,maxScore;
   const ResultItem({required this.id,required this.studentId,required this.term,required this.examName,required this.score,required this.maxScore});
+  double get percentage => maxScore <= 0 ? 0.0 : score / maxScore * 100;
   factory ResultItem.fromMap(Map<String,dynamic> m)=>ResultItem(
     id:'${m['id'] ?? ''}',
     studentId:'${m['student_id'] ?? ''}',
