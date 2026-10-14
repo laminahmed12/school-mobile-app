@@ -291,6 +291,50 @@ class SchoolRepository {
     });
   }
 
+  Future<void> updateTeacher({
+    required String teacherId,
+    required String name,
+    required String subject,
+    required String phone,
+    required double salary,
+  }) async {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.trim().length < 2) throw Exception('أدخل اسم المعلم.');
+    if (subject.trim().isEmpty) throw Exception('أدخل المادة أو التخصص.');
+    if (normalizedPhone.isNotEmpty && (normalizedPhone.length < 8 || normalizedPhone.length > 15)) {
+      throw Exception('رقم الهاتف يجب أن يكون من 8 إلى 15 رقمًا.');
+    }
+    if (salary < 0) throw Exception('الراتب لا يمكن أن يكون سالبًا.');
+    await db.from('teachers').update({
+      'name': name.trim(),
+      'subject': subject.trim(),
+      'phone': normalizedPhone,
+      'salary': salary,
+    }).eq('id', teacherId);
+  }
+
+  Future<void> updateStaffMember({
+    required String staffId,
+    required String name,
+    required String role,
+    required String phone,
+    required double salary,
+  }) async {
+    final normalizedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.trim().length < 2) throw Exception('أدخل اسم الموظف.');
+    if (role.trim().isEmpty) throw Exception('أدخل الوظيفة.');
+    if (normalizedPhone.isNotEmpty && (normalizedPhone.length < 8 || normalizedPhone.length > 15)) {
+      throw Exception('رقم الهاتف يجب أن يكون من 8 إلى 15 رقمًا.');
+    }
+    if (salary < 0) throw Exception('الراتب لا يمكن أن يكون سالبًا.');
+    await db.from('staff').update({
+      'name': name.trim(),
+      'role': role.trim(),
+      'phone': normalizedPhone,
+      'salary': salary,
+    }).eq('id', staffId);
+  }
+
   Future<void> setTeacherSalary(String teacherId, double salary) async {
     await db.from('teachers').update({'salary': salary}).eq('id', teacherId);
   }
