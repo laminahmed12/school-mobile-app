@@ -1,0 +1,424 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "information_schema.routines read-only",
+  "routine_signatures": [
+    {
+      "routine_schema": "private",
+      "routine_name": "audit",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "audit_17822"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "check_fee",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "check_fee_17820"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "check_payment",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "check_payment_17818"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "my_role",
+      "routine_type": "FUNCTION",
+      "data_type": "text",
+      "security_type": "DEFINER",
+      "external_language": "SQL",
+      "specific_name": "my_role_17652"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "my_school",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "DEFINER",
+      "external_language": "SQL",
+      "specific_name": "my_school_17653"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "restore_school_data",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "restore_school_data_18383"
+    },
+    {
+      "routine_schema": "private",
+      "routine_name": "validate_payroll_transaction",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "validate_payroll_transaction_18722"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "add_student",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "add_student_17863"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "attendance_summary",
+      "routine_type": "FUNCTION",
+      "data_type": "record",
+      "security_type": "INVOKER",
+      "external_language": "SQL",
+      "specific_name": "attendance_summary_18146"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "bootstrap_owner_school",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "bootstrap_owner_school_18278"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "carry_forward_open_balances",
+      "routine_type": "FUNCTION",
+      "data_type": "integer",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "carry_forward_open_balances_18632"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "create_next_academic_year",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "create_next_academic_year_18576"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "create_student_with_fee",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "create_student_with_fee_18794"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "delete_school_user",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "delete_school_user_18578"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "execute_academic_rollover",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "execute_academic_rollover_19263"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "export_backup",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "export_backup_19225"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "export_backup_core_v2",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "export_backup_core_v2_18382"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "export_backup_core_v3",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "export_backup_core_v3_19019"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "export_backup_core_v4",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "export_backup_core_v4_19222"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "grant_onedrive_access",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "grant_onedrive_access_18654"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "import_students",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "import_students_17865"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_capture_manual_discount",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_capture_manual_discount_19254"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_guard_rollover_year_state",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_guard_rollover_year_state_19288"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_set_updated_at",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_set_updated_at_18939"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_sync_award_discount",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_sync_award_discount_19258"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_validate_discount_award",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_validate_discount_award_19256"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_validate_payment_allocation",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_validate_payment_allocation_19016"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "lamin_write_audit_event",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "lamin_write_audit_event_18927"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "license_trial_status",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "SQL",
+      "specific_name": "license_trial_status_18441"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "normalize_school_code",
+      "routine_type": "FUNCTION",
+      "data_type": "trigger",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "normalize_school_code_18580"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "owner_stats",
+      "routine_type": "FUNCTION",
+      "data_type": "record",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "owner_stats_17868"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "prepare_academic_rollover",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "prepare_academic_rollover_19262"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "promote_passed_students",
+      "routine_type": "FUNCTION",
+      "data_type": "integer",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "promote_passed_students_18633"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "record_student_payment",
+      "routine_type": "FUNCTION",
+      "data_type": "uuid",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "record_student_payment_19248"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "redeem_license_code",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "redeem_license_code_18675"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "restore_backup",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "restore_backup_19226"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "restore_backup_core_v2",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "restore_backup_core_v2_18725"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "restore_backup_core_v3",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "restore_backup_core_v3_19020"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "restore_backup_core_v4",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "restore_backup_core_v4_19223"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "revoke_onedrive_access",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "revoke_onedrive_access_18655"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "save_attendance_day",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "save_attendance_day_18349"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "save_report",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "save_report_17866"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "school_daily_summary",
+      "routine_type": "FUNCTION",
+      "data_type": "jsonb",
+      "security_type": "INVOKER",
+      "external_language": "SQL",
+      "specific_name": "school_daily_summary_18190"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "set_student_promotion",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "set_student_promotion_18577"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "update_school_settings",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "DEFINER",
+      "external_language": "PLPGSQL",
+      "specific_name": "update_school_settings_17867"
+    },
+    {
+      "routine_schema": "public",
+      "routine_name": "update_student",
+      "routine_type": "FUNCTION",
+      "data_type": "void",
+      "security_type": "INVOKER",
+      "external_language": "PLPGSQL",
+      "specific_name": "update_student_17864"
+    }
+  ],
+  "limitations": [
+    "Function bodies intentionally not included in this signature-only file."
+  ]
+}
