@@ -1,0 +1,57 @@
+name: Lamin DB — isolated upgrade (trusted baseline)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+jobs:
+  upgrade:
+    name: Upgrade isolated trusted baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lamin_upgrade_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lamin_upgrade_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: lamin_upgrade_test
+      LAMIN_DB_TEST_MODE: upgrade
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Record isolated PostgreSQL environment
+        run: psql -v ON_ERROR_STOP=1 -c 'select version(), current_database();' | tee upgrade-environment.log
+      - name: Require approved baseline and migration provenance
+        run: python3 scripts/db-tests/require-approved-source.py 2>&1 | tee upgrade-source-gate.log
+      - name: Restore trusted baseline, apply later migrations, and verify invariants
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/db-tests/run-upgrade.py 2>&1 | tee upgrade-test.log
+      - name: Upload upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-upgrade-${{ github.run_id }}
+          path: |
+            upgrade-environment.log
+            upgrade-source-gate.log
+            upgrade-test.log
+          if-no-files-found: warn
+          retention-days: 30
