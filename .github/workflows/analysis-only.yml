@@ -5,6 +5,7 @@ on:
     branches:
       - work/lamin-release-readiness-20261014
       - fix/lamin-postgres-integration-20261014
+      - fix/lamin-baseline-routine-terminators-20261015
   pull_request:
     branches:
       - main
