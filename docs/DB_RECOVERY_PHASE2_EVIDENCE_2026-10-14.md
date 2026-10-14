@@ -7,9 +7,9 @@
 **Safety:** catalog-only SQL; no application rows selected; no DDL/DML; no migration executed; no grants/config changed.
 
 ## 1. Git/source recovery attempts in this phase
-- Rechecked branch search: the exact repair branch exists. A repository commit search for each missing filename returned zero results.
+- Rechecked the exact paths on all 11 branch names returned by the repository branch search: both files returned NOT_FOUND on every visible branch (22 path/ref checks). A repository commit search for each missing filename returned zero results.
 - Queried commit search for the exact base-migration filename and test-bootstrap filename: no matching commits were returned by GitHub's commit-search endpoint.
-- Listed branch search results; 11 branch names were visible in the first returned page. The branch search is not a full Git object/reflog scan and does not prove that unreachable objects or private developer clones do not contain the files.
+- Visible branches checked: `main`, `plan/lamin-finance-rollover-hardening`, `fix/lamin-postgres-integration-20261014`, `lamin-hardening-20261012`, `release/lamin-2.0.0-rc1`, `release/lamin-2.0.0-rc2`, `release/lamin-2026-school-year`, `build/apk-final`, `work/lamin-release-readiness-20261014`, `fix/lamin-dart-format-20261014`, and `fix/lamin-db-recovery-root-cause-20261014`. This is the set returned by the branch search, not proof of every tag, hidden ref, unreachable Git object, reflog, or private developer clone.
 - This phase did not recover either original SQL file. No placeholder or reconstructed SQL was created.
 
 ## 2. 93-case migration mapping audit
@@ -27,7 +27,7 @@ See `docs/MIGRATION_MAPPING_AUDIT_93_2026-10-14.csv`.
 ## 3. Schema-only inspection result
 A read-only PostgreSQL catalog query was used to extract table metadata (table names, column counts, RLS/force-RLS flags, policy/constraint/index counts). It does not query student, parent, staff, payment, or other application records. The database reports PostgreSQL 17.x (project metadata previously observed as 17.6.1.166).
 - Catalog inventory in prior verified pass: 40 public base tables, 3 public views, 99 public RLS policies.
-- A table-name/RLS inventory CSV is included. It is a structural inventory, **not** a `pg_dump --schema-only` archive and not a substitute for migration history.
+- A table-name/RLS inventory CSV contains 40 public base-table names and RLS flags. It is a structural inventory, **not** a `pg_dump --schema-only` archive and not a substitute for migration history. The connected tools exposed catalog queries but no trustworthy full schema-only dump operation or database connection string for running `pg_dump`; a full export remains unverified.
 - All inspected public views are marked `security_invoker=true`.
 - The `student_finance` view joins `payments` on `student_id` alone, unlike the other reviewed finance views which also constrain school scope. This is a query-scope inconsistency requiring a controlled test and comparison against intended source; no production change was made.
 - `license_codes`, `login_attempts`, and `owner_gate_attempts` have RLS enabled and zero policies; catalog privileges show neither `anon` nor `authenticated` has SELECT/INSERT on these tables. This indicates default deny for those roles under current direct table grants, but does not evaluate service-role/backend paths.
