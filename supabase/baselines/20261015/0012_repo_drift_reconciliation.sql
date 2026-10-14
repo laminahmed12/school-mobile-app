@@ -3,8 +3,8 @@
 -- It is NOT the historical migration chain and must not be applied to production as a migration repair.
 -- Apply only after the catalog-derived base passes exact schema fingerprint comparison in an isolated database.
 -- Verified differences addressed:
--- -- 2) rollover preview must calculate outstanding debt from allocations (formula version 2).
--- 3) rollover execution must close only its source year and activate only its target year.
+-- 1) rollover preview must calculate outstanding debt from allocations (formula version 2).
+-- 2) rollover execution must close only its source year and activate only its target year.
 -- 3) owners need explicit school-scoped teacher insert/update/delete policies.
 
 -- Selected verified source delta: supabase/migrations/20261013190000_lamin_rollover_balance_from_allocations.sql
