@@ -47,6 +47,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','v','m','f') AND n.nspname NOT LIKE 'pg_%';" | grep -x '0'
       - name: Create test-only Supabase auth stubs
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/test_bootstrap.sql
+      - name: Test catalog routine normalizer
+        run: python -m unittest tests/test_normalize_catalog_routine_dump.py
       - name: Validate catalog routine statement boundaries
         run: |
           python scripts/normalize_catalog_routine_dump.py --check \
