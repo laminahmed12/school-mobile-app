@@ -7,9 +7,10 @@ Status: **BLOCKED — do not apply migrations to production or claim a clean-cha
 - Production Supabase project: `stbrhcgzfxvpayfnnqfl` (read-only inspection only).
 - Production migration history entries: 74.
 - SQL migration files present on the release-readiness branch: 25.
-- Exact normalized filename matches between production history and repository: 6.
-- Production history entries without an exact repository filename: 68.
+- Exact version-and-name matches between production history and repository: 0.
+- Production history entries without an exact version-and-name match: 74.
 - Repository-only migration files not mapped to a production history entry: 19.
+- Six filenames have a similar normalized name, but their timestamps/versions differ; these remain unresolved until source-level equivalence is proved.
 
 ## Consequences
 
@@ -26,4 +27,4 @@ Status: **BLOCKED — do not apply migrations to production or claim a clean-cha
 - Provide a disposable Supabase-compatible bootstrap for `auth`, roles, and `private` helper functions.
 - Only then enable clean-schema execution in CI. Never use `Lamin-Test` or production to trial a partial/guessed chain.
 
-The CSV is intentionally fail-closed: only exact filename matches are marked `mapped`; every uncertain or repository-only migration remains `unresolved` until reviewed.
+The CSV is intentionally fail-closed: only exact version-and-name matches are marked `mapped`; every uncertain or repository-only migration remains `unresolved` until reviewed.
