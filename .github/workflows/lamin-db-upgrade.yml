@@ -1,6 +1,9 @@
 name: Lamin DB — isolated upgrade (trusted baseline)
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/lamin-db-recovery-root-cause-20261014
 permissions:
   contents: read
 jobs:
