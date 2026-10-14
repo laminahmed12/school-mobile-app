@@ -24,7 +24,7 @@ Repository: https://github.com/laminahmed12/school-mobile-app
 
 - Added `.github/workflows/lamin-db-reconstruction-continuation.yml` in commit `78713c1ae08511043292eb0530a7919eed457daf`.
 - Workflow uses an ephemeral PostgreSQL 16 service, checks the database is empty, inventories migration files, and fails closed if the historical migration or test bootstrap is missing. It never connects to production.
-- Actual run: [38631321208](https://github.com/laminahmed12/school-mobile-app/actions/runs/38631321208). Record final result after run completion; no success is assumed before the run finishes.
+- Actual run: [38631321208](https://github.com/laminahmed12/school-mobile-app/actions/runs/38631321208), completed with **failure at the source gate**. Verified PostgreSQL 16 startup and an empty disposable database succeeded; inventory reported 25 migration files, the historical baseline was absent, and the test bootstrap was absent. Chain execution was skipped; evidence artifact upload succeeded. This is a real blocker result, not a migration replay pass.
 - Previous DB gate runs [38608150147](https://github.com/laminahmed12/school-mobile-app/actions/runs/38608150147) and [38608151296](https://github.com/laminahmed12/school-mobile-app/actions/runs/38608151296) failed at the absent approved-source manifest; migration execution was skipped.
 - App CI success is separately evidenced by [38530600766](https://github.com/laminahmed12/school-mobile-app/actions/runs/38530600766) on main SHA `807da91475cc0f53827acb9940c62ca61c8f64d1`: format, Flutter analysis, automated tests, and candidate APK build succeeded in that run. This does not validate migration replay or make the DB repair release-ready.
 
