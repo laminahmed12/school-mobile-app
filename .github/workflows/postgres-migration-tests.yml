@@ -87,16 +87,38 @@ jobs:
             echo "::warning::No SQL integration test harness exists yet. PostgreSQL started successfully, but application migrations were NOT executed because the project schema and Supabase auth dependencies must be provisioned safely first."
           fi
 
-      - name: Require a complete bootstrap baseline before claiming clean-chain success
+      - name: Require complete migration history and Supabase test bootstrap
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f supabase/migrations/20260924214051_001_core_tables.sql ]; then
-            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED: repository is missing the bootstrap migration 20260924214051_001_core_tables.sql recorded in the production migration history. Current SQL files are incremental and depend on pre-existing school tables. The disposable PostgreSQL arithmetic/source tests do not count as a clean-schema migration pass."
-            echo "Available migration files:"
-            find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort
+          missing=()
+          for path in \
+            supabase/migrations/20260924214051_001_core_tables.sql \
+            supabase/migration_history_map.csv \
+            test/sql/supabase_test_bootstrap.sql; do
+            if [ ! -f "$path" ]; then missing+=("$path"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED. Missing required artifacts:"
+            printf ' - %s\n' "${missing[@]}"
+            echo "The repository currently contains incremental migrations without a reproducible clean-schema baseline and production-version mapping. The PostgreSQL arithmetic/source tests above do not count as a full migration-chain pass."
             exit 1
           fi
-          echo "::error::Baseline file exists, but clean-chain execution must be enabled only after Supabase auth/private helper bootstrap is provided."
-          exit 1
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+          with Path("supabase/migration_history_map.csv").open(newline="", encoding="utf-8") as stream:
+              rows = list(csv.DictReader(stream))
+          if not rows or not {"production_version", "repository_file", "status"}.issubset(rows[0]):
+              raise SystemExit("Migration map must define production_version, repository_file, status")
+          unresolved = [row for row in rows if row["status"].strip().lower() != "mapped"]
+          missing_files = [row["repository_file"] for row in rows if row["repository_file"] and not Path(row["repository_file"]).is_file()]
+          if unresolved or missing_files:
+              raise SystemExit(f"Migration history has {len(unresolved)} unresolved mappings and {len(missing_files)} missing files")
+          PY
+          psql -v ON_ERROR_STOP=1 -f test/sql/supabase_test_bootstrap.sql
+          while IFS= read -r migration; do
+            echo "Applying $migration"
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print | sort)
