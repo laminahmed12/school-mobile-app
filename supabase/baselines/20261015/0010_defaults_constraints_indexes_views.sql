@@ -342,8 +342,9 @@ ALTER TABLE public.whatsapp_notifications ADD CONSTRAINT whatsapp_notifications_
 ALTER TABLE public.whatsapp_notifications ADD CONSTRAINT whatsapp_notifications_message_check CHECK (char_length(message) >= 1 AND char_length(message) <= 2000);
 ALTER TABLE public.whatsapp_notifications ADD CONSTRAINT whatsapp_notifications_pkey PRIMARY KEY (id);
 
--- Non-constraint indexes.
+-- Non-constraint indexes, including standalone unique indexes referenced by foreign keys.
 
+CREATE UNIQUE INDEX academic_years_id_school_unique ON public.academic_years USING btree (id, school_id);
 CREATE UNIQUE INDEX academic_years_one_active_per_school_uq ON public.academic_years USING btree (school_id) WHERE (active = true);
 CREATE UNIQUE INDEX academic_years_school_name_idx ON public.academic_years USING btree (school_id, name);
 CREATE INDEX attendance_school_date_idx ON public.attendance USING btree (school_id, attendance_date);
@@ -355,6 +356,7 @@ CREATE INDEX class_subjects_school_class_idx ON public.class_subjects USING btre
 CREATE INDEX class_subjects_subject_idx ON public.class_subjects USING btree (subject_id);
 CREATE INDEX class_subjects_teacher_idx ON public.class_subjects USING btree (teacher_id);
 CREATE INDEX classes_academic_year_idx ON public.classes USING btree (academic_year_id);
+CREATE UNIQUE INDEX classes_id_school_uq ON public.classes USING btree (id, school_id);
 CREATE INDEX classes_school_idx ON public.classes USING btree (school_id);
 CREATE INDEX classes_school_year_idx ON public.classes USING btree (school_id, academic_year_id);
 CREATE INDEX discount_rules_school_idx ON public.discount_rules USING btree (school_id);
@@ -391,6 +393,7 @@ CREATE INDEX payment_allocations_school_student_idx ON public.payment_allocation
 CREATE INDEX payments_academic_year_idx ON public.payments USING btree (academic_year_id);
 CREATE INDEX payments_academic_year_school_fk_idx ON public.payments USING btree (academic_year_id, school_id);
 CREATE INDEX payments_assessment_school_student_idx ON public.payments USING btree (fee_assessment_id, school_id, student_id);
+CREATE UNIQUE INDEX payments_id_school_student_uq ON public.payments USING btree (id, school_id, student_id);
 CREATE INDEX payments_school_created_idx ON public.payments USING btree (school_id, created_at);
 CREATE UNIQUE INDEX payments_school_idempotency_key_uq ON public.payments USING btree (school_id, idempotency_key) WHERE (idempotency_key IS NOT NULL);
 CREATE INDEX payments_school_idx ON public.payments USING btree (school_id);
@@ -427,6 +430,7 @@ CREATE INDEX student_behavior_student_school_idx ON public.student_behavior USIN
 CREATE INDEX discount_awards_assessment_school_student_idx ON public.student_discount_awards USING btree (fee_assessment_id, school_id, student_id);
 CREATE INDEX discount_awards_rule_school_idx ON public.student_discount_awards USING btree (discount_rule_id, school_id);
 CREATE INDEX discount_awards_school_idx ON public.student_discount_awards USING btree (school_id);
+CREATE UNIQUE INDEX enrollments_id_school_student_uq ON public.student_enrollments USING btree (id, school_id, student_id);
 CREATE INDEX student_enrollments_academic_year_idx ON public.student_enrollments USING btree (academic_year_id);
 CREATE INDEX student_enrollments_class_idx ON public.student_enrollments USING btree (class_id);
 CREATE INDEX student_enrollments_promoted_from_idx ON public.student_enrollments USING btree (promoted_from_enrollment_id);
@@ -441,6 +445,7 @@ CREATE INDEX student_fees_academic_year_idx ON public.student_fees USING btree (
 CREATE INDEX student_fees_school_idx ON public.student_fees USING btree (school_id);
 CREATE INDEX student_fees_school_year_idx ON public.student_fees USING btree (school_id, academic_year_id);
 CREATE INDEX student_fees_student_school_idx ON public.student_fees USING btree (student_id, school_id);
+CREATE UNIQUE INDEX opening_balances_id_school_student_uq ON public.student_opening_balances USING btree (id, school_id, student_id);
 CREATE INDEX opening_balances_rollover_batch_idx ON public.student_opening_balances USING btree (rollover_batch_id);
 CREATE INDEX opening_balances_rollover_batch_school_fk_idx ON public.student_opening_balances USING btree (rollover_batch_id, school_id);
 CREATE INDEX opening_balances_school_year_idx ON public.student_opening_balances USING btree (school_id, academic_year_id);
