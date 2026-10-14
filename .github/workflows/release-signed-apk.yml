@@ -118,6 +118,9 @@ jobs:
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Verify APK signature and certificate
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.LAMIN_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAMIN_KEY_ALIAS }}
         shell: bash
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
@@ -127,7 +130,7 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           "$APKSIGNER" verify "$APK"
           sha256sum "$APK" | tee "$RUNNER_TEMP/apk-sha256.txt"
-          keytool -list -v -keystore "$RUNNER_TEMP/lamin-release.jks" -storepass "${{ secrets.LAMIN_KEYSTORE_PASSWORD }}" -alias "${{ secrets.LAMIN_KEY_ALIAS }}" | grep -E 'SHA256:|SHA-256:'
+          keytool -list -v -keystore "$RUNNER_TEMP/lamin-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | grep -E 'SHA256:|SHA-256:'
 
       - name: Upload signed APK and checksum
         uses: actions/upload-artifact@v4
