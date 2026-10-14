@@ -88,6 +88,31 @@ void main() {
       final result = ResultItem.fromMap(<String, dynamic>{});
       expect(result.score, 0.0);
       expect(result.maxScore, 100.0);
+      expect(result.percentage, 0.0);
+    });
+
+    test('returns zero percentage when maximum score is zero', () {
+      const result = ResultItem(
+        id: 'result-zero',
+        studentId: 'student-1',
+        term: 'الفصل الأول',
+        examName: 'اختبار',
+        score: 0,
+        maxScore: 0,
+      );
+      expect(result.percentage, 0.0);
+    });
+
+    test('calculates percentage for valid scores', () {
+      const result = ResultItem(
+        id: 'result-valid',
+        studentId: 'student-1',
+        term: 'الفصل الأول',
+        examName: 'اختبار',
+        score: 15,
+        maxScore: 20,
+      );
+      expect(result.percentage, 75.0);
     });
   });
 }
