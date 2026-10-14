@@ -1,0 +1,57 @@
+name: Lamin DB — clean rebuild (isolated PostgreSQL)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+jobs:
+  clean-rebuild:
+    name: Clean database rebuild
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lamin_clean_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lamin_clean_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: lamin_clean_test
+      LAMIN_DB_TEST_MODE: clean
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Record isolated PostgreSQL environment
+        run: psql -v ON_ERROR_STOP=1 -c 'select version(), current_database();' | tee clean-environment.log
+      - name: Require approved complete migration provenance
+        run: python3 scripts/db-tests/require-approved-source.py 2>&1 | tee clean-source-gate.log
+      - name: Apply approved bootstrap and full production migration chain
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/db-tests/apply-clean-chain.py 2>&1 | tee clean-rebuild.log
+      - name: Upload clean rebuild evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-clean-rebuild-${{ github.run_id }}
+          path: |
+            clean-environment.log
+            clean-source-gate.log
+            clean-rebuild.log
+          if-no-files-found: warn
+          retention-days: 30
