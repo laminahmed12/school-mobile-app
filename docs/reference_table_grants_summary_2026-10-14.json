@@ -1,0 +1,206 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "information_schema.role_table_grants read-only grouped summary",
+  "table_grant_summary": [
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "DELETE",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "INSERT",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "REFERENCES",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "SELECT",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "TRIGGER",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "anon",
+      "privilege_type": "UPDATE",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "DELETE",
+      "grant_count": 33,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "INSERT",
+      "grant_count": 35,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "SELECT",
+      "grant_count": 40,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE",
+      "grant_count": 17,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE",
+      "grant_count": 33,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "DELETE",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "INSERT",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "REFERENCES",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "SELECT",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "TRIGGER",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "TRUNCATE",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "postgres",
+      "privilege_type": "UPDATE",
+      "grant_count": 43,
+      "has_grant_option": true
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "DELETE",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "INSERT",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "REFERENCES",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "SELECT",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "TRIGGER",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "TRUNCATE",
+      "grant_count": 43,
+      "has_grant_option": false
+    },
+    {
+      "table_schema": "public",
+      "grantee": "service_role",
+      "privilege_type": "UPDATE",
+      "grant_count": 43,
+      "has_grant_option": false
+    }
+  ],
+  "limitations": [
+    "This summarizes visible table grants only; it is not a complete effective privilege/role-membership/object-ownership export."
+  ]
+}
