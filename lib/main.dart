@@ -9,6 +9,7 @@ import 'models.dart';
 import 'repository.dart';
 import 'supabase_config.dart';
 import 'whatsapp.dart';
+
 import 'academic.dart';
 import 'student_profile.dart';
 import 'reports.dart';
@@ -18,7 +19,30 @@ import 'pdf_service.dart';
 import 'owner_console.dart';
 import 'auth_service.dart';
 import 'backup_view.dart';
+import 'fee_schedule.dart';
+import 'discount_management.dart';
 import 'backup_service.dart';
+
+final Map<String, String> _pendingPaymentKeys = {};
+
+String _paymentSignature({
+  required String studentId,
+  required double amount,
+  required String note,
+  required String? feeAssessmentId,
+}) => <String>[
+  studentId,
+  amount.toStringAsFixed(2),
+  feeAssessmentId ?? '',
+  note,
+].join('\u001f');
+
+String _paymentIdempotencyKey(String signature, String studentId) {
+  return _pendingPaymentKeys.putIfAbsent(
+    signature,
+    () => 'pay_${studentId}_${DateTime.now().toUtc().microsecondsSinceEpoch}',
+  );
+}
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -974,14 +998,24 @@ class FinanceView extends StatelessWidget {
     if (result == null) return;
     final value = (result['amount'] as num).toDouble();
     final note = result['note']?.toString() ?? '';
+    final feeAssessmentId = result['fee_assessment_id']?.toString();
+    final signature = _paymentSignature(
+      studentId: s.id,
+      amount: value,
+      note: note,
+      feeAssessmentId: feeAssessmentId,
+    );
+    final idempotencyKey = _paymentIdempotencyKey(signature, s.id);
     try {
       await repo.addPayment(
         studentId: s.id,
         amount: value,
         note: note,
         term: result['term']?.toString() ?? 'غير محدد',
-        feeAssessmentId: result['fee_assessment_id']?.toString(),
+        feeAssessmentId: feeAssessmentId,
+        idempotencyKey: idempotencyKey,
       );
+      _pendingPaymentKeys.remove(signature);
       await onChanged();
     } catch (e) {
       if (context.mounted) {
@@ -1639,6 +1673,20 @@ class MoreView extends StatelessWidget {
       onTap: () => Navigator.push(context, MaterialPageRoute(
         builder: (_) => PayrollView(repo: repo, onChanged: onChanged, canManagePayees: isAdmin),
       )),
+    )),
+    if (isAdmin || isAccountant) Card(child:ListTile(
+      leading: const Icon(Icons.price_check_outlined),
+      title: const Text('الرسوم القياسية'),
+      subtitle: const Text('إعداد رسوم كل صف وفصل حسب السنة الدراسية'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FeeScheduleView(role: role))),
+    )),
+    if (isAdmin || isAccountant) Card(child:ListTile(
+      leading: const Icon(Icons.discount_outlined),
+      title: const Text('الخصومات والاعتمادات'),
+      subtitle: const Text('قواعد الخصم وطلبات الاعتماد وسجل الموافقات'),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DiscountManagementView(role: role))),
     )),
     if (isAdmin || isAccountant) Card(child:ListTile(leading:const Icon(Icons.analytics_outlined),title:const Text('التقارير اليومية'),subtitle:const Text('حضور وغياب ومدفوعات ومصروفات'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>ReportsView(repo:repo))))),
     if (isAdmin || isSupervisor) Card(child:ListTile(leading:const Icon(Icons.menu_book),title:const Text('الدرجات والنتائج'),subtitle:const Text('إدخال الدرجات وإرسال النتيجة عبر WhatsApp'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AcademicView(repo:repo,students:students))))),

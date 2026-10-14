@@ -1,0 +1,135 @@
+name: Lamin PostgreSQL Migration Tests
+
+on:
+  push:
+    branches:
+      - work/lamin-release-readiness-20261014
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-migrations:
+    name: Validate migrations on disposable PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lamin_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lamin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: lamin_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify PostgreSQL service
+        run: psql -v ON_ERROR_STOP=1 -c 'select version();'
+      - name: Parse SQL migration syntax
+        run: |
+          python3 -m pip install --user pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          if not files:
+              raise SystemExit("No SQL migrations found")
+          for path in files:
+              try:
+                  parse_sql(path.read_text(encoding="utf-8"))
+              except Exception as exc:
+                  raise SystemExit(f"SQL parse failed in {path}: {exc}")
+          print(f"PostgreSQL parser accepted {len(files)} migration files")
+          PY
+      - name: Check migration files are non-empty and ordered
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print -quit)"
+          python3 - <<'PY'
+          from pathlib import Path
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          names = [p.name for p in files]
+          if len(names) != len(set(names)):
+              raise SystemExit("Duplicate migration filenames")
+          for p in files:
+              data = p.read_text(encoding="utf-8").strip()
+              if not data:
+                  raise SystemExit(f"Empty migration: {p}")
+          print(f"Static migration file checks passed for {len(files)} files")
+          PY
+      - name: Run isolated migration integration suite when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f test/sql/run_postgres_migration_tests.sh ]; then
+            bash test/sql/run_postgres_migration_tests.sh
+          else
+            echo "::warning::No SQL integration test harness exists yet. PostgreSQL started successfully, but application migrations were NOT executed because the project schema and Supabase auth dependencies must be provisioned safely first."
+          fi
+
+      - name: Report migration-chain blockers and require complete mapping
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for path in \
+            supabase/migrations/20260924214051_001_core_tables.sql \
+            supabase/migration_history_map.csv \
+            test/sql/supabase_test_bootstrap.sql; do
+            if [ ! -f "$path" ]; then missing+=("$path"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing required clean-chain artifacts:"
+            printf ' - %s\n' "${missing[@]}"
+          fi
+          unresolved=999999
+          missing_map_files=999999
+          if [ -f supabase/migration_history_map.csv ]; then
+            read -r unresolved missing_map_files < <(python3 - <<'PY'
+          import csv
+          from pathlib import Path
+          with Path("supabase/migration_history_map.csv").open(newline="", encoding="utf-8") as stream:
+              rows = list(csv.DictReader(stream))
+          required = {"production_version", "repository_file", "status"}
+          if not rows or not required.issubset(rows[0]):
+              raise SystemExit("Migration map must define production_version, repository_file, status")
+          unresolved = [row for row in rows if row["status"].strip().lower() != "mapped"]
+          missing_files = [row["repository_file"] for row in rows if row["repository_file"] and not Path(row["repository_file"]).is_file()]
+          print(len(unresolved), len(missing_files))
+          PY
+            )
+          else
+            echo "::error::Migration history map is absent."
+          fi
+          echo "Unresolved production/repository migration mappings: $unresolved"
+          echo "Mapped repository files missing from the worktree: $missing_map_files"
+          if [ "${#missing[@]}" -gt 0 ] || [ "$unresolved" -gt 0 ] || [ "$missing_map_files" -gt 0 ]; then
+            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED. SQL parser and financial source fixtures are not a clean-schema migration pass. Recover and map the actual migration source before enabling execution."
+            exit 1
+          fi
+          psql -v ON_ERROR_STOP=1 -f test/sql/supabase_test_bootstrap.sql
+          while IFS= read -r migration; do
+            echo "Applying $migration"
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print | sort)
