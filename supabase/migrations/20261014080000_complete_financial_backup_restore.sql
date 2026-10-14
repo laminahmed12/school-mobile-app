@@ -25,7 +25,7 @@ BEGIN
     RAISE EXCEPTION 'المدرسة غير موجودة';
   END IF;
   RETURN jsonb_build_object(
-    'format','lamin-school-backup-v2','taken_at',now(),'school_filter',v_school,
+    'format','lamin-school-backup-v3','taken_at',now(),'school_filter',v_school,
     'schools',(SELECT coalesce(jsonb_agg(to_jsonb(t)),'[]') FROM public.schools t WHERE t.id=v_school),
     'profiles',(SELECT coalesce(jsonb_agg(jsonb_build_object('username',t.username,'role',t.role,'active',t.active,'school_id',t.school_id)),'[]') FROM public.profiles t WHERE t.role<>'owner' AND t.school_id=v_school),
     'academic_years',(SELECT coalesce(jsonb_agg(to_jsonb(t)),'[]') FROM public.academic_years t WHERE t.school_id=v_school),
@@ -79,10 +79,32 @@ BEGIN
   v_school := private.my_school();
   IF v_school IS NULL THEN RAISE EXCEPTION 'المدرسة غير نشطة أو انتهت الفترة التجريبية؛ فعّل المدرسة أولاً'; END IF;
   IF p_backup IS NULL OR jsonb_typeof(p_backup) <> 'object'
-     OR p_backup->>'format' <> 'lamin-school-backup-v2'
+     OR p_backup->>'format' NOT IN ('lamin-school-backup-v2','lamin-school-backup-v3')
      OR p_backup->>'school_filter' IS DISTINCT FROM v_school::text THEN
     RAISE EXCEPTION 'النسخة لا تخص المدرسة الحالية أو تنسيقها غير مدعوم';
   END IF;
+  -- v3 exports carry a complete table manifest. Reject truncated or malformed v3
+  -- payloads before the first insert; legacy v2 backups remain backward-compatible.
+  IF p_backup->>'format' = 'lamin-school-backup-v3' THEN
+    FOREACH v_table IN ARRAY ARRAY[
+      'schools','profiles','academic_years','classes','students','student_parents',
+      'student_fees','student_fee_assessments','fee_schedules','discount_rules',
+      'student_discount_awards','school_branding','payment_allocations',
+      'financial_adjustments','rollover_batches','rollover_items','payroll_periods',
+      'salary_assignments','audit_log','student_opening_balances','payments','subjects',
+      'class_subjects','grades','student_results','student_behavior','attendance',
+      'teachers','staff','staff_payments','payroll_transactions','expenses',
+      'student_enrollments','backup_registry'
+    ] LOOP
+      IF jsonb_typeof(p_backup->v_table) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'النسخة غير مكتملة: الحقل % مفقود أو غير صالح', v_table;
+      END IF;
+    END LOOP;
+    IF p_backup->>'audit_log_school_id' IS DISTINCT FROM v_school::text THEN
+      RAISE EXCEPTION 'النسخة غير مكتملة: نطاق سجل التدقيق غير صالح';
+    END IF;
+  END IF;
+
   -- Preload parent rows required by opening balances and rollover provenance.
   IF jsonb_typeof(p_backup->'academic_years') = 'array' THEN
     INSERT INTO public.academic_years
