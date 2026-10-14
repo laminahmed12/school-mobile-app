@@ -29,6 +29,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+      # Flutter create generates a template test referencing MyApp; this app uses a different entry point.
+      - run: rm -f test/widget_test.dart
       - name: Apply Lamin launcher identity
         run: |
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
