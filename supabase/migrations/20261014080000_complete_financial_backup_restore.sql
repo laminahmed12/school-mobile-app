@@ -79,7 +79,8 @@ BEGIN
   v_school := private.my_school();
   IF v_school IS NULL THEN RAISE EXCEPTION 'المدرسة غير نشطة أو انتهت الفترة التجريبية؛ فعّل المدرسة أولاً'; END IF;
   IF p_backup IS NULL OR jsonb_typeof(p_backup) <> 'object'
-     OR p_backup->>'format' NOT IN ('lamin-school-backup-v2','lamin-school-backup-v3')
+     OR (p_backup->>'format' IS DISTINCT FROM 'lamin-school-backup-v2'
+         AND p_backup->>'format' IS DISTINCT FROM 'lamin-school-backup-v3')
      OR p_backup->>'school_filter' IS DISTINCT FROM v_school::text THEN
     RAISE EXCEPTION 'النسخة لا تخص المدرسة الحالية أو تنسيقها غير مدعوم';
   END IF;
