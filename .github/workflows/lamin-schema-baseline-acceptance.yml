@@ -65,5 +65,7 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -At -f supabase/baselines/20261015/schema_fingerprint.sql > actual_schema_manifest.json
           diff -u supabase/baselines/20261015/reference_schema_manifest.json actual_schema_manifest.json
+      - name: Apply verified repository deltas absent from live baseline
+        run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
