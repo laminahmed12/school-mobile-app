@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/lamin-release-readiness-20261014
+      - fix/lamin-postgres-integration-20261014
   pull_request:
     branches:
       - main
