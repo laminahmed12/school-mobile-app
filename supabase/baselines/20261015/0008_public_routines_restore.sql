@@ -38,7 +38,7 @@ begin
   get diagnostics v_count=row_count;
  end if;
  return jsonb_set(v_result,'{restored}',coalesce(v_result->'restored','{}'::jsonb)||jsonb_build_object('audit_log',v_count),true);
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.restore_backup_core_v2(p_backup jsonb)
@@ -75,7 +75,7 @@ begin
   return jsonb_build_object('ok',true,'restored',v_restored,
     'message','تم دمج النسخة: أُضيفت السجلات الناقصة وتُركت السجلات المتطابقة دون تغيير.');
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.restore_backup_core_v3(p_backup jsonb)
@@ -96,7 +96,7 @@ begin
   get diagnostics v_count=row_count;
  end if;
  return jsonb_set(v_result,'{restored}',coalesce(v_result->'restored','{}'::jsonb) || jsonb_build_object('payment_allocations',v_count),true);
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.restore_backup_core_v4(p_backup jsonb)
@@ -117,5 +117,5 @@ begin
   v_extra:=v_extra||jsonb_build_object(v_table,v_count);
  end loop;
  return jsonb_set(v_result,'{restored}',coalesce(v_result->'restored','{}'::jsonb)||v_extra,true);
-end $function$
+end $function$;
 
