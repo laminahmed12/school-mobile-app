@@ -38,8 +38,9 @@ Catalog query across `public` and `private` found 34 SECURITY DEFINER function s
 - 16 signatures are executable by `authenticated`.
 - 1 signature is executable by `anon`; it is `private.validate_payroll_transaction()`.
 - 0 of the 34 lacked an explicit function-level `search_path` setting.
+- The `anon` role has no USAGE on schema `private`; `authenticated` does have USAGE. Therefore the reported `anon` EXECUTE privilege on `private.validate_payroll_transaction()` does not by itself establish direct PostgREST callability.
 
-These are permission/configuration inventory results, not proof that the function bodies are safe. The anonymous EXECUTE result concerns a function in the `private` schema; effective exploitability also depends on schema USAGE and trigger/function context. Do not revoke grants or alter production permissions based on this inventory alone. Next security step is definition-level review of each privileged function, its caller authorization, schema USAGE, object ownership, writable schemas, and required grants, followed by tests on an isolated database.
+These are permission/configuration inventory results, not proof that the function bodies are safe. Trigger execution context, owner privileges, callable wrappers, and schema/object grants still require definition-level review. Do not revoke grants or alter production permissions based on this inventory alone. Next security step is definition-level review of each privileged function, its caller authorization, schema USAGE, object ownership, writable schemas, and required grants, followed by tests on an isolated database.
 
 ## CI gate and what it actually proves
 Workflow `.github/workflows/postgres-migration-tests.yml`:
