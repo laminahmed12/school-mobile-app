@@ -32,10 +32,8 @@ jobs:
       - name: Resolve dependencies
         id: dependencies
         run: flutter pub get
-      - name: Normalize Dart formatting for CI validation
-        run: dart format lib test
-      - name: Verify Dart formatting
-        run: dart format --set-exit-if-changed .
+      - name: Verify Dart formatting without modifying the checkout
+        run: dart format --output=none --set-exit-if-changed .
       - name: Static analysis
         run: flutter analyze --no-pub --no-fatal-infos
       - name: Run tests even when static analysis reports issues
