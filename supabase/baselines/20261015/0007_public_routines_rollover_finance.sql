@@ -38,7 +38,7 @@ begin
   'needs_review',(select count(*) from public.rollover_items where batch_id=v_batch and not reviewed)) where id=v_batch;
  return v_batch;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.promote_passed_students(p_old_year uuid, p_new_year uuid)
@@ -71,7 +71,7 @@ begin
   end loop;
   return n;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.record_student_payment(p_student_id uuid, p_amount numeric, p_note text DEFAULT ''::text, p_term text DEFAULT 'غير محدد'::text, p_fee_assessment_id uuid DEFAULT NULL::uuid, p_idempotency_key text DEFAULT NULL::text)
@@ -153,7 +153,7 @@ begin
 
  return v_payment;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.redeem_license_code(p_school_id uuid, p_code_hash text)
@@ -205,5 +205,5 @@ begin
 
   return jsonb_build_object('ok', true, 'license_id', v_license.id, 'activated_at', v_now);
 end;
-$function$
+$function$;
 
