@@ -96,6 +96,27 @@ checks = {
     "academic year list is scoped to current school": ".eq('school_id', schoolId)" in academic_year_list,
     "class list is scoped to current school": ".eq('school_id', schoolId)" in class_list,
 }
+
+backup = Path("supabase/migrations/20261014080000_complete_financial_backup_restore.sql").read_text(encoding="utf-8")
+rollover_closure = Path("supabase/migrations/20261014050000_fix_academic_rollover_year_closing.sql").read_text(encoding="utf-8")
+required_backup_tables = [
+    "fee_schedules", "discount_rules", "student_discount_awards", "school_branding",
+    "payment_allocations", "financial_adjustments", "rollover_batches", "rollover_items",
+    "payroll_periods", "salary_assignments", "audit_log",
+]
+checks.update({
+    "backup export contains all finance, payroll, rollover and audit payloads":
+        all("'" + table + "'" in backup for table in required_backup_tables),
+    "restore includes finance, payroll and rollover dependency order":
+        all("'" + table + "'" in backup for table in required_backup_tables)
+        and "Preload parent rows required by opening balances and rollover provenance" in backup,
+    "audit restore is school-scoped and idempotent":
+        "audit_log_school_id" in backup and "restored_from_audit_id" in backup
+        and "WHERE x.school_id = v_school" in backup,
+    "rollover closes only its source year":
+        "where school_id = sid and id = b.source_academic_year_id" in rollover_closure
+        and "id<>b.target_academic_year_id" not in rollover_closure,
+})
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
     print(("PASS" if passed else "FAIL") + ": " + name)
