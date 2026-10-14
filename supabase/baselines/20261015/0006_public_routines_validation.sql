@@ -44,7 +44,7 @@ begin
  end if;
  return NEW;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_validate_payment_allocation()
@@ -63,7 +63,7 @@ begin
  if v_allocated + NEW.amount > v_payment_amount then raise exception 'مجموع تخصيصات الدفعة يتجاوز مبلغ الدفعة'; end if;
  return NEW;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.lamin_write_audit_event()
@@ -101,7 +101,7 @@ begin
   );
   if TG_OP = 'DELETE' then return OLD; else return NEW; end if;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.license_trial_status(p_school uuid)
@@ -114,7 +114,7 @@ AS $function$
   from public.schools s
   where s.id=p_school
     and ((select private.my_role())='owner' or s.id=(select private.my_school()));
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.normalize_school_code()
@@ -127,7 +127,7 @@ begin
   if char_length(new.code) < 3 or char_length(new.code) > 40 then raise exception 'رمز المدرسة يجب أن يكون بين 3 و40 حرفاً'; end if;
   return new;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.owner_stats()
@@ -143,5 +143,5 @@ begin
            (select count(*) from public.students st where st.school_id = s.id),
            (select count(*) from public.profiles p where p.school_id = s.id)
     from public.schools s;
-end $function$
+end $function$;
 
