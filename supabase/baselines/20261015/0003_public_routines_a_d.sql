@@ -15,14 +15,14 @@ begin
   insert into public.student_fees(student_id, school_id, total_fee) values (v_id, v_school, p_fee);
   insert into public.student_behavior(student_id, school_id) values (v_id, v_school);
   return v_id;
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.attendance_summary(p_date date DEFAULT CURRENT_DATE)
  RETURNS TABLE(total bigint, present bigint, absent bigint, late bigint, excused bigint)
  LANGUAGE sql
  SET search_path TO 'public'
-AS $function$ select count(*), count(*) filter(where status='present'), count(*) filter(where status='absent'), count(*) filter(where status='late'), count(*) filter(where status='excused') from public.attendance where school_id=private.my_school() and attendance_date=p_date $function$
+AS $function$ select count(*), count(*) filter(where status='present'), count(*) filter(where status='absent'), count(*) filter(where status='late'), count(*) filter(where status='excused') from public.attendance where school_id=private.my_school() and attendance_date=p_date $function$;
 
 
 CREATE OR REPLACE FUNCTION public.bootstrap_owner_school(p_code text, p_name text)
@@ -79,7 +79,7 @@ begin
 
   return v_school;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.carry_forward_open_balances(p_old_year uuid, p_new_year uuid)
@@ -104,7 +104,7 @@ begin
   end loop;
   return n;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_next_academic_year(p_name text, p_starts_on date DEFAULT NULL::date, p_ends_on date DEFAULT NULL::date, p_migrate_students boolean DEFAULT true, p_migrate_staff boolean DEFAULT true)
@@ -123,7 +123,7 @@ begin
  values(sid,btrim(p_name),p_starts_on,p_ends_on,false,false) returning id into v_id;
  return v_id;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.create_student_with_fee(p_name text, p_class_name text, p_phone text DEFAULT ''::text, p_term_fee numeric DEFAULT 0, p_term text DEFAULT 'الفصل الأول'::text)
@@ -190,7 +190,7 @@ begin
 
   return v_student_id;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.delete_school_user(p_user_id uuid)
@@ -209,5 +209,5 @@ begin
  insert into user_deletion_audit(school_id,target_user_id,target_username,target_role) values(sid,urec.user_id,urec.username,urec.role);
  insert into onedrive_access_audit(school_id,target_user_id,target_username,action) values(sid,urec.user_id,urec.username,'auto_revoke');
 end;
-$function$
+$function$;
 
