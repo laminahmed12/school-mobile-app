@@ -1,0 +1,1105 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "pg_indexes read-only",
+  "indexes": [
+    {
+      "schemaname": "public",
+      "tablename": "academic_years",
+      "indexname": "academic_years_id_school_unique",
+      "indexdef": "CREATE UNIQUE INDEX academic_years_id_school_unique ON public.academic_years USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "academic_years",
+      "indexname": "academic_years_one_active_per_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX academic_years_one_active_per_school_uq ON public.academic_years USING btree (school_id) WHERE (active = true)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "academic_years",
+      "indexname": "academic_years_pkey",
+      "indexdef": "CREATE UNIQUE INDEX academic_years_pkey ON public.academic_years USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "academic_years",
+      "indexname": "academic_years_school_name_idx",
+      "indexdef": "CREATE UNIQUE INDEX academic_years_school_name_idx ON public.academic_years USING btree (school_id, name)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "attendance",
+      "indexname": "attendance_pkey",
+      "indexdef": "CREATE UNIQUE INDEX attendance_pkey ON public.attendance USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "attendance",
+      "indexname": "attendance_school_date_idx",
+      "indexdef": "CREATE INDEX attendance_school_date_idx ON public.attendance USING btree (school_id, attendance_date)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "attendance",
+      "indexname": "attendance_student_id_attendance_date_key",
+      "indexdef": "CREATE UNIQUE INDEX attendance_student_id_attendance_date_key ON public.attendance USING btree (student_id, attendance_date)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "attendance",
+      "indexname": "attendance_student_school_idx",
+      "indexdef": "CREATE INDEX attendance_student_school_idx ON public.attendance USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_log",
+      "indexname": "audit_log_pkey",
+      "indexdef": "CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_log",
+      "indexname": "audit_log_school_created_idx",
+      "indexdef": "CREATE INDEX audit_log_school_created_idx ON public.audit_log USING btree (school_id, created_at DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_log",
+      "indexname": "audit_log_school_idx",
+      "indexdef": "CREATE INDEX audit_log_school_idx ON public.audit_log USING btree (school_id, created_at DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "indexname": "backup_registry_academic_year_idx",
+      "indexdef": "CREATE INDEX backup_registry_academic_year_idx ON public.backup_registry USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "indexname": "backup_registry_pkey",
+      "indexdef": "CREATE UNIQUE INDEX backup_registry_pkey ON public.backup_registry USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "backup_registry",
+      "indexname": "backup_registry_school_id_academic_year_id_provider_key",
+      "indexdef": "CREATE UNIQUE INDEX backup_registry_school_id_academic_year_id_provider_key ON public.backup_registry USING btree (school_id, academic_year_id, provider)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "indexname": "class_subjects_class_id_subject_id_key",
+      "indexdef": "CREATE UNIQUE INDEX class_subjects_class_id_subject_id_key ON public.class_subjects USING btree (class_id, subject_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "indexname": "class_subjects_pkey",
+      "indexdef": "CREATE UNIQUE INDEX class_subjects_pkey ON public.class_subjects USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "indexname": "class_subjects_school_class_idx",
+      "indexdef": "CREATE INDEX class_subjects_school_class_idx ON public.class_subjects USING btree (school_id, class_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "indexname": "class_subjects_subject_idx",
+      "indexdef": "CREATE INDEX class_subjects_subject_idx ON public.class_subjects USING btree (subject_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "class_subjects",
+      "indexname": "class_subjects_teacher_idx",
+      "indexdef": "CREATE INDEX class_subjects_teacher_idx ON public.class_subjects USING btree (teacher_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "indexname": "classes_academic_year_idx",
+      "indexdef": "CREATE INDEX classes_academic_year_idx ON public.classes USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "indexname": "classes_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX classes_id_school_uq ON public.classes USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "indexname": "classes_pkey",
+      "indexdef": "CREATE UNIQUE INDEX classes_pkey ON public.classes USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "indexname": "classes_school_idx",
+      "indexdef": "CREATE INDEX classes_school_idx ON public.classes USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "classes",
+      "indexname": "classes_school_year_idx",
+      "indexdef": "CREATE INDEX classes_school_year_idx ON public.classes USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "indexname": "discount_rules_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX discount_rules_id_school_uq ON public.discount_rules USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "indexname": "discount_rules_pkey",
+      "indexdef": "CREATE UNIQUE INDEX discount_rules_pkey ON public.discount_rules USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "discount_rules",
+      "indexname": "discount_rules_school_idx",
+      "indexdef": "CREATE INDEX discount_rules_school_idx ON public.discount_rules USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "indexname": "expenses_academic_year_idx",
+      "indexdef": "CREATE INDEX expenses_academic_year_idx ON public.expenses USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "indexname": "expenses_pkey",
+      "indexdef": "CREATE UNIQUE INDEX expenses_pkey ON public.expenses USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "indexname": "expenses_school_created_idx",
+      "indexdef": "CREATE INDEX expenses_school_created_idx ON public.expenses USING btree (school_id, created_at)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "indexname": "expenses_school_date_idx",
+      "indexdef": "CREATE INDEX expenses_school_date_idx ON public.expenses USING btree (school_id, created_at DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "expenses",
+      "indexname": "expenses_school_year_idx",
+      "indexdef": "CREATE INDEX expenses_school_year_idx ON public.expenses USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "indexname": "fee_schedules_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX fee_schedules_id_school_uq ON public.fee_schedules USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "indexname": "fee_schedules_pkey",
+      "indexdef": "CREATE UNIQUE INDEX fee_schedules_pkey ON public.fee_schedules USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "indexname": "fee_schedules_school_idx",
+      "indexdef": "CREATE INDEX fee_schedules_school_idx ON public.fee_schedules USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "indexname": "fee_schedules_school_year_grade_term_uq",
+      "indexdef": "CREATE UNIQUE INDEX fee_schedules_school_year_grade_term_uq ON public.fee_schedules USING btree (school_id, academic_year_id, grade_order, term)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "fee_schedules",
+      "indexname": "fee_schedules_year_school_idx",
+      "indexdef": "CREATE INDEX fee_schedules_year_school_idx ON public.fee_schedules USING btree (academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_assessment_fk_idx",
+      "indexdef": "CREATE INDEX financial_adjustments_assessment_fk_idx ON public.financial_adjustments USING btree (fee_assessment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX financial_adjustments_pkey ON public.financial_adjustments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_school_student_year_idx",
+      "indexdef": "CREATE INDEX financial_adjustments_school_student_year_idx ON public.financial_adjustments USING btree (school_id, student_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_source_adjustment_idx",
+      "indexdef": "CREATE INDEX financial_adjustments_source_adjustment_idx ON public.financial_adjustments USING btree (source_adjustment_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_student_fk_idx",
+      "indexdef": "CREATE INDEX financial_adjustments_student_fk_idx ON public.financial_adjustments USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "financial_adjustments",
+      "indexname": "financial_adjustments_year_fk_idx",
+      "indexdef": "CREATE INDEX financial_adjustments_year_fk_idx ON public.financial_adjustments USING btree (academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_academic_year_idx",
+      "indexdef": "CREATE INDEX grades_academic_year_idx ON public.grades USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_pkey",
+      "indexdef": "CREATE UNIQUE INDEX grades_pkey ON public.grades USING btree (student_id, subject_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_school_idx",
+      "indexdef": "CREATE INDEX grades_school_idx ON public.grades USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_school_student_idx",
+      "indexdef": "CREATE INDEX grades_school_student_idx ON public.grades USING btree (school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_school_year_idx",
+      "indexdef": "CREATE INDEX grades_school_year_idx ON public.grades USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_student_school_idx",
+      "indexdef": "CREATE INDEX grades_student_school_idx ON public.grades USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "grades",
+      "indexname": "grades_subject_idx",
+      "indexdef": "CREATE INDEX grades_subject_idx ON public.grades USING btree (subject_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "idx_license_codes_unused",
+      "indexdef": "CREATE INDEX idx_license_codes_unused ON public.license_codes USING btree (code_hash) WHERE (used_at IS NULL)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "license_codes_code_hash_key",
+      "indexdef": "CREATE UNIQUE INDEX license_codes_code_hash_key ON public.license_codes USING btree (code_hash)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "license_codes_one_unused_per_school_idx",
+      "indexdef": "CREATE UNIQUE INDEX license_codes_one_unused_per_school_idx ON public.license_codes USING btree (school_id) WHERE ((school_id IS NOT NULL) AND (used_at IS NULL))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "license_codes_pkey",
+      "indexdef": "CREATE UNIQUE INDEX license_codes_pkey ON public.license_codes USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "license_codes_school_idx",
+      "indexdef": "CREATE INDEX license_codes_school_idx ON public.license_codes USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "license_codes",
+      "indexname": "license_codes_used_school_idx",
+      "indexdef": "CREATE INDEX license_codes_used_school_idx ON public.license_codes USING btree (used_school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "login_attempts",
+      "indexname": "login_attempts_pkey",
+      "indexdef": "CREATE UNIQUE INDEX login_attempts_pkey ON public.login_attempts USING btree (key)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "onedrive_access_audit",
+      "indexname": "onedrive_access_audit_pkey",
+      "indexdef": "CREATE UNIQUE INDEX onedrive_access_audit_pkey ON public.onedrive_access_audit USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "onedrive_access_audit",
+      "indexname": "onedrive_access_audit_school_idx",
+      "indexdef": "CREATE INDEX onedrive_access_audit_school_idx ON public.onedrive_access_audit USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "owner_gate_attempts",
+      "indexname": "owner_gate_attempts_pkey",
+      "indexdef": "CREATE UNIQUE INDEX owner_gate_attempts_pkey ON public.owner_gate_attempts USING btree (gate_key)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "owner_gate_attempts",
+      "indexname": "owner_gate_attempts_updated_idx",
+      "indexdef": "CREATE INDEX owner_gate_attempts_updated_idx ON public.owner_gate_attempts USING btree (updated_at)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_assessment_fk_idx",
+      "indexdef": "CREATE INDEX payment_allocations_assessment_fk_idx ON public.payment_allocations USING btree (fee_assessment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_opening_fk_idx",
+      "indexdef": "CREATE INDEX payment_allocations_opening_fk_idx ON public.payment_allocations USING btree (opening_balance_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_payment_assessment_uq",
+      "indexdef": "CREATE UNIQUE INDEX payment_allocations_payment_assessment_uq ON public.payment_allocations USING btree (payment_id, fee_assessment_id) WHERE ((fee_assessment_id IS NOT NULL) AND (reversed_at IS NULL))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_payment_fk_idx",
+      "indexdef": "CREATE INDEX payment_allocations_payment_fk_idx ON public.payment_allocations USING btree (payment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_payment_opening_uq",
+      "indexdef": "CREATE UNIQUE INDEX payment_allocations_payment_opening_uq ON public.payment_allocations USING btree (payment_id, opening_balance_id) WHERE ((opening_balance_id IS NOT NULL) AND (reversed_at IS NULL))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_pkey",
+      "indexdef": "CREATE UNIQUE INDEX payment_allocations_pkey ON public.payment_allocations USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payment_allocations",
+      "indexname": "payment_allocations_school_student_idx",
+      "indexdef": "CREATE INDEX payment_allocations_school_student_idx ON public.payment_allocations USING btree (school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_academic_year_idx",
+      "indexdef": "CREATE INDEX payments_academic_year_idx ON public.payments USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_academic_year_school_fk_idx",
+      "indexdef": "CREATE INDEX payments_academic_year_school_fk_idx ON public.payments USING btree (academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_assessment_school_student_idx",
+      "indexdef": "CREATE INDEX payments_assessment_school_student_idx ON public.payments USING btree (fee_assessment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_id_school_student_uq",
+      "indexdef": "CREATE UNIQUE INDEX payments_id_school_student_uq ON public.payments USING btree (id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_school_created_idx",
+      "indexdef": "CREATE INDEX payments_school_created_idx ON public.payments USING btree (school_id, created_at)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_school_idempotency_key_uq",
+      "indexdef": "CREATE UNIQUE INDEX payments_school_idempotency_key_uq ON public.payments USING btree (school_id, idempotency_key) WHERE (idempotency_key IS NOT NULL)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_school_idx",
+      "indexdef": "CREATE INDEX payments_school_idx ON public.payments USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_school_student_date_idx",
+      "indexdef": "CREATE INDEX payments_school_student_date_idx ON public.payments USING btree (school_id, student_id, payment_date DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_school_year_idx",
+      "indexdef": "CREATE INDEX payments_school_year_idx ON public.payments USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_student_idx",
+      "indexdef": "CREATE INDEX payments_student_idx ON public.payments USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payments",
+      "indexname": "payments_student_school_idx",
+      "indexdef": "CREATE INDEX payments_student_school_idx ON public.payments USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_periods",
+      "indexname": "payroll_periods_pkey",
+      "indexdef": "CREATE UNIQUE INDEX payroll_periods_pkey ON public.payroll_periods USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_periods",
+      "indexname": "payroll_periods_school_dates_idx",
+      "indexdef": "CREATE INDEX payroll_periods_school_dates_idx ON public.payroll_periods USING btree (school_id, starts_on, ends_on)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_periods",
+      "indexname": "payroll_periods_school_name_uq",
+      "indexdef": "CREATE UNIQUE INDEX payroll_periods_school_name_uq ON public.payroll_periods USING btree (school_id, name)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "indexname": "payroll_transactions_payee_idx",
+      "indexdef": "CREATE INDEX payroll_transactions_payee_idx ON public.payroll_transactions USING btree (school_id, payee_type, payee_id, payment_date DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "indexname": "payroll_transactions_pkey",
+      "indexdef": "CREATE UNIQUE INDEX payroll_transactions_pkey ON public.payroll_transactions USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "payroll_transactions",
+      "indexname": "payroll_transactions_school_date_idx",
+      "indexdef": "CREATE INDEX payroll_transactions_school_date_idx ON public.payroll_transactions USING btree (school_id, payment_date DESC)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "indexname": "profiles_owner_username_uq",
+      "indexdef": "CREATE UNIQUE INDEX profiles_owner_username_uq ON public.profiles USING btree (lower(username)) WHERE (school_id IS NULL)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "indexname": "profiles_pkey",
+      "indexdef": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (user_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "indexname": "profiles_school_idx",
+      "indexdef": "CREATE INDEX profiles_school_idx ON public.profiles USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "indexname": "profiles_school_microsoft_email_idx",
+      "indexdef": "CREATE INDEX profiles_school_microsoft_email_idx ON public.profiles USING btree (school_id, microsoft_email)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "indexname": "profiles_school_username_uq",
+      "indexdef": "CREATE UNIQUE INDEX profiles_school_username_uq ON public.profiles USING btree (school_id, lower(username)) WHERE (school_id IS NOT NULL)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "indexname": "rollover_batches_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX rollover_batches_id_school_uq ON public.rollover_batches USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "indexname": "rollover_batches_pkey",
+      "indexdef": "CREATE UNIQUE INDEX rollover_batches_pkey ON public.rollover_batches USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "indexname": "rollover_batches_school_years_idx",
+      "indexdef": "CREATE INDEX rollover_batches_school_years_idx ON public.rollover_batches USING btree (school_id, source_academic_year_id, target_academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "indexname": "rollover_batches_source_year_fk_idx",
+      "indexdef": "CREATE INDEX rollover_batches_source_year_fk_idx ON public.rollover_batches USING btree (source_academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_batches",
+      "indexname": "rollover_batches_target_year_fk_idx",
+      "indexdef": "CREATE INDEX rollover_batches_target_year_fk_idx ON public.rollover_batches USING btree (target_academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_batch_school_idx",
+      "indexdef": "CREATE INDEX rollover_items_batch_school_idx ON public.rollover_items USING btree (batch_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_batch_student_uq",
+      "indexdef": "CREATE UNIQUE INDEX rollover_items_batch_student_uq ON public.rollover_items USING btree (batch_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_opening_balance_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_opening_balance_fk_idx ON public.rollover_items USING btree (opening_balance_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_pkey",
+      "indexdef": "CREATE UNIQUE INDEX rollover_items_pkey ON public.rollover_items USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_school_idx",
+      "indexdef": "CREATE INDEX rollover_items_school_idx ON public.rollover_items USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_source_class_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_source_class_fk_idx ON public.rollover_items USING btree (source_class_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_source_enrollment_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_source_enrollment_fk_idx ON public.rollover_items USING btree (source_enrollment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_student_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_student_fk_idx ON public.rollover_items USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_target_class_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_target_class_fk_idx ON public.rollover_items USING btree (target_class_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "rollover_items",
+      "indexname": "rollover_items_target_enrollment_fk_idx",
+      "indexdef": "CREATE INDEX rollover_items_target_enrollment_fk_idx ON public.rollover_items USING btree (target_enrollment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "salary_assignments",
+      "indexname": "salary_assignments_payee_dates_idx",
+      "indexdef": "CREATE INDEX salary_assignments_payee_dates_idx ON public.salary_assignments USING btree (school_id, payee_type, payee_id, starts_on, ends_on)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "salary_assignments",
+      "indexname": "salary_assignments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX salary_assignments_pkey ON public.salary_assignments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "school_branding",
+      "indexname": "school_branding_pkey",
+      "indexdef": "CREATE UNIQUE INDEX school_branding_pkey ON public.school_branding USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "indexname": "schools_code_key",
+      "indexdef": "CREATE UNIQUE INDEX schools_code_key ON public.schools USING btree (code)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "indexname": "schools_code_lower_uq",
+      "indexdef": "CREATE UNIQUE INDEX schools_code_lower_uq ON public.schools USING btree (lower(TRIM(BOTH FROM code)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "indexname": "schools_license_code_idx",
+      "indexdef": "CREATE INDEX schools_license_code_idx ON public.schools USING btree (license_code_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "schools",
+      "indexname": "schools_pkey",
+      "indexdef": "CREATE UNIQUE INDEX schools_pkey ON public.schools USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff",
+      "indexname": "staff_pkey",
+      "indexdef": "CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff",
+      "indexname": "staff_school_idx",
+      "indexdef": "CREATE INDEX staff_school_idx ON public.staff USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff_payments",
+      "indexname": "staff_payments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX staff_payments_pkey ON public.staff_payments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff_payments",
+      "indexname": "staff_payments_school_staff_idx",
+      "indexdef": "CREATE INDEX staff_payments_school_staff_idx ON public.staff_payments USING btree (school_id, staff_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "staff_payments",
+      "indexname": "staff_payments_staff_idx",
+      "indexdef": "CREATE INDEX staff_payments_staff_idx ON public.staff_payments USING btree (staff_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "indexname": "student_behavior_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_behavior_pkey ON public.student_behavior USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "indexname": "student_behavior_school_idx",
+      "indexdef": "CREATE INDEX student_behavior_school_idx ON public.student_behavior USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_behavior",
+      "indexname": "student_behavior_student_school_idx",
+      "indexdef": "CREATE INDEX student_behavior_student_school_idx ON public.student_behavior USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "indexname": "discount_awards_assessment_school_student_idx",
+      "indexdef": "CREATE INDEX discount_awards_assessment_school_student_idx ON public.student_discount_awards USING btree (fee_assessment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "indexname": "discount_awards_rule_school_idx",
+      "indexdef": "CREATE INDEX discount_awards_rule_school_idx ON public.student_discount_awards USING btree (discount_rule_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "indexname": "discount_awards_school_idx",
+      "indexdef": "CREATE INDEX discount_awards_school_idx ON public.student_discount_awards USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_discount_awards",
+      "indexname": "student_discount_awards_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_discount_awards_pkey ON public.student_discount_awards USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "enrollments_id_school_student_uq",
+      "indexdef": "CREATE UNIQUE INDEX enrollments_id_school_student_uq ON public.student_enrollments USING btree (id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_academic_year_idx",
+      "indexdef": "CREATE INDEX student_enrollments_academic_year_idx ON public.student_enrollments USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_class_idx",
+      "indexdef": "CREATE INDEX student_enrollments_class_idx ON public.student_enrollments USING btree (class_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_enrollments_pkey ON public.student_enrollments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_promoted_from_idx",
+      "indexdef": "CREATE INDEX student_enrollments_promoted_from_idx ON public.student_enrollments USING btree (promoted_from_enrollment_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_school_year_idx",
+      "indexdef": "CREATE INDEX student_enrollments_school_year_idx ON public.student_enrollments USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_source_student_idx",
+      "indexdef": "CREATE INDEX student_enrollments_source_student_idx ON public.student_enrollments USING btree (source_student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_student_id_academic_year_id_key",
+      "indexdef": "CREATE UNIQUE INDEX student_enrollments_student_id_academic_year_id_key ON public.student_enrollments USING btree (student_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_enrollments",
+      "indexname": "student_enrollments_student_idx",
+      "indexdef": "CREATE INDEX student_enrollments_student_idx ON public.student_enrollments USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_id_school_student_key",
+      "indexdef": "CREATE UNIQUE INDEX student_fee_assessments_id_school_student_key ON public.student_fee_assessments USING btree (id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_period_unique",
+      "indexdef": "CREATE UNIQUE INDEX student_fee_assessments_period_unique ON public.student_fee_assessments USING btree (student_id, school_id, COALESCE((academic_year_id)::text, ('label:'::text || academic_year_label)), term)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_fee_assessments_pkey ON public.student_fee_assessments USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_school_student_idx",
+      "indexdef": "CREATE INDEX student_fee_assessments_school_student_idx ON public.student_fee_assessments USING btree (school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_year_id_idx",
+      "indexdef": "CREATE INDEX student_fee_assessments_year_id_idx ON public.student_fee_assessments USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fee_assessments",
+      "indexname": "student_fee_assessments_year_school_idx",
+      "indexdef": "CREATE INDEX student_fee_assessments_year_school_idx ON public.student_fee_assessments USING btree (academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "indexname": "student_fees_academic_year_idx",
+      "indexdef": "CREATE INDEX student_fees_academic_year_idx ON public.student_fees USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "indexname": "student_fees_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_fees_pkey ON public.student_fees USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "indexname": "student_fees_school_idx",
+      "indexdef": "CREATE INDEX student_fees_school_idx ON public.student_fees USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "indexname": "student_fees_school_year_idx",
+      "indexdef": "CREATE INDEX student_fees_school_year_idx ON public.student_fees USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_fees",
+      "indexname": "student_fees_student_school_idx",
+      "indexdef": "CREATE INDEX student_fees_student_school_idx ON public.student_fees USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_id_school_student_uq",
+      "indexdef": "CREATE UNIQUE INDEX opening_balances_id_school_student_uq ON public.student_opening_balances USING btree (id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_rollover_batch_idx",
+      "indexdef": "CREATE INDEX opening_balances_rollover_batch_idx ON public.student_opening_balances USING btree (rollover_batch_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_rollover_batch_school_fk_idx",
+      "indexdef": "CREATE INDEX opening_balances_rollover_batch_school_fk_idx ON public.student_opening_balances USING btree (rollover_batch_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_school_year_idx",
+      "indexdef": "CREATE INDEX opening_balances_school_year_idx ON public.student_opening_balances USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_source_assessment_idx",
+      "indexdef": "CREATE INDEX opening_balances_source_assessment_idx ON public.student_opening_balances USING btree (source_fee_assessment_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_source_assessment_school_student_fk_idx",
+      "indexdef": "CREATE INDEX opening_balances_source_assessment_school_student_fk_idx ON public.student_opening_balances USING btree (source_fee_assessment_id, school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_source_year_idx",
+      "indexdef": "CREATE INDEX opening_balances_source_year_idx ON public.student_opening_balances USING btree (source_academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_source_year_school_fk_idx",
+      "indexdef": "CREATE INDEX opening_balances_source_year_school_fk_idx ON public.student_opening_balances USING btree (source_academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_student_idx",
+      "indexdef": "CREATE INDEX opening_balances_student_idx ON public.student_opening_balances USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_target_year_school_fk_idx",
+      "indexdef": "CREATE INDEX opening_balances_target_year_school_fk_idx ON public.student_opening_balances USING btree (academic_year_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "opening_balances_year_idx",
+      "indexdef": "CREATE INDEX opening_balances_year_idx ON public.student_opening_balances USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "student_opening_balances_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_opening_balances_pkey ON public.student_opening_balances USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_opening_balances",
+      "indexname": "student_opening_balances_student_id_academic_year_id_key",
+      "indexdef": "CREATE UNIQUE INDEX student_opening_balances_student_id_academic_year_id_key ON public.student_opening_balances USING btree (student_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_parents",
+      "indexname": "student_parents_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_parents_pkey ON public.student_parents USING btree (student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_parents",
+      "indexname": "student_parents_school_idx",
+      "indexdef": "CREATE INDEX student_parents_school_idx ON public.student_parents USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_parents",
+      "indexname": "student_parents_student_school_idx",
+      "indexdef": "CREATE INDEX student_parents_student_school_idx ON public.student_parents USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_academic_year_idx",
+      "indexdef": "CREATE INDEX student_results_academic_year_idx ON public.student_results USING btree (academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_pkey",
+      "indexdef": "CREATE UNIQUE INDEX student_results_pkey ON public.student_results USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_school_student_idx",
+      "indexdef": "CREATE INDEX student_results_school_student_idx ON public.student_results USING btree (school_id, student_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_school_year_idx",
+      "indexdef": "CREATE INDEX student_results_school_year_idx ON public.student_results USING btree (school_id, academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_student_school_idx",
+      "indexdef": "CREATE INDEX student_results_student_school_idx ON public.student_results USING btree (student_id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "student_results",
+      "indexname": "student_results_subject_idx",
+      "indexdef": "CREATE INDEX student_results_subject_idx ON public.student_results USING btree (subject_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "indexname": "students_current_academic_year_idx",
+      "indexdef": "CREATE INDEX students_current_academic_year_idx ON public.students USING btree (current_academic_year_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "indexname": "students_dup_uq",
+      "indexdef": "CREATE UNIQUE INDEX students_dup_uq ON public.students USING btree (school_id, lower(name), phone)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "indexname": "students_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX students_id_school_uq ON public.students USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "indexname": "students_pkey",
+      "indexdef": "CREATE UNIQUE INDEX students_pkey ON public.students USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "students",
+      "indexname": "students_school_idx",
+      "indexdef": "CREATE INDEX students_school_idx ON public.students USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "indexname": "subjects_id_school_uq",
+      "indexdef": "CREATE UNIQUE INDEX subjects_id_school_uq ON public.subjects USING btree (id, school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "indexname": "subjects_name_uq",
+      "indexdef": "CREATE UNIQUE INDEX subjects_name_uq ON public.subjects USING btree (school_id, lower(name))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "subjects",
+      "indexname": "subjects_pkey",
+      "indexdef": "CREATE UNIQUE INDEX subjects_pkey ON public.subjects USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "indexname": "teachers_dup_uq",
+      "indexdef": "CREATE UNIQUE INDEX teachers_dup_uq ON public.teachers USING btree (school_id, lower(name), phone)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "indexname": "teachers_pkey",
+      "indexdef": "CREATE UNIQUE INDEX teachers_pkey ON public.teachers USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "teachers",
+      "indexname": "teachers_school_idx",
+      "indexdef": "CREATE INDEX teachers_school_idx ON public.teachers USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_deletion_audit",
+      "indexname": "user_deletion_audit_pkey",
+      "indexdef": "CREATE UNIQUE INDEX user_deletion_audit_pkey ON public.user_deletion_audit USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_deletion_audit",
+      "indexname": "user_deletion_audit_school_idx",
+      "indexdef": "CREATE INDEX user_deletion_audit_school_idx ON public.user_deletion_audit USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_notifications",
+      "indexname": "whatsapp_notifications_pkey",
+      "indexdef": "CREATE UNIQUE INDEX whatsapp_notifications_pkey ON public.whatsapp_notifications USING btree (id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_notifications",
+      "indexname": "whatsapp_notifications_school_idx",
+      "indexdef": "CREATE INDEX whatsapp_notifications_school_idx ON public.whatsapp_notifications USING btree (school_id)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_notifications",
+      "indexname": "whatsapp_notifications_student_school_idx",
+      "indexdef": "CREATE INDEX whatsapp_notifications_student_school_idx ON public.whatsapp_notifications USING btree (student_id, school_id)"
+    }
+  ]
+}
