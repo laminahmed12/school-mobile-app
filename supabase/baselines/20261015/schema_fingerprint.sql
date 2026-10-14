@@ -1,0 +1,31 @@
+-- Read-only, schema-only fingerprint. Deliberately excludes all application rows and row counts.
+SELECT jsonb_pretty(jsonb_build_object(
+ 'source_project_ref','stbrhcgzfxvpayfnnqfl',
+ 'captured_at_utc','2026-10-15',
+ 'server_major',split_part(current_setting('server_version'),' ',1),
+ 'relations',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',n.nspname,'name',c.relname,'kind',c.relkind,'rls',c.relrowsecurity,'force_rls',c.relforcerowsecurity) ORDER BY n.nspname,c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','private') AND c.relkind IN ('r','p','v','m','f')),'[]'::jsonb),
+ 'columns',COALESCE((SELECT jsonb_agg(jsonb_build_object('table_schema',n.nspname,'table',c.relname,'column',a.attname,'signature',md5(concat_ws('|',format_type(a.atttypid,a.atttypmod),a.attnotnull,COALESCE(pg_get_expr(ad.adbin,ad.adrelid),''),a.attidentity,a.attgenerated,CASE WHEN a.attgenerated<>'' THEN COALESCE(pg_get_expr(ad.adbin,ad.adrelid),'') ELSE '' END))) ORDER BY n.nspname,c.relname,a.attnum) FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_attrdef ad ON ad.adrelid=c.oid AND ad.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m') AND a.attnum>0 AND NOT a.attisdropped),'[]'::jsonb),
+ 'constraints',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',n.nspname,'table',t.relname,'name',con.conname,'type',con.contype,'validated',con.convalidated,'signature',md5(pg_get_constraintdef(con.oid,true))) ORDER BY n.nspname,t.relname,con.conname) FROM pg_constraint con JOIN pg_class t ON t.oid=con.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='public'),'[]'::jsonb),
+ 'indexes',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',ns.nspname,'table',t.relname,'name',idx.relname,'signature',md5(pg_get_indexdef(i.indexrelid))) ORDER BY ns.nspname,t.relname,idx.relname) FROM pg_index i JOIN pg_class idx ON idx.oid=i.indexrelid JOIN pg_namespace ns ON ns.oid=idx.relnamespace JOIN pg_class t ON t.oid=i.indrelid WHERE ns.nspname='public'),'[]'::jsonb),
+ 'views',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',n.nspname,'name',c.relname,'options',c.reloptions,'signature',md5(pg_get_viewdef(c.oid,true))) ORDER BY n.nspname,c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='v'),'[]'::jsonb),
+ 'routines',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',n.nspname,'name',p.proname,'args',pg_get_function_identity_arguments(p.oid),'kind',p.prokind,'security_definer',p.prosecdef,'config',p.proconfig,'signature',md5(pg_get_functiondef(p.oid))) ORDER BY n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','private') AND p.prokind IN ('f','p')),'[]'::jsonb),
+ 'policies',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',schemaname,'table',tablename,'name',policyname,'permissive',permissive,'cmd',cmd,'roles',roles,'using',qual,'check',with_check) ORDER BY schemaname,tablename,policyname) FROM pg_policies WHERE schemaname='public'),'[]'::jsonb),
+ 'triggers',COALESCE((SELECT jsonb_agg(jsonb_build_object('schema',n.nspname,'table',c.relname,'name',t.tgname,'enabled',t.tgenabled,'signature',md5(pg_get_triggerdef(t.oid,true))) ORDER BY n.nspname,c.relname,t.tgname) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal),'[]'::jsonb),
+ 'grants',COALESCE((SELECT jsonb_agg(x.obj ORDER BY x.sort_key) FROM (
+   SELECT concat_ws('|','schema',n.nspname,COALESCE(gr.rolname,'PUBLIC'),a.privilege_type,a.is_grantable::text) sort_key,
+          jsonb_build_object('kind','schema','schema',n.nspname,'grantee',COALESCE(gr.rolname,'PUBLIC'),'privilege',a.privilege_type,'grantable',a.is_grantable) obj
+   FROM pg_namespace n CROSS JOIN LATERAL aclexplode(COALESCE(n.nspacl,acldefault('n',n.nspowner))) a LEFT JOIN pg_roles gr ON gr.oid=a.grantee
+   WHERE n.nspname IN ('public','private','extensions') AND a.grantee<>n.nspowner
+   UNION ALL
+   SELECT concat_ws('|','relation',n.nspname,c.relname,COALESCE(gr.rolname,'PUBLIC'),a.privilege_type,a.is_grantable::text),
+          jsonb_build_object('kind',CASE WHEN c.relkind='S' THEN 'sequence' ELSE 'relation' END,'schema',n.nspname,'object',c.relname,'grantee',COALESCE(gr.rolname,'PUBLIC'),'privilege',a.privilege_type,'grantable',a.is_grantable)
+   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 'S'::"char" ELSE 'r'::"char" END,c.relowner))) a LEFT JOIN pg_roles gr ON gr.oid=a.grantee
+   WHERE n.nspname='public' AND c.relkind IN ('r','v','m','S') AND a.grantee<>c.relowner
+   UNION ALL
+   SELECT concat_ws('|','routine',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid),COALESCE(gr.rolname,'PUBLIC'),a.privilege_type,a.is_grantable::text),
+          jsonb_build_object('kind','routine','schema',n.nspname,'object',p.proname,'args',pg_get_function_identity_arguments(p.oid),'grantee',COALESCE(gr.rolname,'PUBLIC'),'privilege',a.privilege_type,'grantable',a.is_grantable)
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a LEFT JOIN pg_roles gr ON gr.oid=a.grantee
+   WHERE n.nspname IN ('public','private') AND p.prokind IN ('f','p') AND a.grantee<>p.proowner
+ ) x),'[]'::jsonb),
+ 'default_privileges',COALESCE((SELECT jsonb_agg(jsonb_build_object('owner',owner.rolname,'schema',ns.nspname,'object_type',d.defaclobjtype,'grantee',COALESCE(gr.rolname,'PUBLIC'),'privilege',a.privilege_type,'grantable',a.is_grantable) ORDER BY owner.rolname,ns.nspname,d.defaclobjtype,gr.rolname,a.privilege_type) FROM pg_default_acl d JOIN pg_roles owner ON owner.oid=d.defaclrole LEFT JOIN pg_namespace ns ON ns.oid=d.defaclnamespace CROSS JOIN LATERAL aclexplode(d.defaclacl) a LEFT JOIN pg_roles gr ON gr.oid=a.grantee),'[]'::jsonb)
+))::text AS manifest;
