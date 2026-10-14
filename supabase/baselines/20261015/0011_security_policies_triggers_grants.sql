@@ -401,6 +401,54 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT DELETE, INSERT, MAINTAIN, SELECT, UPDATE ON TABLE public.whatsapp_notifications TO authenticated;
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.whatsapp_notifications TO service_role;
 
+-- Reset default PUBLIC EXECUTE ACLs, then restore only catalog-observed grants.
+REVOKE ALL ON FUNCTION private.audit() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.check_fee() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.check_payment() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.my_role() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.my_school() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.restore_school_data(p jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.validate_payroll_transaction() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.add_student(p_name text, p_class text, p_phone text, p_fee numeric) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.attendance_summary(p_date date) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.bootstrap_owner_school(p_code text, p_name text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.carry_forward_open_balances(p_old_year uuid, p_new_year uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.create_next_academic_year(p_name text, p_starts_on date, p_ends_on date, p_migrate_students boolean, p_migrate_staff boolean) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.create_student_with_fee(p_name text, p_class_name text, p_phone text, p_term_fee numeric, p_term text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.delete_school_user(p_user_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.execute_academic_rollover(p_batch_id uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.export_backup(p_school uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.export_backup_core_v2(p_school uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.export_backup_core_v3(p_school uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.export_backup_core_v4(p_school uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.grant_onedrive_access(p_user_id uuid, p_permission_id text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.import_students(p_rows jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_capture_manual_discount() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_guard_rollover_year_state() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_set_updated_at() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_sync_award_discount() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_validate_discount_award() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_validate_payment_allocation() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.lamin_write_audit_event() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.license_trial_status(p_school uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.normalize_school_code() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.owner_stats() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.prepare_academic_rollover(p_source_year uuid, p_target_year uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.promote_passed_students(p_old_year uuid, p_new_year uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.record_student_payment(p_student_id uuid, p_amount numeric, p_note text, p_term text, p_fee_assessment_id uuid, p_idempotency_key text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.redeem_license_code(p_school_id uuid, p_code_hash text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.restore_backup(p_backup jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.restore_backup_core_v2(p_backup jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.restore_backup_core_v3(p_backup jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.restore_backup_core_v4(p_backup jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.revoke_onedrive_access(p_user_id uuid, p_action text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.save_attendance_day(p_date date, p_rows jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.save_report(p_student uuid, p_grades jsonb, p_absences integer, p_lates integer, p_discipline text, p_notes text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.school_daily_summary(p_date date) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.set_student_promotion(p_student_id uuid, p_target_class_id uuid, p_status text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.update_school_settings(p_name text, p_currency text, p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.update_student(p_id uuid, p_name text, p_class text, p_phone text, p_fee numeric) FROM PUBLIC, anon, authenticated, service_role;
+
 -- Routine execute privileges.
 
 GRANT EXECUTE ON FUNCTION private.my_role() TO authenticated;
