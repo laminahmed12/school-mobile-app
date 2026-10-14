@@ -5,7 +5,8 @@ import 'pdf_service.dart';
 class ReportsView extends StatefulWidget {
   final SchoolRepository repo;
   const ReportsView({super.key, required this.repo});
-  @override State<ReportsView> createState() => _ReportsViewState();
+  @override
+  State<ReportsView> createState() => _ReportsViewState();
 }
 
 class _ReportsViewState extends State<ReportsView> {
@@ -27,22 +28,38 @@ class _ReportsViewState extends State<ReportsView> {
 
   @override
   Widget build(BuildContext context) {
-    final date = day.year.toString() + '-' + day.month.toString().padLeft(2, '0') + '-' + day.day.toString().padLeft(2, '0');
+    final date =
+        day.year.toString() +
+        '-' +
+        day.month.toString().padLeft(2, '0') +
+        '-' +
+        day.day.toString().padLeft(2, '0');
     return Scaffold(
       appBar: AppBar(
         title: const Text('التقارير اليومية'),
         actions: [
           IconButton(
             tooltip: 'طباعة التقرير أو حفظه PDF',
-            onPressed: loading || data.isEmpty ? null : () async {
-              try {
-                await LaminPdfService.printDailyReport(repo: widget.repo, day: day, data: data);
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('تعذر إنشاء PDF: ${e.toString().replaceFirst('Exception: ', '')}')),
-                );
-              }
-            },
+            onPressed: loading || data.isEmpty
+                ? null
+                : () async {
+                    try {
+                      await LaminPdfService.printDailyReport(
+                        repo: widget.repo,
+                        day: day,
+                        data: data,
+                      );
+                    } catch (e) {
+                      if (mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'تعذر إنشاء PDF: ${e.toString().replaceFirst('Exception: ', '')}',
+                            ),
+                          ),
+                        );
+                    }
+                  },
             icon: const Icon(Icons.picture_as_pdf_outlined),
           ),
         ],
@@ -70,28 +87,60 @@ class _ReportsViewState extends State<ReportsView> {
               ),
             ),
           ),
-          if (loading) const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator())),
-          if (!loading && data.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('لا توجد بيانات للتقرير.')),
-          if (!loading && data.isNotEmpty) Card(
-            child: Column(
-              children: [
-                row('إجمالي الطلاب', data['students']),
-                row('الحاضرون', data['present']),
-                row('الغائبون', data['absent']),
-                row('المتأخرون', data['late']),
-                row('المدفوعات', (data['payments'] ?? 0).toString() + ' د.ل'),
-                row('المرتبات المصروفة', ((data['payroll_salaries'] as num?)?.toDouble() ?? 0).toStringAsFixed(2) + ' د.ل'),
-                row('السلف', ((data['payroll_advances'] as num?)?.toDouble() ?? 0).toStringAsFixed(2) + ' د.ل'),
-                row('إجمالي المصروفات', ((data['expenses'] as num?)?.toDouble() ?? 0).toStringAsFixed(2) + ' د.ل'),
-              ],
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(30),
+                child: CircularProgressIndicator(),
+              ),
             ),
-          ),
+          if (!loading && data.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('لا توجد بيانات للتقرير.'),
+            ),
+          if (!loading && data.isNotEmpty)
+            Card(
+              child: Column(
+                children: [
+                  row('إجمالي الطلاب', data['students']),
+                  row('الحاضرون', data['present']),
+                  row('الغائبون', data['absent']),
+                  row('المتأخرون', data['late']),
+                  row('المدفوعات', (data['payments'] ?? 0).toString() + ' د.ل'),
+                  row(
+                    'المرتبات المصروفة',
+                    ((data['payroll_salaries'] as num?)?.toDouble() ?? 0)
+                            .toStringAsFixed(2) +
+                        ' د.ل',
+                  ),
+                  row(
+                    'السلف',
+                    ((data['payroll_advances'] as num?)?.toDouble() ?? 0)
+                            .toStringAsFixed(2) +
+                        ' د.ل',
+                  ),
+                  row(
+                    'إجمالي المصروفات',
+                    ((data['expenses'] as num?)?.toDouble() ?? 0)
+                            .toStringAsFixed(2) +
+                        ' د.ل',
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget row(String title, dynamic value) {
-    return ListTile(title: Text(title), trailing: Text(value.toString(), style: const TextStyle(fontWeight: FontWeight.bold)));
+    return ListTile(
+      title: Text(title),
+      trailing: Text(
+        value.toString(),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+    );
   }
 }

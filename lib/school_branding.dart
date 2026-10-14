@@ -25,7 +25,10 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
   }
 
   Future<void> load() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final branding = await widget.repo.schoolBranding();
       logoData = branding?['logo_data']?.toString();
@@ -50,17 +53,29 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
         throw Exception('تعذر قراءة الصورة. حاول اختيارها مرة أخرى.');
       }
       if (bytes.length > 950 * 1024) {
-        throw Exception('حجم الشعار يجب ألا يتجاوز 950 كيلوبايت. صغّر الصورة ثم أعد المحاولة.');
+        throw Exception(
+          'حجم الشعار يجب ألا يتجاوز 950 كيلوبايت. صغّر الصورة ثم أعد المحاولة.',
+        );
       }
       final ext = (file.extension ?? '').toLowerCase();
       final type = ext == 'png' ? 'image/png' : 'image/jpeg';
       final encoded = base64Encode(bytes);
-      setState(() { saving = true; error = null; });
+      setState(() {
+        saving = true;
+        error = null;
+      });
       await widget.repo.saveSchoolLogo(logoBase64: encoded, mimeType: type);
       if (!mounted) return;
-      setState(() { logoData = encoded; mimeType = type; });
+      setState(() {
+        logoData = encoded;
+        mimeType = type;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ شعار المدرسة. سيظهر في تقارير PDF وإيصالات الدفع الجديدة.')),
+        const SnackBar(
+          content: Text(
+            'تم حفظ شعار المدرسة. سيظهر في تقارير PDF وإيصالات الدفع الجديدة.',
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -72,27 +87,46 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
   }
 
   Future<void> removeLogo() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('حذف شعار المدرسة'),
-        content: const Text('سيُحذف الشعار المحفوظ لهذه المدرسة، ولن يظهر في المستندات الجديدة.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف الشعار')),
-        ],
-      ),
-    ) ?? false;
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('حذف شعار المدرسة'),
+            content: const Text(
+              'سيُحذف الشعار المحفوظ لهذه المدرسة، ولن يظهر في المستندات الجديدة.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('حذف الشعار'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
     if (!confirmed) return;
-    setState(() { saving = true; error = null; });
+    setState(() {
+      saving = true;
+      error = null;
+    });
     try {
       await widget.repo.removeSchoolLogo();
-      if (mounted) setState(() { logoData = null; mimeType = null; });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف الشعار.')),
-      );
+      if (mounted)
+        setState(() {
+          logoData = null;
+          mimeType = null;
+        });
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم حذف الشعار.')));
     } catch (e) {
-      if (mounted) setState(() => error = e.toString().replaceFirst('Exception: ', ''));
+      if (mounted)
+        setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -104,7 +138,12 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('شعار المدرسة للطباعة'),
-        actions: [IconButton(onPressed: loading || saving ? null : load, icon: const Icon(Icons.refresh))],
+        actions: [
+          IconButton(
+            onPressed: loading || saving ? null : load,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
@@ -118,7 +157,13 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
                       children: [
                         const Icon(Icons.branding_watermark_outlined, size: 42),
                         const SizedBox(height: 10),
-                        const Text('شعار المدرسة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                        const Text(
+                          'شعار المدرسة',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         const Text(
                           'ارفع شعارًا بصيغة PNG أو JPG ليظهر أعلى التقارير اليومية وإيصالات الدفع عند الطباعة أو حفظها PDF. يُحفظ الشعار مع المدرسة ويظهر على الأجهزة التي تستخدم حسابها.',
@@ -138,14 +183,23 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
                               ? const Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.image_outlined, size: 44, color: Colors.grey),
+                                    Icon(
+                                      Icons.image_outlined,
+                                      size: 44,
+                                      color: Colors.grey,
+                                    ),
                                     SizedBox(height: 8),
                                     Text('لا يوجد شعار محفوظ'),
                                   ],
                                 )
                               : ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.memory(bytes, fit: BoxFit.contain, width: 200, height: 140),
+                                  child: Image.memory(
+                                    bytes,
+                                    fit: BoxFit.contain,
+                                    width: 200,
+                                    height: 140,
+                                  ),
                                 ),
                         ),
                         const SizedBox(height: 16),
@@ -154,9 +208,22 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
                           child: FilledButton.icon(
                             onPressed: saving ? null : pickLogo,
                             icon: saving
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
                                 : const Icon(Icons.upload_file),
-                            label: Text(saving ? 'جارِ الحفظ...' : bytes == null ? 'اختيار شعار من الجهاز' : 'تغيير الشعار'),
+                            label: Text(
+                              saving
+                                  ? 'جارِ الحفظ...'
+                                  : bytes == null
+                                  ? 'اختيار شعار من الجهاز'
+                                  : 'تغيير الشعار',
+                            ),
                           ),
                         ),
                         if (bytes != null) ...[
@@ -169,7 +236,11 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
                         ],
                         if (error != null) ...[
                           const SizedBox(height: 12),
-                          Text(error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                          Text(
+                            error!,
+                            style: const TextStyle(color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
                         ],
                       ],
                     ),
@@ -179,7 +250,9 @@ class _SchoolBrandingViewState extends State<SchoolBrandingView> {
                   child: ListTile(
                     leading: Icon(Icons.info_outline),
                     title: Text('ملاحظات'),
-                    subtitle: Text('الصيغ المدعومة PNG وJPG، والحد الأقصى 950 كيلوبايت. لا يؤثر تغيير الشعار في المستندات التي سبق حفظها.'),
+                    subtitle: Text(
+                      'الصيغ المدعومة PNG وJPG، والحد الأقصى 950 كيلوبايت. لا يؤثر تغيير الشعار في المستندات التي سبق حفظها.',
+                    ),
                   ),
                 ),
               ],
