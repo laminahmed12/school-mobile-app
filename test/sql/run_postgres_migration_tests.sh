@@ -121,7 +121,8 @@ checks.update({
     "new backup exports use the validated v3 payload format":
         "'format','lamin-school-backup-v3'" in backup,
     "restore remains backward-compatible with v2 and accepts v3":
-        "NOT IN ('lamin-school-backup-v2','lamin-school-backup-v3')" in backup,
+        "p_backup->>'format' IS DISTINCT FROM 'lamin-school-backup-v2'" in backup
+        and "p_backup->>'format' IS DISTINCT FROM 'lamin-school-backup-v3'" in backup,
     "incomplete v3 backups are rejected before any restore insert":
         "IF p_backup->>'format' = 'lamin-school-backup-v3' THEN" in backup
         and "jsonb_typeof(p_backup->v_table) IS DISTINCT FROM 'array'" in backup
