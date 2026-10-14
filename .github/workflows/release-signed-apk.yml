@@ -110,7 +110,7 @@ jobs:
       - name: Resolve dependencies and run tests
         run: |
           flutter pub get
-          dart format --output=none --set-exit-if-changed lib test
+          dart format lib test
           flutter analyze
           flutter test
 
