@@ -262,7 +262,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                   ),
                 ),
                 DropdownButtonFormField<String>(
-                  value: sourceYear,
+                  initialValue: sourceYear,
                   decoration: const InputDecoration(
                     labelText: 'السنة الحالية (المصدر)',
                   ),
@@ -283,7 +283,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: targetYear,
+                  initialValue: targetYear,
                   decoration: const InputDecoration(
                     labelText: 'السنة الجديدة (الهدف)',
                   ),
@@ -342,7 +342,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                               'الدين المرحّل: ${((item['source_balance'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} د.ل',
                             ),
                             DropdownButtonFormField<String>(
-                              value: decision,
+                              initialValue: decision,
                               decoration: const InputDecoration(
                                 labelText: 'النتيجة / القرار',
                               ),
@@ -377,7 +377,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                             ),
                             if (needsClass)
                               DropdownButtonFormField<String>(
-                                value:
+                                initialValue:
                                     targetClassesList.any(
                                       (c) =>
                                           c['id'].toString() ==
