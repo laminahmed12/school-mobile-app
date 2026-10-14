@@ -1,0 +1,6083 @@
+{
+  "title": "Lamīn production schema catalog reference — metadata only",
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "Supabase list_tables read-only metadata API",
+  "data_rows_exported": false,
+  "row_counts_omitted": true,
+  "tables": [
+    {
+      "name": "public.schools",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "code",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable",
+            "unique"
+          ],
+          "check": "code ~ '^[a-z0-9]{3,20}$'::text"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 3 AND char_length(btrim(name)) <= 80"
+        },
+        {
+          "name": "currency",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'د.ل'::text",
+          "check": "char_length(btrim(currency)) >= 1 AND char_length(btrim(currency)) <= 10"
+        },
+        {
+          "name": "country_code",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'218'::text",
+          "check": "country_code ~ '^[0-9]{1,4}$'::text"
+        },
+        {
+          "name": "licensed",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "trial_started_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "license_activated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "license_code_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "students_school_id_fkey",
+          "source_table": "public.students",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "profiles_school_id_fkey",
+          "source_table": "public.profiles",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "onedrive_access_audit_school_id_fkey",
+          "source_table": "public.onedrive_access_audit",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_opening_balances_school_id_fkey",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "user_deletion_audit_school_id_fkey",
+          "source_table": "public.user_deletion_audit",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "backup_registry_school_id_fkey",
+          "source_table": "public.backup_registry",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_school_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "schools_license_code_id_fkey",
+          "source_table": "public.schools",
+          "source_columns": [
+            "license_code_id"
+          ],
+          "target_table": "public.license_codes",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "license_codes_used_school_id_fkey",
+          "source_table": "public.license_codes",
+          "source_columns": [
+            "used_school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_school_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "staff_payments_school_id_fkey",
+          "source_table": "public.staff_payments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "staff_school_id_fkey",
+          "source_table": "public.staff",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_results_school_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "whatsapp_notifications_school_id_fkey",
+          "source_table": "public.whatsapp_notifications",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "expenses_school_id_fkey",
+          "source_table": "public.expenses",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "attendance_school_id_fkey",
+          "source_table": "public.attendance",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_parents_school_id_fkey",
+          "source_table": "public.student_parents",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "classes_school_id_fkey",
+          "source_table": "public.classes",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "academic_years_school_id_fkey",
+          "source_table": "public.academic_years",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "audit_log_school_id_fkey",
+          "source_table": "public.audit_log",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "teachers_school_id_fkey",
+          "source_table": "public.teachers",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "subjects_school_id_fkey",
+          "source_table": "public.subjects",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "salary_assignments_school_id_fkey",
+          "source_table": "public.salary_assignments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "payroll_periods_school_id_fkey",
+          "source_table": "public.payroll_periods",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_items_school_id_fkey",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_batches_school_id_fkey",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_school_id_fkey",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "payment_allocations_school_id_fkey",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_discount_awards_school_id_fkey",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "discount_rules_school_id_fkey",
+          "source_table": "public.discount_rules",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "fee_schedules_school_id_fkey",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_school_id_fkey",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "school_branding_school_id_fkey",
+          "source_table": "public.school_branding",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "payroll_transactions_school_id_fkey",
+          "source_table": "public.payroll_transactions",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "license_codes_school_id_fkey",
+          "source_table": "public.license_codes",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.profiles",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "user_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "username",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(username)) >= 2 AND char_length(btrim(username)) <= 40"
+        },
+        {
+          "name": "role",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "role = ANY (ARRAY['owner'::text, 'admin'::text, 'accountant'::text, 'supervisor'::text])"
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "must_change_password",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "microsoft_email",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "onedrive_access_granted",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        },
+        {
+          "name": "onedrive_permission_id",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "onedrive_granted_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "onedrive_revoked_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "user_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "profiles_user_id_fkey",
+          "source_table": "public.profiles",
+          "source_columns": [
+            "user_id"
+          ],
+          "target_table": "auth.users",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "profiles_school_id_fkey",
+          "source_table": "public.profiles",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.students",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 1 AND char_length(btrim(name)) <= 100"
+        },
+        {
+          "name": "class_name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(class_name)) >= 1 AND char_length(btrim(class_name)) <= 40"
+        },
+        {
+          "name": "phone",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "phone ~ '^[0-9]{8,15}$'::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'active'::text"
+        },
+        {
+          "name": "current_academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "rollover_items_student_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_student_school_fk",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_student_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_enrollments_source_student_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "source_student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_opening_balances_student_id_fkey",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "students_school_id_fkey",
+          "source_table": "public.students",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_fees_student_id_school_id_fkey",
+          "source_table": "public.student_fees",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "payments_student_id_school_id_fkey",
+          "source_table": "public.payments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_behavior_student_id_school_id_fkey",
+          "source_table": "public.student_behavior",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "grades_student_id_school_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_parents_student_id_school_id_fkey",
+          "source_table": "public.student_parents",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "attendance_student_id_school_id_fkey",
+          "source_table": "public.attendance",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "whatsapp_notifications_student_id_school_id_fkey",
+          "source_table": "public.whatsapp_notifications",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_results_student_id_school_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "students_current_academic_year_id_fkey",
+          "source_table": "public.students",
+          "source_columns": [
+            "current_academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_student_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_fees",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "total_fee",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "total_fee >= 0::numeric"
+        },
+        {
+          "name": "discount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "discount >= 0::numeric"
+        },
+        {
+          "name": "due_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "student_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_fees_student_id_school_id_fkey",
+          "source_table": "public.student_fees",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_fees_academic_year_id_fkey",
+          "source_table": "public.student_fees",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.payments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(note) <= 200"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "fee_assessment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "term",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'غير محدد'::text"
+        },
+        {
+          "name": "payment_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "CURRENT_DATE"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "idempotency_key",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "payments_student_id_school_id_fkey",
+          "source_table": "public.payments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "payments_fee_assessment_school_student_fk",
+          "source_table": "public.payments",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "payment_allocations_payment_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "payment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.payments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "payments_academic_year_school_fk",
+          "source_table": "public.payments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_behavior",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "absences",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "absences >= 0 AND absences <= 400"
+        },
+        {
+          "name": "lates",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "lates >= 0 AND lates <= 400"
+        },
+        {
+          "name": "discipline",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "discipline = ANY (ARRAY[''::text, 'ممتاز'::text, 'جيد'::text, 'مقبول'::text, 'يحتاج متابعة'::text])"
+        },
+        {
+          "name": "notes",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(notes) <= 1000"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "student_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_behavior_student_id_school_id_fkey",
+          "source_table": "public.student_behavior",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.subjects",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 1 AND char_length(btrim(name)) <= 40"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "class_subjects_subject_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "subject_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "subjects_school_id_fkey",
+          "source_table": "public.subjects",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "grades_subject_id_school_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "subject_id",
+            "school_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_results_subject_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "subject_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.grades",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "subject_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "score",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "score >= 0::numeric AND score <= 100::numeric"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "student_id",
+        "subject_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "grades_student_id_school_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "grades_academic_year_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "grades_subject_id_school_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "subject_id",
+            "school_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.teachers",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 1 AND char_length(btrim(name)) <= 100"
+        },
+        {
+          "name": "subject",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(subject)) >= 1 AND char_length(btrim(subject)) <= 60"
+        },
+        {
+          "name": "phone",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "phone = ''::text OR phone ~ '^[0-9]{8,15}$'::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "salary",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "salary >= 0::numeric"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "teachers_school_id_fkey",
+          "source_table": "public.teachers",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_teacher_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "teacher_id"
+          ],
+          "target_table": "public.teachers",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.audit_log",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "format": "int8",
+          "options": [
+            "identity",
+            "updatable"
+          ],
+          "identity_generation": "ALWAYS"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "user_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "username",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "action",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "entity",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "entity_id",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "details",
+          "data_type": "jsonb",
+          "format": "jsonb",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'{}'::jsonb"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "audit_log_school_id_fkey",
+          "source_table": "public.audit_log",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.login_attempts",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "key",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "fails",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0"
+        },
+        {
+          "name": "locked_until",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "key"
+      ]
+    },
+    {
+      "name": "public.academic_years",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 3 AND char_length(btrim(name)) <= 60"
+        },
+        {
+          "name": "starts_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "ends_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "closed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "is_closed",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "academic_years_school_id_fkey",
+          "source_table": "public.academic_years",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "fee_schedules_academic_year_school_fk",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "payments_academic_year_school_fk",
+          "source_table": "public.payments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "opening_balances_source_year_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "source_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "opening_balances_target_year_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_target_year_fk",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "target_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_source_year_fk",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "source_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_year_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "fee_schedules_year_school_fk",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_year_school_fk",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_academic_year_id_fkey",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "backup_registry_academic_year_id_fkey",
+          "source_table": "public.backup_registry",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "grades_academic_year_id_fkey",
+          "source_table": "public.grades",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_results_academic_year_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "expenses_academic_year_id_fkey",
+          "source_table": "public.expenses",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_fees_academic_year_id_fkey",
+          "source_table": "public.student_fees",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_academic_year_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "students_current_academic_year_id_fkey",
+          "source_table": "public.students",
+          "source_columns": [
+            "current_academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "classes_academic_year_id_fkey",
+          "source_table": "public.classes",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.classes",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 1 AND char_length(btrim(name)) <= 60"
+        },
+        {
+          "name": "section",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(section) <= 30"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "grade_order",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "rollover_items_source_class_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "source_class_id",
+            "school_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "classes_school_id_fkey",
+          "source_table": "public.classes",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "classes_academic_year_id_fkey",
+          "source_table": "public.classes",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_class_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "class_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_class_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "class_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_items_target_class_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "target_class_id",
+            "school_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_parents",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "parent_name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(parent_name) <= 100"
+        },
+        {
+          "name": "phone",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "phone = ''::text OR phone ~ '^[0-9]{8,15}$'::text"
+        },
+        {
+          "name": "relation",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'ولي الأمر'::text",
+          "check": "char_length(relation) <= 30"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "student_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_parents_school_id_fkey",
+          "source_table": "public.student_parents",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_parents_student_id_school_id_fkey",
+          "source_table": "public.student_parents",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.attendance",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "attendance_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "CURRENT_DATE"
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "status = ANY (ARRAY['present'::text, 'absent'::text, 'late'::text, 'excused'::text])"
+        },
+        {
+          "name": "minutes_late",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "minutes_late >= 0 AND minutes_late <= 600"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(note) <= 300"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "attendance_school_id_fkey",
+          "source_table": "public.attendance",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "attendance_student_id_school_id_fkey",
+          "source_table": "public.attendance",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.expenses",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "title",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(title)) >= 1 AND char_length(btrim(title)) <= 120"
+        },
+        {
+          "name": "category",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'عام'::text",
+          "check": "char_length(category) <= 50"
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(note) <= 300"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "expenses_school_id_fkey",
+          "source_table": "public.expenses",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "expenses_academic_year_id_fkey",
+          "source_table": "public.expenses",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.whatsapp_notifications",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "kind",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "kind = ANY (ARRAY['absence'::text, 'late'::text, 'fee'::text, 'payment'::text, 'result'::text, 'announcement'::text])"
+        },
+        {
+          "name": "message",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(message) >= 1 AND char_length(message) <= 2000"
+        },
+        {
+          "name": "phone",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "sent",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "whatsapp_notifications_student_id_school_id_fkey",
+          "source_table": "public.whatsapp_notifications",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "whatsapp_notifications_school_id_fkey",
+          "source_table": "public.whatsapp_notifications",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_results",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "subject_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "term",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'الفصل الأول'::text",
+          "check": "char_length(term) <= 50"
+        },
+        {
+          "name": "exam_name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'اختبار'::text",
+          "check": "char_length(exam_name) <= 100"
+        },
+        {
+          "name": "score",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "score >= 0::numeric"
+        },
+        {
+          "name": "max_score",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "100",
+          "check": "max_score > 0::numeric"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text",
+          "check": "char_length(note) <= 300"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_results_student_id_school_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_results_subject_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "subject_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_results_academic_year_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_results_school_id_fkey",
+          "source_table": "public.student_results",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.staff",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "char_length(btrim(name)) >= 1 AND char_length(btrim(name)) <= 120"
+        },
+        {
+          "name": "role",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'موظف'::text"
+        },
+        {
+          "name": "phone",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "salary",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "salary >= 0::numeric"
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "staff_payments_staff_id_fkey",
+          "source_table": "public.staff_payments",
+          "source_columns": [
+            "staff_id"
+          ],
+          "target_table": "public.staff",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "staff_school_id_fkey",
+          "source_table": "public.staff",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.staff_payments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "staff_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "payment_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "CURRENT_DATE"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "staff_payments_school_id_fkey",
+          "source_table": "public.staff_payments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "staff_payments_staff_id_fkey",
+          "source_table": "public.staff_payments",
+          "source_columns": [
+            "staff_id"
+          ],
+          "target_table": "public.staff",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.class_subjects",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "class_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "subject_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "teacher_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "class_subjects_subject_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "subject_id"
+          ],
+          "target_table": "public.subjects",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_class_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "class_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_school_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "class_subjects_teacher_id_fkey",
+          "source_table": "public.class_subjects",
+          "source_columns": [
+            "teacher_id"
+          ],
+          "target_table": "public.teachers",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.license_codes",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "code_hash",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable",
+            "unique"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "used_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "used_school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "license_codes_school_id_fkey",
+          "source_table": "public.license_codes",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "license_codes_used_school_id_fkey",
+          "source_table": "public.license_codes",
+          "source_columns": [
+            "used_school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "schools_license_code_id_fkey",
+          "source_table": "public.schools",
+          "source_columns": [
+            "license_code_id"
+          ],
+          "target_table": "public.license_codes",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_enrollments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "class_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'active'::text"
+        },
+        {
+          "name": "source_student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "promoted_from_enrollment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "result_status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'pending'::text"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_enrollments_promoted_from_enrollment_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "promoted_from_enrollment_id"
+          ],
+          "target_table": "public.student_enrollments",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_school_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_student_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_academic_year_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_class_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "class_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_enrollments_source_student_id_fkey",
+          "source_table": "public.student_enrollments",
+          "source_columns": [
+            "source_student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_items_source_enrollment_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "source_enrollment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_enrollments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "rollover_items_target_enrollment_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "target_enrollment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_enrollments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.backup_registry",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "provider",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'onedrive'::text"
+        },
+        {
+          "name": "drive_item_id",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "file_name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "last_uploaded_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "checksum",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "version",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "1"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "backup_registry_school_id_fkey",
+          "source_table": "public.backup_registry",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "backup_registry_academic_year_id_fkey",
+          "source_table": "public.backup_registry",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.user_deletion_audit",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_user_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_username",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_role",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "deleted_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "user_deletion_audit_school_id_fkey",
+          "source_table": "public.user_deletion_audit",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_opening_balances",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount >= 0::numeric"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'رصيد مرحّل من السنة السابقة'::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "source_academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "source_fee_assessment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "rollover_batch_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "payment_allocations_opening_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "opening_balance_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_opening_balances",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "rollover_items_opening_balance_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "opening_balance_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_opening_balances",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "opening_balances_source_assessment_school_student_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "source_fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "opening_balances_rollover_batch_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "rollover_batch_id",
+            "school_id"
+          ],
+          "target_table": "public.rollover_batches",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "student_opening_balances_school_id_fkey",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_opening_balances_student_id_fkey",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "student_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "opening_balances_target_year_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "opening_balances_source_year_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "source_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.onedrive_access_audit",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_user_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_username",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "action",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "action = ANY (ARRAY['grant'::text, 'revoke'::text, 'auto_revoke'::text])"
+        },
+        {
+          "name": "permission_id",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "performed_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "onedrive_access_audit_school_id_fkey",
+          "source_table": "public.onedrive_access_audit",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.owner_gate_attempts",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "gate_key",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "window_started_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "attempts",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "gate_key"
+      ]
+    },
+    {
+      "name": "public.payroll_transactions",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "payee_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "payee_type = ANY (ARRAY['teacher'::text, 'staff'::text])"
+        },
+        {
+          "name": "payee_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "transaction_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "transaction_type = ANY (ARRAY['salary'::text, 'advance'::text])"
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "payment_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "CURRENT_DATE"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "payroll_transactions_school_id_fkey",
+          "source_table": "public.payroll_transactions",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.school_branding",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "logo_data",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "check": "logo_data IS NULL OR length(logo_data) <= 1300000"
+        },
+        {
+          "name": "logo_mime_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "check": "logo_mime_type IS NULL OR (logo_mime_type = ANY (ARRAY['image/png'::text, 'image/jpeg'::text]))"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        }
+      ],
+      "primary_keys": [
+        "school_id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "school_branding_school_id_fkey",
+          "source_table": "public.school_branding",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_fee_assessments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "private.my_school()"
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_label",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'غير محدد'::text"
+        },
+        {
+          "name": "term",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'الفصل الأول'::text"
+        },
+        {
+          "name": "total_fee",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "total_fee >= 0::numeric"
+        },
+        {
+          "name": "discount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0"
+        },
+        {
+          "name": "due_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "manual_discount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_fee_assessments_academic_year_id_fkey",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "academic_year_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_school_id_fkey",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_student_school_fk",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "payments_fee_assessment_school_student_fk",
+          "source_table": "public.payments",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "student_fee_assessments_year_school_fk",
+          "source_table": "public.student_fee_assessments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "discount_awards_student_assessment_fk",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "payment_allocations_assessment_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_assessment_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "opening_balances_source_assessment_school_student_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "source_fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.fee_schedules",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "grade_order",
+          "data_type": "integer",
+          "format": "int4",
+          "options": [
+            "updatable"
+          ],
+          "check": "grade_order >= 0"
+        },
+        {
+          "name": "term",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "length(TRIM(BOTH FROM term)) >= 1 AND length(TRIM(BOTH FROM term)) <= 80"
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount >= 0::numeric"
+        },
+        {
+          "name": "due_date",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "fee_schedules_school_id_fkey",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "fee_schedules_year_school_fk",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "fee_schedules_academic_year_school_fk",
+          "source_table": "public.fee_schedules",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.discount_rules",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "length(TRIM(BOTH FROM name)) >= 1 AND length(TRIM(BOTH FROM name)) <= 120"
+        },
+        {
+          "name": "rule_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "rule_type = ANY (ARRAY['sibling'::text, 'category'::text, 'scholarship'::text, 'manual'::text, 'other'::text])"
+        },
+        {
+          "name": "value_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "value_type = ANY (ARRAY['fixed'::text, 'percent'::text])"
+        },
+        {
+          "name": "value",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "value >= 0::numeric"
+        },
+        {
+          "name": "max_amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "check": "max_amount IS NULL OR max_amount >= 0::numeric"
+        },
+        {
+          "name": "stacking_policy",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'max_only'::text",
+          "check": "stacking_policy = ANY (ARRAY['stack'::text, 'max_only'::text])"
+        },
+        {
+          "name": "cap_amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "check": "cap_amount IS NULL OR cap_amount >= 0::numeric"
+        },
+        {
+          "name": "conditions",
+          "data_type": "jsonb",
+          "format": "jsonb",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'{}'::jsonb"
+        },
+        {
+          "name": "active",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "true"
+        },
+        {
+          "name": "starts_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "ends_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "discount_rules_school_id_fkey",
+          "source_table": "public.discount_rules",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "discount_awards_rule_school_fk",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "discount_rule_id",
+            "school_id"
+          ],
+          "target_table": "public.discount_rules",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.student_discount_awards",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "fee_assessment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "discount_rule_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "rule_snapshot",
+          "data_type": "jsonb",
+          "format": "jsonb",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'{}'::jsonb"
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount >= 0::numeric"
+        },
+        {
+          "name": "reason",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "length(TRIM(BOTH FROM reason)) >= 1 AND length(TRIM(BOTH FROM reason)) <= 500"
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'pending'::text",
+          "check": "status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'reversed'::text])"
+        },
+        {
+          "name": "requested_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "approved_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "approved_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "reversed_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "reversed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "student_discount_awards_school_id_fkey",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "discount_awards_rule_school_fk",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "discount_rule_id",
+            "school_id"
+          ],
+          "target_table": "public.discount_rules",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "discount_awards_student_assessment_fk",
+          "source_table": "public.student_discount_awards",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.payment_allocations",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "payment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "fee_assessment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "opening_balance_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "allocated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "reversed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "reversed_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "reversal_reason",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "payment_allocations_assessment_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "payment_allocations_payment_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "payment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.payments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "payment_allocations_school_id_fkey",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "payment_allocations_opening_fk",
+          "source_table": "public.payment_allocations",
+          "source_columns": [
+            "opening_balance_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_opening_balances",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.financial_adjustments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "fee_assessment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "adjustment_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "adjustment_type = ANY (ARRAY['waiver'::text, 'charge'::text, 'refund'::text, 'reversal'::text, 'correction'::text, 'other'::text])"
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount > 0::numeric"
+        },
+        {
+          "name": "reason",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "length(TRIM(BOTH FROM reason)) >= 1 AND length(TRIM(BOTH FROM reason)) <= 500"
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'pending'::text",
+          "check": "status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'reversed'::text])"
+        },
+        {
+          "name": "source_adjustment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "approved_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "approved_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "financial_adjustments_assessment_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "fee_assessment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_fee_assessments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_year_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_school_id_fkey",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_source_adjustment_id_fkey",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "source_adjustment_id"
+          ],
+          "target_table": "public.financial_adjustments",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "financial_adjustments_student_fk",
+          "source_table": "public.financial_adjustments",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.rollover_batches",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "source_academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_academic_year_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'draft'::text",
+          "check": "status = ANY (ARRAY['draft'::text, 'reviewed'::text, 'approved'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])"
+        },
+        {
+          "name": "preview",
+          "data_type": "jsonb",
+          "format": "jsonb",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'{}'::jsonb"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "updated_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "approved_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "approved_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "completed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "error_summary",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "rollover_items_batch_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "batch_id",
+            "school_id"
+          ],
+          "target_table": "public.rollover_batches",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_batches_school_id_fkey",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_source_year_fk",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "source_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_target_year_fk",
+          "source_table": "public.rollover_batches",
+          "source_columns": [
+            "target_academic_year_id",
+            "school_id"
+          ],
+          "target_table": "public.academic_years",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "opening_balances_rollover_batch_school_fk",
+          "source_table": "public.student_opening_balances",
+          "source_columns": [
+            "rollover_batch_id",
+            "school_id"
+          ],
+          "target_table": "public.rollover_batches",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.rollover_items",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "batch_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "student_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "source_enrollment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_enrollment_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "decision",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "decision = ANY (ARRAY['promote'::text, 'repeat'::text, 'graduate'::text, 'transfer'::text, 'exclude'::text])"
+        },
+        {
+          "name": "source_class_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "target_class_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "source_balance",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "0",
+          "check": "source_balance >= 0::numeric"
+        },
+        {
+          "name": "opening_balance_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "reviewed",
+          "data_type": "boolean",
+          "format": "bool",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "false"
+        },
+        {
+          "name": "reviewed_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "reviewed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "rollover_items_student_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "student_id",
+            "school_id"
+          ],
+          "target_table": "public.students",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_items_target_enrollment_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "target_enrollment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_enrollments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "rollover_items_source_class_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "source_class_id",
+            "school_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_items_target_class_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "target_class_id",
+            "school_id"
+          ],
+          "target_table": "public.classes",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_items_opening_balance_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "opening_balance_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_opening_balances",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        },
+        {
+          "name": "rollover_items_school_id_fkey",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "rollover_items_batch_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "batch_id",
+            "school_id"
+          ],
+          "target_table": "public.rollover_batches",
+          "target_columns": [
+            "id",
+            "school_id"
+          ]
+        },
+        {
+          "name": "rollover_items_source_enrollment_fk",
+          "source_table": "public.rollover_items",
+          "source_columns": [
+            "source_enrollment_id",
+            "school_id",
+            "student_id"
+          ],
+          "target_table": "public.student_enrollments",
+          "target_columns": [
+            "id",
+            "school_id",
+            "student_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.payroll_periods",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "starts_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "ends_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "status",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'open'::text",
+          "check": "status = ANY (ARRAY['open'::text, 'closed'::text])"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        },
+        {
+          "name": "closed_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "closed_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "payroll_periods_school_id_fkey",
+          "source_table": "public.payroll_periods",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.salary_assignments",
+      "rls_enabled": true,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "gen_random_uuid()"
+        },
+        {
+          "name": "school_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "payee_type",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "check": "payee_type = ANY (ARRAY['teacher'::text, 'staff'::text])"
+        },
+        {
+          "name": "payee_id",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "amount",
+          "data_type": "numeric",
+          "format": "numeric",
+          "options": [
+            "updatable"
+          ],
+          "check": "amount >= 0::numeric"
+        },
+        {
+          "name": "currency",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "'LYD'::text"
+        },
+        {
+          "name": "starts_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "updatable"
+          ]
+        },
+        {
+          "name": "ends_on",
+          "data_type": "date",
+          "format": "date",
+          "options": [
+            "nullable",
+            "updatable"
+          ]
+        },
+        {
+          "name": "note",
+          "data_type": "text",
+          "format": "text",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "''::text"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp with time zone",
+          "format": "timestamptz",
+          "options": [
+            "updatable"
+          ],
+          "default_value": "now()"
+        },
+        {
+          "name": "created_by",
+          "data_type": "uuid",
+          "format": "uuid",
+          "options": [
+            "nullable",
+            "updatable"
+          ],
+          "default_value": "auth.uid()"
+        }
+      ],
+      "primary_keys": [
+        "id"
+      ],
+      "foreign_key_constraints": [
+        {
+          "name": "salary_assignments_school_id_fkey",
+          "source_table": "public.salary_assignments",
+          "source_columns": [
+            "school_id"
+          ],
+          "target_table": "public.schools",
+          "target_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Current-state catalog metadata, not historical migration source.",
+    "Contains table columns, defaults, check metadata, primary keys, foreign-key relationships, and RLS enabled flags.",
+    "Does not contain full view/function definitions, triggers, indexes, complete ACL grants, or object ownership.",
+    "No production writes or migrations were executed."
+  ]
+}
