@@ -162,9 +162,10 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                 StatefulBuilder(
                   builder: (ctx, setChoice) => RadioGroup<String>(
                     groupValue: licenseMode,
-                    onChanged: creating
-                        ? null
-                        : (v) => setChoice(() => licenseMode = v!),
+                    onChanged: (v) {
+                      if (creating || v == null) return;
+                      setChoice(() => licenseMode = v);
+                    },
                     child: Column(
                       children: [
                         RadioListTile<String>(
