@@ -87,7 +87,7 @@ jobs:
             echo "::warning::No SQL integration test harness exists yet. PostgreSQL started successfully, but application migrations were NOT executed because the project schema and Supabase auth dependencies must be provisioned safely first."
           fi
 
-      - name: Require complete migration history and Supabase test bootstrap
+      - name: Report migration-chain blockers and require complete mapping
         if: always()
         shell: bash
         run: |
@@ -100,23 +100,34 @@ jobs:
             if [ ! -f "$path" ]; then missing+=("$path"); fi
           done
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED. Missing required artifacts:"
+            echo "::error::Missing required clean-chain artifacts:"
             printf ' - %s\n' "${missing[@]}"
-            echo "The repository currently contains incremental migrations without a reproducible clean-schema baseline and production-version mapping. The PostgreSQL arithmetic/source tests above do not count as a full migration-chain pass."
-            exit 1
           fi
-          python3 - <<'PY'
+          unresolved=999999
+          missing_map_files=999999
+          if [ -f supabase/migration_history_map.csv ]; then
+            read -r unresolved missing_map_files < <(python3 - <<'PY'
           import csv
           from pathlib import Path
           with Path("supabase/migration_history_map.csv").open(newline="", encoding="utf-8") as stream:
               rows = list(csv.DictReader(stream))
-          if not rows or not {"production_version", "repository_file", "status"}.issubset(rows[0]):
+          required = {"production_version", "repository_file", "status"}
+          if not rows or not required.issubset(rows[0]):
               raise SystemExit("Migration map must define production_version, repository_file, status")
           unresolved = [row for row in rows if row["status"].strip().lower() != "mapped"]
           missing_files = [row["repository_file"] for row in rows if row["repository_file"] and not Path(row["repository_file"]).is_file()]
-          if unresolved or missing_files:
-              raise SystemExit(f"Migration history has {len(unresolved)} unresolved mappings and {len(missing_files)} missing files")
+          print(len(unresolved), len(missing_files))
           PY
+            )
+          else
+            echo "::error::Migration history map is absent."
+          fi
+          echo "Unresolved production/repository migration mappings: $unresolved"
+          echo "Mapped repository files missing from the worktree: $missing_map_files"
+          if [ "${#missing[@]}" -gt 0 ] || [ "$unresolved" -gt 0 ] || [ "$missing_map_files" -gt 0 ]; then
+            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED. SQL parser and financial source fixtures are not a clean-schema migration pass. Recover and map the actual migration source before enabling execution."
+            exit 1
+          fi
           psql -v ON_ERROR_STOP=1 -f test/sql/supabase_test_bootstrap.sql
           while IFS= read -r migration; do
             echo "Applying $migration"
