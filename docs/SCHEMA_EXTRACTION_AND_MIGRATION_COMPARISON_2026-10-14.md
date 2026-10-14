@@ -17,7 +17,7 @@ Additional read-only catalog queries succeeded for:
 - 46 routine signatures across `public/private`
 - 74 production migration history entries
 
-The live catalog can also return individual function definitions through `pg_get_functiondef`; however, a combined bulk export/write attempt was blocked by security checks. Therefore, **a complete routine-body dump is not claimed or committed in this report**. Function body extraction needs to be completed in smaller reviewed batches or through a trusted schema-only dump tool.
+The routine definitions were subsequently extracted in two reviewed batches and committed as `docs/reference_public_routine_definitions_2026-10-14.sql` (39 public routines) and `docs/reference_private_routine_definitions_2026-10-14.sql` (7 private routines). These are current-state definitions, not historical migration sources. View-definition export is still not committed because the attempted file write was blocked by security checks.
 
 ## Migration-history comparison
 
@@ -44,8 +44,8 @@ These are findings for review only. No production ACL, RLS, function, Auth, or s
 
 ## What remains incomplete
 
-1. Full function bodies are not included in the committed snapshot.
-2. Complete grants, role memberships, object ownership, and effective ACLs have not yet been exported.
+1. View definitions are not committed as a separate artifact; their write attempt was blocked by security checks.
+2. Table grants are saved only as a grouped summary. Complete function EXECUTE grants, role memberships, object ownership, and effective ACLs have not yet been exported.
 3. No isolated empty PostgreSQL/Supabase database replay was executed; this environment has no local `psql`, `postgres`, Docker, or Flutter CLI.
 4. Historical chain replay remains blocked by the missing original files and unresolved migration map.
 5. Backup/restore and school-isolation tests have not been passed by this work.
