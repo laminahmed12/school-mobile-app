@@ -16,7 +16,7 @@
 A row-by-row companion CSV was generated from the existing `supabase/migration_history_map.csv`; the original map and its statuses were not changed.
 - Rows in scope: 93
 - Production entries with no exact candidate in the inspected refs/searches: 68; classified `missing_from_examined_refs`, not proven globally deleted.
-- Similar-name candidates with differing version: 25; classified `needs_additional_evidence`; content equivalence remains unproven.
+- Similar-name candidates with differing version: 6; classified `needs_additional_evidence`; content equivalence remains unproven.
 - Repository-only candidates without an exact production ledger mapping: 19; classified `needs_additional_evidence`.
 - Proven exact matches: 0.
 - Proven content-difference pairs: 0, because no source pair was established for the missing entries.
@@ -27,7 +27,7 @@ See `docs/MIGRATION_MAPPING_AUDIT_93_2026-10-14.csv`.
 ## 3. Schema-only inspection result
 A read-only PostgreSQL catalog query was used to extract table metadata (table names, column counts, RLS/force-RLS flags, policy/constraint/index counts). It does not query student, parent, staff, payment, or other application records. The database reports PostgreSQL 17.x (project metadata previously observed as 17.6.1.166).
 - Catalog inventory in prior verified pass: 40 public base tables, 3 public views, 99 public RLS policies.
-- The catalog-derived table inventory CSV is included when the returned catalog payload is complete; it is a structural inventory, **not** a `pg_dump --schema-only` archive and not a substitute for migration history.
+- A table-name/RLS inventory CSV is included. It is a structural inventory, **not** a `pg_dump --schema-only` archive and not a substitute for migration history.
 - All inspected public views are marked `security_invoker=true`.
 - The `student_finance` view joins `payments` on `student_id` alone, unlike the other reviewed finance views which also constrain school scope. This is a query-scope inconsistency requiring a controlled test and comparison against intended source; no production change was made.
 - `license_codes`, `login_attempts`, and `owner_gate_attempts` have RLS enabled and zero policies; catalog privileges show neither `anon` nor `authenticated` has SELECT/INSERT on these tables. This indicates default deny for those roles under current direct table grants, but does not evaluate service-role/backend paths.
