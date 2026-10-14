@@ -95,6 +95,10 @@ checks = {
     "payment query scopes active year to current school": ".eq('school_id', schoolId)" in financial_payments and ".eq('active', true)" in financial_payments,
     "academic year list is scoped to current school": ".eq('school_id', schoolId)" in academic_year_list,
     "class list is scoped to current school": ".eq('school_id', schoolId)" in class_list,
+    "student list query explicitly scopes tenant": ".eq('school_id', schoolId)" in repository[repository.index(" Future<List<Student>> students()"):repository.index(" Future<Map<String, dynamic>?> parent(")],
+    "fee and payment rows explicitly scope tenant": ".eq('school_id', schoolId)" in financial_fees and ".eq('school_id', schoolId)" in financial_payments,
+    "UI sends a stable idempotency key for student payment retries": "idempotencyKey: idempotencyKey" in Path("lib/main.dart").read_text(encoding="utf-8")
+        and "_paymentIdempotencyKey(signature, s.id)" in Path("lib/main.dart").read_text(encoding="utf-8"),
 }
 
 backup = Path("supabase/migrations/20261014080000_complete_financial_backup_restore.sql").read_text(encoding="utf-8")
