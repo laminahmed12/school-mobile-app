@@ -1202,7 +1202,7 @@ class _StudentsViewState extends State<StudentsView> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: term,
+                    initialValue: term,
                     decoration: const InputDecoration(
                       labelText: 'الفصل الدراسي',
                     ),
@@ -1613,7 +1613,7 @@ class FinanceView extends StatelessWidget {
               children: [
                 if (assessments.isNotEmpty)
                   DropdownButtonFormField<String?>(
-                    value: selectedFeeId,
+                    initialValue: selectedFeeId,
                     decoration: const InputDecoration(
                       labelText: 'تخصيص الدفعة للفصل',
                     ),
@@ -2182,7 +2182,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: studentId,
+                        initialValue: studentId,
                         decoration: const InputDecoration(labelText: 'الطالب'),
                         items: widget.students
                             .map(
@@ -2202,7 +2202,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String?>(
-                        value: yearId,
+                        initialValue: yearId,
                         decoration: const InputDecoration(
                           labelText: 'السنة الدراسية',
                         ),
@@ -2230,7 +2230,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
-                        value: term,
+                        initialValue: term,
                         decoration: const InputDecoration(
                           labelText: 'الفصل الدراسي',
                         ),
@@ -2414,7 +2414,7 @@ class _UserManagementViewState extends State<UserManagementView> {
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
-                        value: role,
+                        initialValue: role,
                         decoration: const InputDecoration(
                           labelText: 'الدور والصلاحيات',
                         ),
