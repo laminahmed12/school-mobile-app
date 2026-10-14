@@ -1,0 +1,619 @@
+{
+  "captured_at_utc": "2026-10-14T16:53:36Z",
+  "project_ref": "stbrhcgzfxvpayfnnqfl",
+  "source": "information_schema.triggers read-only",
+  "triggers": [
+    {
+      "trigger_schema": "public",
+      "event_object_table": "attendance",
+      "trigger_name": "trg_audit_attendance",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "attendance",
+      "trigger_name": "trg_audit_attendance",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "discount_rules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "discount_rules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "discount_rules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "discount_rules",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "expenses",
+      "trigger_name": "trg_audit_expenses",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "expenses",
+      "trigger_name": "trg_audit_expenses",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "expenses",
+      "trigger_name": "trg_audit_expenses",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "fee_schedules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "fee_schedules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "fee_schedules",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "fee_schedules",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "financial_adjustments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "financial_adjustments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "financial_adjustments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "financial_adjustments",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payment_allocations",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payment_allocations",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payment_allocations",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payment_allocations",
+      "trigger_name": "lamin_validate_payment_allocation",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_validate_payment_allocation()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payment_allocations",
+      "trigger_name": "lamin_validate_payment_allocation",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_validate_payment_allocation()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "trg_audit_payments",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "trg_audit_payments",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payments",
+      "trigger_name": "trg_check_payment",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.check_payment()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payroll_transactions",
+      "trigger_name": "payroll_transaction_validate_recipient",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.validate_payroll_transaction()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "payroll_transactions",
+      "trigger_name": "payroll_transaction_validate_recipient",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.validate_payroll_transaction()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_guard_rollover_year_state",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_guard_rollover_year_state()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_guard_rollover_year_state",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_guard_rollover_year_state()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_batches",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_items",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_items",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "rollover_items",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "schools",
+      "trigger_name": "schools_normalize_code",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION normalize_school_code()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "schools",
+      "trigger_name": "schools_normalize_code",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION normalize_school_code()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_sync_award_discount",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_sync_award_discount()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_sync_award_discount",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_sync_award_discount()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_sync_award_discount",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_sync_award_discount()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_validate_discount_award",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_validate_discount_award()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_discount_awards",
+      "trigger_name": "lamin_validate_discount_award",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_validate_discount_award()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fee_assessments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fee_assessments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fee_assessments",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fee_assessments",
+      "trigger_name": "lamin_capture_manual_discount",
+      "event_manipulation": "INSERT",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_capture_manual_discount()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fee_assessments",
+      "trigger_name": "lamin_capture_manual_discount",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_capture_manual_discount()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fees",
+      "trigger_name": "trg_audit_fees",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fees",
+      "trigger_name": "trg_audit_fees",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_fees",
+      "trigger_name": "trg_check_fee",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.check_fee()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_opening_balances",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_opening_balances",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_opening_balances",
+      "trigger_name": "lamin_audit_row",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_write_audit_event()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "student_opening_balances",
+      "trigger_name": "lamin_updated_at",
+      "event_manipulation": "UPDATE",
+      "action_timing": "BEFORE",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION lamin_set_updated_at()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "students",
+      "trigger_name": "trg_audit_students",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "students",
+      "trigger_name": "trg_audit_students",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "students",
+      "trigger_name": "trg_audit_students",
+      "event_manipulation": "UPDATE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "teachers",
+      "trigger_name": "trg_audit_teachers",
+      "event_manipulation": "DELETE",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    },
+    {
+      "trigger_schema": "public",
+      "event_object_table": "teachers",
+      "trigger_name": "trg_audit_teachers",
+      "event_manipulation": "INSERT",
+      "action_timing": "AFTER",
+      "action_orientation": "ROW",
+      "action_statement": "EXECUTE FUNCTION private.audit()"
+    }
+  ]
+}
