@@ -76,9 +76,9 @@ jobs:
           
           class MainActivity : FlutterFragmentActivity()
           EOF
-      - run: rm -f test/widget_test.dart
       - run: flutter pub get
-      - run: dart format lib
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Run automated tests
         run: flutter test
