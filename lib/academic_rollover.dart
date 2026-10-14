@@ -33,10 +33,14 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
       students = (await db.from('students').select('id,name,class_name,phone').order('name') as List)
           .map((e) => Map<String, dynamic>.from(e)).toList();
       final active = years.where((y) => y['active'] == true && y['is_closed'] != true).toList();
-      if (sourceYear == null && active.isNotEmpty) sourceYear = active.first['id'].toString();
-      if (targetYear == null) {
-        final targets = years.where((y) => y['active'] != true && y['is_closed'] != true).toList();
-        if (targets.isNotEmpty) targetYear = targets.first['id'].toString();
+      final targets = years.where((y) => y['active'] != true && y['is_closed'] != true).toList();
+      // Keep dropdown selections valid after a rollover closes the source year
+      // and activates the target year; otherwise Flutter can assert on stale values.
+      if (sourceYear == null || !active.any((y) => y['id'].toString() == sourceYear)) {
+        sourceYear = active.isNotEmpty ? active.first['id'].toString() : null;
+      }
+      if (targetYear == null || !targets.any((y) => y['id'].toString() == targetYear)) {
+        targetYear = targets.isNotEmpty ? targets.first['id'].toString() : null;
       }
     } catch (e) {
       _message('تعذر تحميل بيانات الترحيل. تحقق من اتصال المدرسة وصلاحيات المدير.');
