@@ -1,0 +1,102 @@
+name: Lamin PostgreSQL Migration Tests
+
+on:
+  push:
+    branches:
+      - work/lamin-release-readiness-20261014
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-migrations:
+    name: Validate migrations on disposable PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lamin_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lamin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: lamin_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify PostgreSQL service
+        run: psql -v ON_ERROR_STOP=1 -c 'select version();'
+      - name: Parse SQL migration syntax
+        run: |
+          python3 -m pip install --user pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          if not files:
+              raise SystemExit("No SQL migrations found")
+          for path in files:
+              try:
+                  parse_sql(path.read_text(encoding="utf-8"))
+              except Exception as exc:
+                  raise SystemExit(f"SQL parse failed in {path}: {exc}")
+          print(f"PostgreSQL parser accepted {len(files)} migration files")
+          PY
+      - name: Check migration files are non-empty and ordered
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print -quit)"
+          python3 - <<'PY'
+          from pathlib import Path
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          names = [p.name for p in files]
+          if len(names) != len(set(names)):
+              raise SystemExit("Duplicate migration filenames")
+          for p in files:
+              data = p.read_text(encoding="utf-8").strip()
+              if not data:
+                  raise SystemExit(f"Empty migration: {p}")
+          print(f"Static migration file checks passed for {len(files)} files")
+          PY
+      - name: Run isolated migration integration suite when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f test/sql/run_postgres_migration_tests.sh ]; then
+            bash test/sql/run_postgres_migration_tests.sh
+          else
+            echo "::warning::No SQL integration test harness exists yet. PostgreSQL started successfully, but application migrations were NOT executed because the project schema and Supabase auth dependencies must be provisioned safely first."
+          fi
+
+      - name: Require a complete bootstrap baseline before claiming clean-chain success
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/migrations/20260924214051_001_core_tables.sql ]; then
+            echo "::error::FULL MIGRATION CHAIN NOT EXECUTED: repository is missing the bootstrap migration 20260924214051_001_core_tables.sql recorded in the production migration history. Current SQL files are incremental and depend on pre-existing school tables. The disposable PostgreSQL arithmetic/source tests do not count as a clean-schema migration pass."
+            echo "Available migration files:"
+            find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort
+            exit 1
+          fi
+          echo "::error::Baseline file exists, but clean-chain execution must be enabled only after Supabase auth/private helper bootstrap is provided."
+          exit 1
