@@ -90,7 +90,7 @@ class _AcademicViewState extends State<AcademicView> {
                   child: ListTile(
                     title: Text(r.examName),
                     subtitle: Text(r.term + ' • ' + r.score.toStringAsFixed(1) + ' / ' + r.maxScore.toStringAsFixed(1)),
-                    trailing: Text((r.score / r.maxScore * 100).toStringAsFixed(0) + '%'),
+                    trailing: Text(((r.maxScore <= 0 ? 0.0 : r.score / r.maxScore * 100)).toStringAsFixed(0) + '%'),
                   ),
                 )),
                 if (selected!.phone.isNotEmpty)
