@@ -27,7 +27,7 @@ begin
   values (v_school, auth.uid(), v_name, lower(tg_op), tg_table_name,
           coalesce(v_row->>'id', v_row->>'student_id'), v_details);
   return null;
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION private.check_fee()
@@ -45,7 +45,7 @@ begin
     end if;
   end if;
   return new;
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION private.check_payment()
@@ -81,7 +81,7 @@ BEGIN
 
   RETURN NEW;
 END
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION private.my_role()
@@ -110,7 +110,7 @@ AS $function$
           )
       )
     )
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION private.my_school()
@@ -132,7 +132,7 @@ AS $function$
         AND s.trial_started_at + interval '1 month' > now()
       )
     )
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION private.restore_school_data(p jsonb)
@@ -151,7 +151,7 @@ begin
     n := n || jsonb_build_object(t, c);
   end loop;
   return n;
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION private.validate_payroll_transaction()
@@ -180,5 +180,5 @@ BEGIN
   END IF;
   RETURN NEW;
 END
-$function$
+$function$;
 
