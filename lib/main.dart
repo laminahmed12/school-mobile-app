@@ -727,6 +727,26 @@ class StudentsView extends StatefulWidget {
 
 class _StudentsViewState extends State<StudentsView> {
   String q = '';
+  final Map<String, String> _pendingPaymentKeys = {};
+
+  String _paymentSignature({
+    required String studentId,
+    required double amount,
+    required String note,
+    required String? feeAssessmentId,
+  }) => <String>[
+    studentId,
+    amount.toStringAsFixed(2),
+    feeAssessmentId ?? '',
+    note,
+  ].join('\u001f');
+
+  String _paymentIdempotencyKey(String signature, String studentId) {
+    return _pendingPaymentKeys.putIfAbsent(
+      signature,
+      () => 'pay_${studentId}_${DateTime.now().toUtc().microsecondsSinceEpoch}',
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final list = widget.students.where((s) => s.name.contains(q) || s.className.contains(q) || s.phone.contains(q)).toList();
@@ -976,14 +996,24 @@ class FinanceView extends StatelessWidget {
     if (result == null) return;
     final value = (result['amount'] as num).toDouble();
     final note = result['note']?.toString() ?? '';
+    final feeAssessmentId = result['fee_assessment_id']?.toString();
+    final signature = _paymentSignature(
+      studentId: s.id,
+      amount: value,
+      note: note,
+      feeAssessmentId: feeAssessmentId,
+    );
+    final idempotencyKey = _paymentIdempotencyKey(signature, s.id);
     try {
       await repo.addPayment(
         studentId: s.id,
         amount: value,
         note: note,
         term: result['term']?.toString() ?? 'غير محدد',
-        feeAssessmentId: result['fee_assessment_id']?.toString(),
+        feeAssessmentId: feeAssessmentId,
+        idempotencyKey: idempotencyKey,
       );
+      _pendingPaymentKeys.remove(signature);
       await onChanged();
     } catch (e) {
       if (context.mounted) {
