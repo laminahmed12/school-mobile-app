@@ -3,7 +3,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  actions: write
 jobs:
   upgrade:
     name: Upgrade isolated trusted baseline
@@ -37,7 +36,10 @@ jobs:
       - name: Record isolated PostgreSQL environment
         run: psql -v ON_ERROR_STOP=1 -c 'select version(), current_database();' | tee upgrade-environment.log
       - name: Require approved baseline and migration provenance
-        run: python3 scripts/db-tests/require-approved-source.py 2>&1 | tee upgrade-source-gate.log
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/db-tests/require-approved-source.py 2>&1 | tee upgrade-source-gate.log
       - name: Restore trusted baseline, apply later migrations, and verify invariants
         if: success()
         shell: bash
