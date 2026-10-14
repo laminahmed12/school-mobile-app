@@ -170,6 +170,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                       children: [
                         RadioListTile<String>(
                           contentPadding: EdgeInsets.zero,
+                          enabled: !creating,
                           value: 'trial',
                           title: const Text('فترة تجريبية لمدة شهر'),
                           subtitle: const Text(
@@ -178,6 +179,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                         ),
                         RadioListTile<String>(
                           contentPadding: EdgeInsets.zero,
+                          enabled: !creating,
                           value: 'permanent',
                           title: const Text('تفعيل دائم مباشرة'),
                           subtitle: const Text(
