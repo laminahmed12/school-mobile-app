@@ -584,9 +584,21 @@ class SchoolRepository {
     });
   }
 
-  Future<Map<String,dynamic>> exportBackup() async {
+  Future<Map<String, dynamic>> exportBackup() async {
+    // Owner backups must pass an explicit school id to the SECURITY DEFINER RPC.
+    // Admin backups remain scoped by the server-side private.my_school() check.
+    final p = await profile();
+    if (p?.role == 'owner') {
+      final schoolId = p?.schoolId;
+      if (schoolId == null || schoolId.isEmpty) {
+        throw Exception('تعذر تحديد المدرسة. افتح إعداد المدرسة ثم أعد محاولة النسخ الاحتياطي.');
+      }
+      final result = await db.rpc('export_backup', params: {'p_school': schoolId});
+      if (result is Map) return Map<String, dynamic>.from(result);
+      return {'payload': result};
+    }
     final result = await db.rpc('export_backup');
-    if (result is Map) return Map<String,dynamic>.from(result);
+    if (result is Map) return Map<String, dynamic>.from(result);
     return {'payload': result};
   }
 
