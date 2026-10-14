@@ -3,7 +3,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  actions: write
 jobs:
   clean-rebuild:
     name: Clean database rebuild
@@ -37,7 +36,10 @@ jobs:
       - name: Record isolated PostgreSQL environment
         run: psql -v ON_ERROR_STOP=1 -c 'select version(), current_database();' | tee clean-environment.log
       - name: Require approved complete migration provenance
-        run: python3 scripts/db-tests/require-approved-source.py 2>&1 | tee clean-source-gate.log
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/db-tests/require-approved-source.py 2>&1 | tee clean-source-gate.log
       - name: Apply approved bootstrap and full production migration chain
         if: success()
         shell: bash
