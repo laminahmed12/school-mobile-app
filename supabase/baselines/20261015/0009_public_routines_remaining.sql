@@ -17,7 +17,7 @@ begin
  update profiles set onedrive_access_granted=false,onedrive_permission_id=null,onedrive_revoked_at=now() where user_id=p_user_id and school_id=sid;
  insert into onedrive_access_audit(school_id,target_user_id,target_username,action,permission_id) values(sid,u.user_id,u.username,act,u.onedrive_permission_id);
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.save_attendance_day(p_date date, p_rows jsonb)
@@ -49,7 +49,7 @@ begin
     v_n := v_n + 1;
   end loop;
   return jsonb_build_object('saved', v_n);
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.save_report(p_student uuid, p_grades jsonb, p_absences integer, p_lates integer, p_discipline text, p_notes text)
@@ -115,7 +115,7 @@ begin
     end if;
   end loop;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.school_daily_summary(p_date date DEFAULT CURRENT_DATE)
@@ -130,7 +130,7 @@ select jsonb_build_object(
  'late',(select count(*) from public.attendance where school_id=private.my_school() and attendance_date=p_date and status='late'),
  'payments',(select coalesce(sum(amount),0) from public.payments where school_id=private.my_school() and created_at::date=p_date),
  'expenses',(select coalesce(sum(amount),0) from public.expenses where school_id=private.my_school() and created_at::date=p_date)
-); $function$
+); $function$;
 
 
 CREATE OR REPLACE FUNCTION public.set_student_promotion(p_student_id uuid, p_target_class_id uuid, p_status text DEFAULT 'active'::text)
@@ -151,7 +151,7 @@ begin
   on conflict(student_id,academic_year_id) do update set class_id=excluded.class_id,status=excluded.status;
   update students set current_academic_year_id=ay, active=(p_status not in ('graduated','withdrawn')) , status=p_status where id=p_student_id and school_id=sid;
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.update_school_settings(p_name text, p_currency text, p_country_code text)
@@ -164,7 +164,7 @@ begin
   if (select private.my_role()) is distinct from 'admin' then raise exception 'ليست لديك صلاحية لهذا الإجراء'; end if;
   update public.schools set name = btrim(p_name), currency = btrim(p_currency), country_code = p_country_code
   where id = (select private.my_school());
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.update_student(p_id uuid, p_name text, p_class text, p_phone text, p_fee numeric)
@@ -195,5 +195,5 @@ begin
   where student_id = p_id
     and school_id = v_school;
 end;
-$function$
+$function$;
 
