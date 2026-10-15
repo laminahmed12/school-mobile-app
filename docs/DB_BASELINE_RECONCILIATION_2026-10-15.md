@@ -2,6 +2,8 @@
 
 ## Scope and safety
 
+**Follow-up source-gap audit:** [Missing historical source register](MIGRATION_SOURCE_GAP_REGISTER_2026-10-15.csv), [full search and rebuild evidence](MIGRATION_SOURCE_GAP_AUDIT_2026-10-15.md), and [deterministic 93-row map validator](../scripts/validate_migration_history_map.py). These separate original-source absence from the catalog-derived baseline and preserve the no-production-write boundary.
+
 - Source project: Supabase project ref `stbrhcgzfxvpayfnnqfl` (`School-Management`), PostgreSQL 17.6.
 - Source access: read-only catalog queries. No production DDL/DML was executed and no school, student, user, attendance, or financial rows were exported.
 - The baseline is a **new catalog-derived schema candidate**, not a recovery of the missing historical `20260924214051_001_core_tables.sql`.
