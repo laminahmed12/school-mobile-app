@@ -32,6 +32,9 @@ require(sum(bool(r["repository_file"]) for r in rows) == 25,
 require(all(r["source_ref"].strip() and r["source_snapshot_commit"].strip()
             for r in rows if r["repository_file"]),
         "every recorded candidate source identifies a containing ref and snapshot commit")
+require(all(len(r["source_blob_sha"]) == 40 and all(c in "0123456789abcdef" for c in r["source_blob_sha"])
+            for r in rows if r["repository_file"]),
+        "every candidate source has a 40-character Git blob SHA fingerprint")
 require({r["production_version"] for r in rows
          if r["status"] == "historical_source_missing"} == {"20260924214051", "20260924214123"},
         "the two missing historical SQL sources are explicitly identified")
