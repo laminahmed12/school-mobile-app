@@ -159,7 +159,7 @@ jobs:
           {
             echo "# Lamīn database verification summary"
             echo
-            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Commit: $GITHUB_SHA"
             echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "- Production database/history modified: no"
             echo "- Historical migration replay proven: no; the two original historical SQL sources remain absent"
