@@ -11,11 +11,12 @@
 
 ## Search scope and exact evidence
 
-The exact path was checked against **21 reachable branch heads (20 non-main refs plus `main`)** and a branch-scoped GitHub commit-history query for each of the three paths. Each query returned **zero commits**. The default-branch path history queries also returned zero commits. Current branch-tree checks likewise found none of the three paths. Branches surfaced by the branch search index as `release/lamin-2.0.0-rc1`, `release/lamin-2.0.0-rc2`, and `release/lamin-2026-school-year` returned 404 from repository content/ref checks, so they were not counted as reachable, inspectable refs.
+The exact path was checked against **all 24 reachable branch heads (23 non-main refs plus `main`)** and a branch-scoped GitHub commit-history query for each of the three paths. All 72 branch/path queries returned **zero commits**; the default-branch path-history queries also returned zero commits. Recursive Git-tree checks at all 24 branch heads found none of the three paths. The repository returned no Git tags and no published GitHub releases. Pull-request changed-file inventories for PRs #1–#5 and #7 contained none of the three missing paths. Relevant baseline workflow artifacts were inspected: they contain verification summaries only; the Android workflow artifact is an APK, not SQL source. No original source was recovered.
 
 Reachable refs checked:
 
-- `lamin-hardening-20261012`
+- `audit/e8571a2-stability-point-20261014`
+- `build/apk-final`
 - `checkpoint/e8571a2-db-review-20261014`
 - `checkpoint/lamin-db-root-gate-20261014`
 - `checkpoint/lamin-last-verified-flutter-20261014`
@@ -29,13 +30,15 @@ Reachable refs checked:
 - `fix/lamin-db-recovery-20261014`
 - `fix/lamin-db-recovery-root-cause-20261014`
 - `fix/lamin-postgres-integration-20261014`
+- `lamin-hardening-20261012`
+- `main`
 - `plan/lamin-finance-rollover-hardening`
+- `release/lamin-2.0.0-rc1`
+- `release/lamin-2.0.0-rc2`
+- `release/lamin-2026-school-year`
+- `repair/lamin-migration-provenance-20261015`
 - `review/lamin-db-schema-baseline-20261015`
 - `work/lamin-release-readiness-20261014`
-- `audit/e8571a2-stability-point-20261014`
-- `build/apk-final`
-- `repair/lamin-migration-provenance-20261015`
-- `main` (also checked by default-branch path history)
 
 ### Required commit and branch inspection
 
@@ -53,7 +56,7 @@ The relevant schema/baseline workflow runs inspected for downloadable artifacts 
 - [Earlier baseline run 38650309583](https://github.com/laminahmed12/school-mobile-app/actions/runs/38650309583) — no artifacts.
 - [Earlier baseline run 38653455326](https://github.com/laminahmed12/school-mobile-app/actions/runs/38653455326) — no artifacts.
 - [Baseline acceptance run 38661102778](https://github.com/laminahmed12/school-mobile-app/actions/runs/38661102778) — no artifacts.
-- [Android candidate run 38661102782](https://github.com/laminahmed12/school-mobile-app/actions/runs/38661102782) has an artifact named `lamin-android-candidate-apk` (29,662,815 bytes); it is an APK, not SQL source, and was not used as migration evidence.
+- [Android candidate run 38664269296](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664269296) completed successfully and uploaded `lamin-android-candidate-apk` (29,662,798 bytes; SHA-256 `a4dd9fd12d4e97a915ef30c92e3709162d1b3bef833d0f50d2bb7b3bf9cc5fe5`). It is an APK, not SQL source, and was not used as migration evidence. This remains a validation candidate, not a final release.
 
 ## Explicitly separate replacement baseline
 
