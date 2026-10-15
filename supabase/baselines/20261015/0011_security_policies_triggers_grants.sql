@@ -297,6 +297,11 @@ GRANT USAGE ON SCHEMA public TO service_role;
 
 -- Explicit table, view, and sequence privileges.
 
+-- Supabase projects can apply broader default table ACLs at CREATE TABLE time.
+-- Reset anon/authenticated table ACLs, then replay the catalog-derived grants below,
+-- so a fresh Supabase project matches the captured reference rather than inheriting extras.
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+
 GRANT DELETE, INSERT, MAINTAIN, SELECT, UPDATE ON TABLE public.academic_years TO authenticated;
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.academic_years TO service_role;
 GRANT DELETE, INSERT, MAINTAIN, SELECT, UPDATE ON TABLE public.attendance TO authenticated;
