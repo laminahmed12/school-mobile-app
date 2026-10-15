@@ -184,7 +184,7 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                           value: 'permanent',
                           title: const Text('تفعيل دائم مباشرة'),
                           subtitle: const Text(
-                            'تُنشأ مدرسة بترخيص دائم دون انتظار انتهاء التجربة',
+                            'تُنشأ المدرسة بترخيص دائم دون انتظار انتهاء التجربة',
                           ),
                         ),
                       ],
