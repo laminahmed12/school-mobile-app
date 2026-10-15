@@ -29,9 +29,9 @@ require(all(r.get("evidence", "").strip() and r.get("evidence_url", "").strip() 
         "every migration row has evidence text and an evidence URL")
 require(sum(bool(r["repository_file"]) for r in rows) == 25,
         "25 candidate source files are recorded")
-require(all(r["source_ref"].strip() and r["source_commit"].strip()
+require(all(r["source_ref"].strip() and r["source_snapshot_commit"].strip()
             for r in rows if r["repository_file"]),
-        "every recorded candidate source identifies a containing ref and commit snapshot")
+        "every recorded candidate source identifies a containing ref and snapshot commit")
 require({r["production_version"] for r in rows
          if r["status"] == "historical_source_missing"} == {"20260924214051", "20260924214123"},
         "the two missing historical SQL sources are explicitly identified")
