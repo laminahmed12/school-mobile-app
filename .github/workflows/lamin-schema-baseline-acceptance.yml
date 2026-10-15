@@ -4,6 +4,7 @@ on:
     branches:
       - experiment/lamin-db-schema-baseline-20261015
       - review/lamin-db-schema-baseline-20261015
+      - repair/lamin-migration-provenance-20261015
   pull_request:
     branches:
       - main
@@ -38,6 +39,9 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+      - name: Validate migration provenance inventory
+        id: map_validation
+        run: python3 scripts/validate_migration_history_map.py
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -46,13 +50,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
       - name: Verify disposable database is empty
+        id: empty_db
         run: |
           psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','v','m','f') AND n.nspname NOT LIKE 'pg_%';" | grep -x '0'
       - name: Create test-only Supabase auth stubs
+        id: test_bootstrap
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/test_bootstrap.sql
       - name: Test catalog routine normalizer
+        id: normalizer
         run: python tests/test_normalize_catalog_routine_dump.py
       - name: Validate catalog routine statement boundaries
+        id: routine_boundaries
         run: |
           python scripts/normalize_catalog_routine_dump.py --check \
             supabase/baselines/20261015/0002_private_routines.sql \
@@ -64,6 +72,7 @@ jobs:
             supabase/baselines/20261015/0008_public_routines_restore.sql \
             supabase/baselines/20261015/0009_public_routines_remaining.sql
       - name: Build schema from catalog-derived baseline
+        id: clean_build
         run: |
           set -euo pipefail
           for f in \
@@ -82,16 +91,21 @@ jobs:
             psql -v ON_ERROR_STOP=1 -f "$f"
           done
       - name: Compare generated schema to live reference fingerprint
+        id: clean_fingerprint
         run: |
           psql -X -v ON_ERROR_STOP=1 -At -f supabase/baselines/20261015/schema_fingerprint.sql > actual_schema_manifest.json
           diff -u supabase/baselines/20261015/reference_schema_manifest.json actual_schema_manifest.json
       - name: Apply verified repository deltas absent from live baseline
+        id: apply_reconciliation
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
+        id: acceptance_tests
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
       - name: Create separate existing-schema upgrade database
+        id: create_upgrade_db
         run: createdb lamin_upgrade_test
       - name: Build reference schema for upgrade-path test
+        id: upgrade_build
         run: |
           set -euo pipefail
           export PGDATABASE=lamin_upgrade_test
@@ -113,10 +127,64 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -At -f supabase/baselines/20261015/schema_fingerprint.sql > upgrade_before_manifest.json
           diff -u supabase/baselines/20261015/reference_schema_manifest.json upgrade_before_manifest.json
       - name: Seed existing rows before upgrade
+        id: upgrade_seed
         run: PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/upgrade_seed.sql
       - name: Apply selective schema upgrade
+        id: apply_upgrade
         run: PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Verify upgrade preserves data and target behavior
+        id: upgrade_validation
         run: |
           PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_upgrade.sql
           PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+
+      - name: Save database verification summary
+        if: always()
+        env:
+          MAP_VALIDATION: ${{ steps.map_validation.outcome }}
+          EMPTY_DATABASE: ${{ steps.empty_db.outcome }}
+          TEST_BOOTSTRAP: ${{ steps.test_bootstrap.outcome }}
+          ROUTINE_NORMALIZER: ${{ steps.normalizer.outcome }}
+          ROUTINE_BOUNDARIES: ${{ steps.routine_boundaries.outcome }}
+          CLEAN_BUILD: ${{ steps.clean_build.outcome }}
+          CLEAN_FINGERPRINT: ${{ steps.clean_fingerprint.outcome }}
+          RECONCILIATION: ${{ steps.apply_reconciliation.outcome }}
+          ACCEPTANCE_TESTS: ${{ steps.acceptance_tests.outcome }}
+          UPGRADE_BUILD: ${{ steps.upgrade_build.outcome }}
+          UPGRADE_SEED: ${{ steps.upgrade_seed.outcome }}
+          UPGRADE_PATCH: ${{ steps.apply_upgrade.outcome }}
+          UPGRADE_VALIDATION: ${{ steps.upgrade_validation.outcome }}
+        run: |
+          mkdir -p evidence
+          {
+            echo "# Lamīn database verification summary"
+            echo
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "- Production database/history modified: no"
+            echo "- Historical migration replay proven: no; the two original historical SQL sources remain absent"
+            echo
+            echo "| Check | Outcome |"
+            echo "|---|---|"
+            echo "| 93-row migration map evidence validator | ${MAP_VALIDATION:-not-run} |"
+            echo "| Empty disposable database gate | ${EMPTY_DATABASE:-not-run} |"
+            echo "| Test-only auth bootstrap | ${TEST_BOOTSTRAP:-not-run} |"
+            echo "| Routine normalizer tests | ${ROUTINE_NORMALIZER:-not-run} |"
+            echo "| Routine statement boundaries | ${ROUTINE_BOUNDARIES:-not-run} |"
+            echo "| Clean catalog-baseline build | ${CLEAN_BUILD:-not-run} |"
+            echo "| Clean schema fingerprint comparison | ${CLEAN_FINGERPRINT:-not-run} |"
+            echo "| Documented catalog drift reconciliation | ${RECONCILIATION:-not-run} |"
+            echo "| RLS, tenant, finance, backup, restore acceptance | ${ACCEPTANCE_TESTS:-not-run} |"
+            echo "| Separate upgrade-test schema build | ${UPGRADE_BUILD:-not-run} |"
+            echo "| Synthetic existing-row seed | ${UPGRADE_SEED:-not-run} |"
+            echo "| Stage 0012 upgrade patch | ${UPGRADE_PATCH:-not-run} |"
+            echo "| Data-preservation and post-upgrade checks | ${UPGRADE_VALIDATION:-not-run} |"
+          } | tee evidence/lamin-db-verification-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload database verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-db-verification-${{ github.run_id }}
+          path: evidence/lamin-db-verification-summary.md
+          if-no-files-found: warn
+          retention-days: 30
