@@ -56,6 +56,7 @@ The relevant schema/baseline workflow runs inspected for downloadable artifacts 
 - [Earlier baseline run 38650309583](https://github.com/laminahmed12/school-mobile-app/actions/runs/38650309583) — no artifacts.
 - [Earlier baseline run 38653455326](https://github.com/laminahmed12/school-mobile-app/actions/runs/38653455326) — no artifacts.
 - [Baseline acceptance run 38661102778](https://github.com/laminahmed12/school-mobile-app/actions/runs/38661102778) — no artifacts.
+- [Latest provenance-map and database acceptance run 38671193649](https://github.com/laminahmed12/school-mobile-app/actions/runs/38671193649) — success on commit `a82bac66389fdbb9219a6c4c49b2c8fabbd2236f`; map validator, clean build, fingerprint, RLS/tenant/finance/backup/restore, and separate synthetic upgrade checks all passed. Artifact `11943613181` is a 701-byte verification summary only, not SQL source.
 - [Android candidate run 38664269296](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664269296) completed successfully and uploaded `lamin-android-candidate-apk` (29,662,798 bytes; SHA-256 `a4dd9fd12d4e97a915ef30c92e3709162d1b3bef833d0f50d2bb7b3bf9cc5fe5`). It is an APK, not SQL source, and was not used as migration evidence. This remains a validation candidate, not a final release.
 
 ## Explicitly separate replacement baseline
