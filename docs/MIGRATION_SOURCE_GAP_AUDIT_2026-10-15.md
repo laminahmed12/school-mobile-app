@@ -39,7 +39,7 @@ Reachable refs checked:
 
 ### Required commit and branch inspection
 
-- [Commit `e8571a2`](https://github.com/laminahmed12/school-mobile-app/commit/e8571a27938f583225915e7a9ba531b8a9e179d7) changed exactly one file: `supabase/migrations/20261014070000_include_fee_assessments_in_backup.sql`. It did not contain either historical SQL source or the missing test bootstrap.
+- [Commit `e8571a2`](https://github.com/laminahmed12/school-mobile-app/commit/e8571a27938f583225915e7a9ba531b8a9e179d7) changed exactly one file: `supabase/migrations/20261014070000_include_fee_assessments_in_backup.sql` (verified Git blob SHA `d69dc43519957f78170b694031ed882e7fdd876f`). It did not contain either historical SQL source or the missing test bootstrap.
 - [`fix/lamin-db-recovery-root-cause-20261014`](https://github.com/laminahmed12/school-mobile-app/tree/fix/lamin-db-recovery-root-cause-20261014) head: `5dab15059a680db013f650049d2e64e1bf415c6e`. The root-gate checkpoint points to the same head. Neither missing historical SQL path nor the old test bootstrap is in that branch tree or its path-specific history.
 - [`checkpoint/lamin-source-checkpoint-20261014`](https://github.com/laminahmed12/school-mobile-app/tree/checkpoint/lamin-source-checkpoint-20261014) head: `ae8936c06b6308ab8bbb93975fab2f2439efd8e3`. The three missing paths are absent there too.
 - The prior 20-file archived migration search was **not repeated**, per task scope. No archived migration candidates were moved into `supabase/migrations/`.
