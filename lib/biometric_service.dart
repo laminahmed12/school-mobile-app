@@ -82,7 +82,8 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
     }
     setState(() {
       loading = false;
-      message = 'تعذر التحقق بالبصمة. استخدم كلمة المرور من شاشة الدخول إذا لزم الأمر.';
+      message =
+          'تعذر التحقق بالبصمة. استخدم كلمة المرور من شاشة الدخول إذا لزم الأمر.';
     });
   }
 
@@ -102,12 +103,22 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
                   color: const Color(0xFF155D4A),
                   borderRadius: BorderRadius.circular(30),
                 ),
-                child: const Icon(Icons.fingerprint, color: Colors.white, size: 62),
+                child: const Icon(
+                  Icons.fingerprint,
+                  color: Colors.white,
+                  size: 62,
+                ),
               ),
               const SizedBox(height: 24),
-              const Text('لامين', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+              const Text(
+                'لامين',
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 8),
-              const Text('الدخول الآمن بالبصمة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Text(
+                'الدخول الآمن بالبصمة',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 10),
               const Text(
                 'ضع إصبعك على مستشعر البصمة لفتح التطبيق.',
@@ -115,7 +126,11 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
               ),
               if (message != null) ...[
                 const SizedBox(height: 16),
-                Text(message!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                Text(
+                  message!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ],
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -141,7 +156,6 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
     ),
   );
 }
-
 
 class DeviceSecurityService {
   final LaminBiometricService _inner = LaminBiometricService();

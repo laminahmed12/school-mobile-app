@@ -7,7 +7,8 @@ class AcademicView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
   const AcademicView({super.key, required this.repo, required this.students});
-  @override State<AcademicView> createState() => _AcademicViewState();
+  @override
+  State<AcademicView> createState() => _AcademicViewState();
 }
 
 class _AcademicViewState extends State<AcademicView> {
@@ -17,7 +18,10 @@ class _AcademicViewState extends State<AcademicView> {
   bool loading = false;
 
   Future<void> openStudent(Student s) async {
-    setState(() { selected = s; loading = true; });
+    setState(() {
+      selected = s;
+      loading = true;
+    });
     subjects = await widget.repo.subjects();
     results = await widget.repo.results(s.id);
     if (mounted) setState(() => loading = false);
@@ -33,15 +37,17 @@ class _AcademicViewState extends State<AcademicView> {
           children: [
             const Text('اختر الطالب لإدخال الدرجات ومراجعة نتيجته.'),
             const SizedBox(height: 10),
-            ...widget.students.map((s) => Card(
-              child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(s.name),
-                subtitle: Text(s.className),
-                trailing: const Icon(Icons.chevron_left),
-                onTap: () => openStudent(s),
+            ...widget.students.map(
+              (s) => Card(
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(s.name),
+                  subtitle: Text(s.className),
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () => openStudent(s),
+                ),
               ),
-            )),
+            ),
           ],
         ),
       );
@@ -69,7 +75,10 @@ class _AcademicViewState extends State<AcademicView> {
                     title: const Text('المعدل الحالي'),
                     trailing: Text(
                       percent.toStringAsFixed(1) + '%',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
@@ -83,22 +92,37 @@ class _AcademicViewState extends State<AcademicView> {
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(20),
-                      child: Text('لا توجد درجات مسجلة بعد.', textAlign: TextAlign.center),
+                      child: Text(
+                        'لا توجد درجات مسجلة بعد.',
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
-                ...results.map((r) => Card(
-                  child: ListTile(
-                    title: Text(r.examName),
-                    subtitle: Text(r.term + ' • ' + r.score.toStringAsFixed(1) + ' / ' + r.maxScore.toStringAsFixed(1)),
-                    trailing: Text(r.percentage.toStringAsFixed(0) + '%'),
+                ...results.map(
+                  (r) => Card(
+                    child: ListTile(
+                      title: Text(r.examName),
+                      subtitle: Text(
+                        r.term +
+                            ' • ' +
+                            r.score.toStringAsFixed(1) +
+                            ' / ' +
+                            r.maxScore.toStringAsFixed(1),
+                      ),
+                      trailing: Text(r.percentage.toStringAsFixed(0) + '%'),
+                    ),
                   ),
-                )),
+                ),
                 if (selected!.phone.isNotEmpty)
                   OutlinedButton.icon(
                     onPressed: () => openWhatsApp(
                       context,
                       selected!.phone,
-                      'السلام عليكم، هذه نتيجة الطالب ' + selected!.name + ': ' + percent.toStringAsFixed(1) + '٪.',
+                      'السلام عليكم، هذه نتيجة الطالب ' +
+                          selected!.name +
+                          ': ' +
+                          percent.toStringAsFixed(1) +
+                          '٪.',
                     ),
                     icon: const Icon(Icons.chat),
                     label: const Text('إرسال النتيجة عبر WhatsApp'),
@@ -124,35 +148,60 @@ class _AcademicViewState extends State<AcademicView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: exam, decoration: const InputDecoration(labelText: 'اسم الاختبار')),
-                TextField(controller: term, decoration: const InputDecoration(labelText: 'الفصل')),
+                TextField(
+                  controller: exam,
+                  decoration: const InputDecoration(labelText: 'اسم الاختبار'),
+                ),
+                TextField(
+                  controller: term,
+                  decoration: const InputDecoration(labelText: 'الفصل'),
+                ),
                 if (subjects.isNotEmpty)
                   DropdownButtonFormField<String>(
                     initialValue: subjectId,
                     decoration: const InputDecoration(labelText: 'المادة'),
-                    items: subjects.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
+                    items: subjects
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(s.name),
+                          ),
+                        )
+                        .toList(),
                     onChanged: (v) => setDialogState(() => subjectId = v),
                   ),
                 TextField(
                   controller: score,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(labelText: 'الدرجة'),
                 ),
                 TextField(
                   controller: max,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(labelText: 'من'),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
             FilledButton(
               onPressed: () async {
                 final sc = double.tryParse(score.text.replaceAll(',', '.'));
                 final mx = double.tryParse(max.text.replaceAll(',', '.'));
-                if (exam.text.trim().isEmpty || sc == null || mx == null || mx <= 0 || sc < 0 || sc > mx) {
+                if (exam.text.trim().isEmpty ||
+                    sc == null ||
+                    mx == null ||
+                    mx <= 0 ||
+                    sc < 0 ||
+                    sc > mx) {
                   return;
                 }
                 await widget.repo.addResult(
