@@ -89,6 +89,15 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Validate reconstructed bridge on a third disposable database
+        run: |
+          set -euo pipefail
+          createdb lamin_reconstructed_bridge_test
+          export PGDATABASE=lamin_reconstructed_bridge_test
+          psql -v ON_ERROR_STOP=1 -f test/sql/supabase_test_bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/reconstructed/20261016/001_schema_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/reconstructed/20261016/002_security_and_drift_snapshot.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
       - name: Create separate existing-schema upgrade database
         run: createdb lamin_upgrade_test
       - name: Build reference schema for upgrade-path test
