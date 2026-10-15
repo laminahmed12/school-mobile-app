@@ -11,7 +11,7 @@
 
 ## Search scope and exact evidence
 
-The exact path was checked against **17 reachable branch heads** and a branch-scoped GitHub commit-history query for each of the three paths. Each query returned **zero commits**. The default-branch path history queries also returned zero commits. Current branch-tree checks likewise found none of the three paths. Branches surfaced by the branch search index as `release/lamin-2.0.0-rc1`, `release/lamin-2.0.0-rc2`, and `release/lamin-2026-school-year` returned 404 from repository content/ref checks, so they were not counted as reachable, inspectable refs.
+The exact path was checked against **21 reachable branch heads (20 non-main refs plus `main`)** and a branch-scoped GitHub commit-history query for each of the three paths. Each query returned **zero commits**. The default-branch path history queries also returned zero commits. Current branch-tree checks likewise found none of the three paths. Branches surfaced by the branch search index as `release/lamin-2.0.0-rc1`, `release/lamin-2.0.0-rc2`, and `release/lamin-2026-school-year` returned 404 from repository content/ref checks, so they were not counted as reachable, inspectable refs.
 
 Reachable refs checked:
 
@@ -32,6 +32,10 @@ Reachable refs checked:
 - `plan/lamin-finance-rollover-hardening`
 - `review/lamin-db-schema-baseline-20261015`
 - `work/lamin-release-readiness-20261014`
+- `audit/e8571a2-stability-point-20261014`
+- `build/apk-final`
+- `repair/lamin-migration-provenance-20261015`
+- `main` (also checked by default-branch path history)
 
 ### Required commit and branch inspection
 
