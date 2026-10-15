@@ -56,16 +56,20 @@ This is a staging smoke test, not a production backup/restore rehearsal.
 - Android candidate build on the preceding reviewed commit: [run 38664269296](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664269296) — success; candidate artifact only, not a final release.
 - After the ACL normalization change, fresh baseline CI run [38677804002](https://github.com/laminahmed12/school-mobile-app/actions/runs/38677804002) completed successfully. Other checks for the ACL-fix commit were still running when this document was prepared; they must be checked again against the final documentation commit.
 
-## Security-advisor findings requiring explicit disposition
+## Security-advisor findings and production comparison
 
-The live staging security advisor reported:
-- 13 `SECURITY DEFINER` functions executable by `authenticated` (warnings);
-- 3 RLS-enabled tables without policies: `license_codes`, `login_attempts`, and `owner_gate_attempts`;
-- 5 tables/actions with multiple permissive policies, including the three new owner-teacher policies.
+Read-only Supabase advisors were run against both `School-Management` production and `Lamin-Test` staging after the baseline build.
 
-The performance advisor also reported one duplicate-index warning on `audit_log`; 70 indexes were reported unused in the freshly created, no-workload staging project, which is not sufficient evidence to drop them.
+| Finding | Production | Staging | Interpretation |
+|---|---:|---:|---|
+| `SECURITY DEFINER` functions executable by `authenticated` | 13 warnings | 13 warnings | Pre-existing in the production catalog; each function's authorization checks and intended exposure need security-owner review. |
+| RLS-enabled tables without policies | 3 | 3 | Same tables in both: `license_codes`, `login_attempts`, `owner_gate_attempts`. Confirm that service-role-only access is intentional. |
+| Multiple permissive policies | 2 warnings | 5 warnings | Three additional staging findings are the expected `teachers_owner_insert/update/delete` policies from stage 0012. Review policy overlap and access semantics. |
+| Duplicate index on `audit_log` | 1 warning | 1 warning | Same duplicate-index finding exists in production and staging. |
+| Unused indexes | 42 | 70 | Staging has no application workload; do not use this count as evidence to drop indexes. |
+| Auth leaked-password protection | 1 warning | Not reported | Production Auth configuration finding, outside the SQL baseline; it still needs separate disposition. |
 
-These findings mirror the catalog-derived application state or the accepted policy delta; they are not silently treated as resolved by a successful schema fingerprint. The 13 function grants and the three no-policy tables require a security-owner review before release approval.
+A successful schema fingerprint does not resolve these security findings. The 13 function grants, three no-policy tables, overlapping policies, duplicate index, and production Auth setting need an explicit review/disposition before release approval.
 
 ## Existing-schema upgrade and rollback limits
 
