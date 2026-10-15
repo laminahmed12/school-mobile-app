@@ -11,3 +11,8 @@ python scripts/normalize_catalog_routine_dump.py --write supabase/baselines/2026
 The normalizer only inserts a missing semicolon immediately after the outer dollar-quote delimiter. It does not rewrite the body or modify language, owner, grants, `SECURITY DEFINER`, `search_path`, or other routine attributes. Those attributes are captured separately in `0011_security_policies_triggers_grants.sql`.
 
 CI runs the same tool in check-only mode before applying the baseline. A malformed or unterminated outer dollar quote fails the check rather than silently deleting or replacing a routine.
+
+
+## Supabase ACL normalization
+
+A real Supabase test project exposed broader default table grants inherited at `CREATE TABLE` time: the initial fresh build had 333 extra relation ACL entries (208 for `anon`, 125 for `authenticated`) compared with the production catalog manifest. Stage `0011_security_policies_triggers_grants.sql` now explicitly revokes table privileges from those two roles before replaying the catalog-derived grants. After applying that correction to the isolated `Lamin-Test` project, the grants fingerprint matched exactly: 786 expected and 786 actual. This is a baseline reproducibility fix, not a production change.

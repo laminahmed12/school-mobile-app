@@ -70,6 +70,9 @@ Production has 74 migration-history rows. The current `main` branch and this rev
 
 ## Automated validation
 
+Real Supabase staging results, ACL normalization, transactional tenant/finance/backup checks, security-advisor findings, and remaining approval blockers are recorded in [Staging validation evidence](STAGING_VALIDATION_2026-10-15.md).
+
+
 Workflow: [Lamin schema baseline acceptance](https://github.com/laminahmed12/school-mobile-app/actions/runs/38650309583)
 
 At commit `9c9662c94d28cb8ed18a3400a24501766b7cd409`, GitHub Actions completed successfully with these observed results:
