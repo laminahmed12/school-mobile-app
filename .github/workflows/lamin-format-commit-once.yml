@@ -1,0 +1,42 @@
+name: One-time Lamin Dart formatting
+on:
+  push:
+    branches:
+      - review/lamin-db-schema-baseline-20261015
+permissions:
+  contents: write
+concurrency:
+  group: lamin-one-time-format-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  format-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          ref: review/lamin-db-schema-baseline-20261015
+          fetch-depth: 0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Format all Dart sources
+        run: dart format .
+      - name: Commit formatter output and remove one-time workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u -- '*.dart'
+          git rm .github/workflows/lamin-format-commit-once.yml
+          if git diff --cached --quiet; then
+            echo "No formatter changes to commit."
+            exit 0
+          fi
+          git commit -m "Format Dart sources with stable formatter"
+          git push origin HEAD:review/lamin-db-schema-baseline-20261015

@@ -748,7 +748,7 @@ class _StudentsViewState extends State<StudentsView> {
           TextField(controller: fee, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'قيمة الفصل الدراسي (د.ل)', helperText: 'اختياري — يمكن تعديلها من المالية')),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: term,
+            initialValue: term,
             decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
             items: const [
               DropdownMenuItem(value: 'الفصل الأول', child: Text('الفصل الأول')),
@@ -935,7 +935,7 @@ class FinanceView extends StatelessWidget {
           children: [
             if (assessments.isNotEmpty)
               DropdownButtonFormField<String?>(
-                value: selectedFeeId,
+                initialValue: selectedFeeId,
                 decoration: const InputDecoration(labelText: 'تخصيص الدفعة للفصل'),
                 items: assessments.map((a) => DropdownMenuItem<String?>(
                   value: a['id']?.toString(),
@@ -1239,14 +1239,14 @@ class _FeeManagementViewState extends State<FeeManagementView> {
         const Text('تحديد الرسوم حسب السنة والفصل', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: studentId,
+          initialValue: studentId,
           decoration: const InputDecoration(labelText: 'الطالب'),
           items: widget.students.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
           onChanged: saving ? null : (v) async { setState(() => studentId = v); await prefill(); if (mounted) setState(() {}); },
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String?>(
-          value: yearId,
+          initialValue: yearId,
           decoration: const InputDecoration(labelText: 'السنة الدراسية'),
           items: [
             const DropdownMenuItem<String?>(value: null, child: Text('غير محددة / لم تُنشأ سنة بعد')),
@@ -1256,7 +1256,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: term,
+          initialValue: term,
           decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
           items: const [
             DropdownMenuItem(value: 'الفصل الأول', child: Text('الفصل الأول')),
@@ -1333,7 +1333,7 @@ class _UserManagementViewState extends State<UserManagementView> {
             validator: (v) => v == null || v.trim().length < 2 || v.trim().length > 40 ? 'الاسم من 2 إلى 40 حرفاً' : null),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: role,
+            initialValue: role,
             decoration: const InputDecoration(labelText: 'الدور والصلاحيات'),
             items: const [
               DropdownMenuItem(value: 'admin', child: Text('مدير المدرسة')),

@@ -154,7 +154,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
             'تتم مراجعة كل طالب بشكل مستقل. تبقى السجلات القديمة محفوظة، ويُنقل الدين المستحق للسنة الجديدة دون تكراره.',
           ))),
           DropdownButtonFormField<String>(
-            value: sourceYear,
+            initialValue: sourceYear,
             decoration: const InputDecoration(labelText: 'السنة الحالية (المصدر)'),
             items: years.where((y) => y['active'] == true && y['is_closed'] != true)
                 .map((y) => DropdownMenuItem(value: y['id'].toString(), child: Text(y['name'].toString()))).toList(),
@@ -162,7 +162,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: targetYear,
+            initialValue: targetYear,
             decoration: const InputDecoration(labelText: 'السنة الجديدة (الهدف)'),
             items: years.where((y) => y['active'] != true && y['is_closed'] != true)
                 .map((y) => DropdownMenuItem(value: y['id'].toString(), child: Text(y['name'].toString()))).toList(),
@@ -192,7 +192,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                   const SizedBox(height: 4),
                   Text('الدين المرحّل: ${((item['source_balance'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} د.ل'),
                   DropdownButtonFormField<String>(
-                    value: decision,
+                    initialValue: decision,
                     decoration: const InputDecoration(labelText: 'النتيجة / القرار'),
                     items: const [
                       DropdownMenuItem(value: 'promote', child: Text('ناجح')),
@@ -204,7 +204,7 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
                     onChanged: busy ? null : (v) => setState(() { decisions[id] = v ?? 'exclude'; item['reviewed'] = false; }),
                   ),
                   if (needsClass) DropdownButtonFormField<String>(
-                    value: targetClassesList.any((c) => c['id'].toString() == targetClasses[id]) ? targetClasses[id] : null,
+                    initialValue: targetClassesList.any((c) => c['id'].toString() == targetClasses[id]) ? targetClasses[id] : null,
                     decoration: const InputDecoration(labelText: 'الصف في السنة الجديدة'),
                     items: targetClassesList.map((c) => DropdownMenuItem(
                       value: c['id'].toString(),
