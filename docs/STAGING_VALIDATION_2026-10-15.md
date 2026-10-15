@@ -49,12 +49,23 @@ A follow-up read confirmed that all test fixtures were rolled back: zero test sc
 
 This is a staging smoke test, not a production backup/restore rehearsal.
 
-## GitHub Actions
+## Final CI and current read-only verification
 
-- Dart/Flutter strict validation on the preceding reviewed commit: [run 38664264421](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664264421) — success.
-- PostgreSQL baseline acceptance on the preceding reviewed commit: [run 38664269396](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664269396) — success.
-- Android candidate build on the preceding reviewed commit: [run 38664269296](https://github.com/laminahmed12/school-mobile-app/actions/runs/38664269296) — success; candidate artifact only, not a final release.
-- After the ACL normalization change, fresh baseline CI run [38677804002](https://github.com/laminahmed12/school-mobile-app/actions/runs/38677804002) completed successfully. Other checks for the ACL-fix commit were still running when this document was prepared; they must be checked again against the final documentation commit.
+The reviewed PR head at the time of this verification is `4d2c27479740ae6641cb486a39e7cebbc9b2b04d`. All four associated checks completed successfully:
+
+- Dart/Flutter strict validation: [run 38678186344](https://github.com/laminahmed12/school-mobile-app/actions/runs/38678186344) — success.
+- Fresh-schema baseline acceptance on push: [run 38678186336](https://github.com/laminahmed12/school-mobile-app/actions/runs/38678186336) — success.
+- Fresh-schema and selective-upgrade acceptance on PR: [run 38678190527](https://github.com/laminahmed12/school-mobile-app/actions/runs/38678190527) — success.
+- Android validation/candidate build: [run 38678190528](https://github.com/laminahmed12/school-mobile-app/actions/runs/38678190528) — success; this is a candidate artifact, not a final release.
+
+A new read-only verification on 2026-10-15 confirmed:
+
+- `main` remains at `807da91475cc0f53827acb9940c62ca61c8f64d1`; PR #7 is open and unmerged at the reviewed head above.
+- Production `list_migrations` still reports 74 migration records. The isolated `Lamin-Test` project reports 13 test records: baseline stages 0001–0012 plus the staging-only ACL normalization check. This mismatch is expected for a fresh-baseline test and **does not prove compatibility with the production 74-entry history**.
+- Staging has 40 public tables, RLS enabled on all 40, 102 policies, 32 user triggers, 46 application routines, and 3 views.
+- A read-only staging check found zero remaining synthetic test schools, students, payments, or auth users after the rollback test.
+
+These are verified staging and CI results only. No production migration or data write was executed during this verification. The Android artifact remains a candidate only.
 
 ## Security-advisor findings and production comparison
 
