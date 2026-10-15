@@ -36,11 +36,11 @@ The ordered baseline is split into stages so dependency order is explicit:
 
 `schema_fingerprint.sql` and `reference_schema_manifest.json` define the metadata-only reference. A high-confidence secret-pattern scan found no credential/token patterns in the generated baseline SQL; no table data inserts are present in stages 0001, 0010, or 0011. Routine bodies are application code and include their ordinary INSERT statements, not copied data.
 
-## Review of all 25 repository migration files
+## Audit of migration filenames referenced by the prior review
 
-Production has 74 migration-history rows. **None of the 25 repository filenames has an exact version ID in the production history.** This does not mean all 25 effects are missing: most effects are represented by semantically corresponding production history entries under different version IDs and are visible in the current catalog. History names alone are not byte-for-byte proof of source equivalence, so the classifications below describe current-state effects, not exact historical SQL hashes.
+Production has 74 migration-history rows, but the current Git tree contains only five files under `supabase/migrations/`. A path-specific GitHub commit-history query returned no commits for the other 20 filenames listed below, including `20260924214051_001_core_tables.sql` and `20260924214123_002_rls_policies_rpcs.sql`. Therefore, those 20 entries are not verified repository source files and their authoritative SQL cannot be inspected or replayed from this repository's Git history. The table below is a catalog-effect comparison for 25 migration filenames referenced by the prior review; it is **not** proof that 25 source files are present in Git. For the five tracked files, source review is possible. For the other 20 entries, classifications are based on the production history labels and current catalog state, not a comparison against their original SQL. History names alone are not byte-for-byte proof of source equivalence.
 
-| Repository migration | Production history / current-state finding | Classification |
+| Migration filename referenced by prior review | Production history / current-state finding | Classification |
 |---|---|---|
 | `20261011040000_allow_supervisors_to_read_teachers.sql` | `20261011054843 allow_supervisors_to_read_teachers`; `teachers_select` policy exists | Present |
 | `20261011040001_complete_school_backup_and_safe_restore.sql` | `20261011055003 complete_school_backup_and_safe_restore`; export/restore wrappers and v4 chain exist | Present |
