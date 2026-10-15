@@ -97,7 +97,7 @@ The 93-row map now has an explicit status, evidence text, evidence URL, and cand
 - 6 same-name/version-mismatch relationships retained as unproven source equivalence (one is additionally partial before baseline reconciliation).
 - 2 missing current-catalog effects and 1 incorrect current-catalog effect explicitly marked as corrected in stage `0012`.
 
-A row with a clear status does not mean the historical source equivalence is proven. The evidence column explicitly preserves that limitation. For the 25 candidate SQL files, `source_snapshot_commit` means the branch-tip commit where the file was observed, not the commit that originally introduced it; `source_blob_sha` is intentionally blank because the prior 20-file archive scan was not repeated. The original missing files have no source commit/blob SHA because they were not found. The deterministic checker is `scripts/validate_migration_history_map.py`.
+A row with a clear status does not mean the historical source equivalence is proven. The evidence column explicitly preserves that limitation. For the 25 candidate SQL files, `source_snapshot_commit` means the branch-tip commit where the file was observed, not the commit that originally introduced it. After reusing the exact source refs already recorded in the map (without repeating the 20-file archive search), the current Git blob SHA was recorded for each of the 25 candidate files. The two missing historical SQL files and missing test fixture correctly have no original source commit/blob SHA because they were not found. The deterministic checker `scripts/validate_migration_history_map.py` now validates all 25 blob fingerprints as 40-character hexadecimal Git object IDs.
 
 ## Safety boundary
 
