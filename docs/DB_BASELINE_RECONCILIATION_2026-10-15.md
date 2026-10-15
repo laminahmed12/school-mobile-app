@@ -86,6 +86,8 @@ These tests use a disposable PostgreSQL service and a minimal auth stub. They do
 
 ## Migration-history compatibility and safe rollout plan
 
+The inventory file `supabase/migration_history_map.csv` has been restored from `checkpoint/lamin-source-checkpoint-20261014` (source blob SHA `facaf56b1d381b33cab312588aeaa07657b7c265`). It contains 93 inventory rows and **all 93 remain `unresolved`**. This restores the audit worksheet only; it does not resolve source equivalence, authorize migration-history repair, or establish that any differently versioned migration is safe to mark as applied. The separate `test/sql/supabase_test_bootstrap.sql` fixture was not found on the inspected branches and has not been recreated as if it were an original source file.
+
 1. Keep this candidate baseline outside the normal migration directory until review. It must not be marked as the historical `20260924214051` migration merely because that history row exists.
 2. In a separate staging project/clone, inventory all 74 production history rows and map each to source provenance. Do not add history rows for the 25 repository files solely because their version IDs are absent; several effects are already represented by differently versioned production migrations.
 3. Review the one history-only discrepancy (`20261013041800` payment-priority effect) and the three missing/incorrect effects from `20261013190000`, `20261014030000`, and `20261014050000`.
