@@ -162,17 +162,16 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                 StatefulBuilder(
                   builder: (ctx, setChoice) => RadioGroup<String>(
                     groupValue: licenseMode,
-                    onChanged: creating
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setChoice(() => licenseMode = value);
-                            }
-                          },
+                    onChanged: (value) {
+                      if (!creating && value != null) {
+                        setChoice(() => licenseMode = value);
+                      }
+                    },
                     child: Column(
                       children: [
                         RadioListTile<String>(
                           contentPadding: EdgeInsets.zero,
+                          enabled: !creating,
                           value: 'trial',
                           title: const Text('فترة تجريبية لمدة شهر'),
                           subtitle: const Text(
@@ -181,10 +180,11 @@ class _OwnerConsoleState extends State<OwnerConsole> {
                         ),
                         RadioListTile<String>(
                           contentPadding: EdgeInsets.zero,
+                          enabled: !creating,
                           value: 'permanent',
                           title: const Text('تفعيل دائم مباشرة'),
                           subtitle: const Text(
-                            'تُنشأ المدرسة بترخيص دائم دون انتظار انتهاء التجربة',
+                            'تُنشأ مدرسة بترخيص دائم دون انتظار انتهاء التجربة',
                           ),
                         ),
                       ],
