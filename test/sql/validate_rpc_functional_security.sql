@@ -16,6 +16,12 @@ BEGIN
   IF has_function_privilege('anon','public.restore_backup(jsonb)','EXECUTE') THEN
     RAISE EXCEPTION 'anon unexpectedly can execute public restore_backup';
   END IF;
+  BEGIN
+    PERFORM public.bootstrap_owner_school('adminboot1016','Admin Must Not Bootstrap');
+    RAISE EXCEPTION 'non-owner bootstrap unexpectedly succeeded';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='non-owner bootstrap unexpectedly succeeded' THEN RAISE; END IF;
+  END;
 END
 $$;
 
@@ -77,12 +83,39 @@ END
 $$;
 RESET ROLE;
 
+-- Owner bootstrap must create a school without violating global-owner scope.
+BEGIN;
+INSERT INTO auth.users(id) VALUES ('00000000-0000-4000-8000-000000000004');
+INSERT INTO public.profiles(user_id,school_id,username,role,active,must_change_password)
+VALUES ('00000000-0000-4000-8000-000000000004',NULL,'testglobalowner','owner',true,false);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000004',true);
+DO $owner_bootstrap$
+DECLARE sid uuid;
+BEGIN
+  sid:=public.bootstrap_owner_school('ownerrpc1016','Owner RPC Test School');
+  IF sid IS NULL OR NOT EXISTS(SELECT 1 FROM public.schools WHERE id=sid AND code='ownerrpc1016') THEN
+    RAISE EXCEPTION 'owner bootstrap did not create and return the school';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.profiles WHERE user_id=auth.uid() AND role='owner' AND school_id IS NULL) THEN
+    RAISE EXCEPTION 'owner bootstrap violated global owner scope';
+  END IF;
+  BEGIN
+    PERFORM public.bootstrap_owner_school('invalid-code','Invalid Code School');
+    RAISE EXCEPTION 'invalid school code unexpectedly accepted';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='invalid school code unexpectedly accepted' THEN RAISE; END IF;
+  END;
+END
+$owner_bootstrap$;
+ROLLBACK;
+
 -- Confirm the failed cross-tenant write left no row behind.
-DO $$
+DO $
 DECLARE n integer;
 BEGIN
   SELECT count(*) INTO n FROM public.students
   WHERE id='20000000-0000-4000-8000-000000000099';
   IF n<>0 THEN RAISE EXCEPTION 'cross-tenant test row unexpectedly persisted'; END IF;
 END
-$$;
+$;
