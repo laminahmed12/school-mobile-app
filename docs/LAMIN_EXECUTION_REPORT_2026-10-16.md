@@ -56,3 +56,17 @@ The project URL and publishable key are available, but this execution environmen
 **Development bridge: PASS for isolated clean-install testing.**
 **Flutter/Android candidate validation: PASS.**
 **Production database deployment: NOT APPROVED yet**, because PostgREST exposure/authorization and full migration-history/restore rehearsal gates remain unresolved.
+
+
+## Follow-up RPC security hardening — 2026-10-16 00:17 UTC
+
+- Added forward-only migration `supabase/migrations/20261016110000_secure_private_rpc_entrypoints.sql` to the review branch and applied it to **Lamin-Test only**.
+- The 13 public RPC wrappers are now SECURITY DEFINER with empty search_path preserved; each wrapper delegates to a fully qualified `private.*` routine.
+- Staging privilege query after the migration:
+  - `private`: 13/13 SECURITY DEFINER implementations; authenticated EXECUTE = 0; anon EXECUTE = 0.
+  - `public`: 13/13 forwarding wrappers; authenticated EXECUTE = 13; anon EXECUTE = 0.
+  - `private` schema USAGE: authenticated=false, anon=false, service_role=true.
+- A transaction-scoped authorization smoke test called `public.record_student_payment` under the authenticated database role without a user JWT. It reached the function's authorization guard and did not fail with a permission-denied error; the transaction was rolled back. This verifies wrapper-to-private delegation and rejection without an authenticated user context, but is not a complete end-to-end JWT/API test.
+- Supabase Security Advisor still reports 13 SECURITY DEFINER functions in `public`. These are now intentionally thin forwarding wrappers; the warning remains until the role/tenant authorization matrix and actual API behavior are tested. Three INFO-level RLS-without-policy findings remain for service-oriented tables.
+- CI triggered for commit `f012721400caf309bffbda0517448428ec961ee2`: [schema acceptance](https://github.com/laminahmed12/school-mobile-app/actions/runs/38828623743) and [Flutter/Android candidate](https://github.com/laminahmed12/school-mobile-app/actions/runs/38828054970). They were in progress at report time.
+- No production database changes were made. Do not deploy this migration to production until CI passes and controlled API/authentication tests are completed.
