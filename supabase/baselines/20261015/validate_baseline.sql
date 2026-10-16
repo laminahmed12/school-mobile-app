@@ -9,7 +9,7 @@ BEGIN
   SELECT count(*) INTO n FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace s ON s.oid=c.relnamespace WHERE s.nspname='public' AND NOT t.tgisinternal;
   IF n <> 32 THEN RAISE EXCEPTION 'expected 32 user triggers, got %', n; END IF;
   SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname IN ('public','private') AND p.prokind='f';
-  IF n <> 46 THEN RAISE EXCEPTION 'expected 46 application routines, got %', n; END IF;
+  IF n NOT IN (46,59) THEN RAISE EXCEPTION 'expected 46 baseline routines or 59 routines after 13 RPC wrappers, got %', n; END IF;
   SELECT count(*) INTO n FROM pg_class c JOIN pg_namespace s ON s.oid=c.relnamespace WHERE s.nspname='public' AND c.relkind='r' AND c.relrowsecurity;
   IF n <> 40 THEN RAISE EXCEPTION 'expected RLS on all 40 application tables, got %', n; END IF;
 END
