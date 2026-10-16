@@ -9,7 +9,9 @@ DECLARE
   v_private_usage boolean;
 BEGIN
   SELECT count(*), count(*) FILTER (
-    WHERE has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    WHERE NOT p.prosecdef
+       OR NOT ('search_path=""' = ANY(coalesce(p.proconfig, ARRAY[]::text[])))
+       OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
        OR has_function_privilege('anon', p.oid, 'EXECUTE')
   )
   INTO v_private_count, v_bad_private
