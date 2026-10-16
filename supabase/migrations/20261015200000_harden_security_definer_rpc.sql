@@ -223,6 +223,11 @@ CREATE FUNCTION public.update_school_settings(p_name text, p_currency text, p_co
 RETURNS void LANGUAGE sql SECURITY INVOKER SET search_path TO ''
 AS $function$ SELECT private.update_school_settings(p_name,p_currency,p_country_code) $function$;
 
+-- SECURITY INVOKER wrappers execute as the caller, so PostgreSQL requires schema USAGE
+-- for authenticated callers to resolve private.* dependencies. Keep private out of the
+-- PostgREST exposed-schema list; this grant alone does not expose private RPCs over HTTP.
+GRANT USAGE ON SCHEMA private TO authenticated, service_role;
+
 -- No anonymous/public RPC execution. Signed-in app and trusted service role retain access.
 REVOKE ALL ON FUNCTION public.bootstrap_owner_school(text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.create_next_academic_year(text,date,date,boolean,boolean) FROM PUBLIC, anon, authenticated;
