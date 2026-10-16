@@ -16,12 +16,6 @@ BEGIN
   IF has_function_privilege('anon','public.restore_backup(jsonb)','EXECUTE') THEN
     RAISE EXCEPTION 'anon unexpectedly can execute public restore_backup';
   END IF;
-  BEGIN
-    PERFORM public.bootstrap_owner_school('adminboot1016','Admin Must Not Bootstrap');
-    RAISE EXCEPTION 'non-owner bootstrap unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM='non-owner bootstrap unexpectedly succeeded' THEN RAISE; END IF;
-  END;
 END
 $$;
 
@@ -38,6 +32,12 @@ BEGIN
     RAISE EXCEPTION 'cross-tenant student insert unexpectedly succeeded';
   EXCEPTION
     WHEN insufficient_privilege OR check_violation THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.bootstrap_owner_school('adminboot1016','Admin Must Not Bootstrap');
+    RAISE EXCEPTION 'non-owner bootstrap unexpectedly succeeded';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='non-owner bootstrap unexpectedly succeeded' THEN RAISE; END IF;
   END;
 END
 $$;
