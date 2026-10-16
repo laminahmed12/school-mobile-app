@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - review/lamin-db-schema-baseline-20261015
+      - restart/lamin-db-rebuild-20261016
   workflow_dispatch:
 
 permissions:
