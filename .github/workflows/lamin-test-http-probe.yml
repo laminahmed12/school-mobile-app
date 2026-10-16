@@ -1,0 +1,53 @@
+name: Lamin-Test HTTP API Probe
+
+on:
+  push:
+    branches:
+      - test/lamin-http-api-run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Lamin-Test HTTP endpoints (read-only)
+        shell: bash
+        env:
+          SUPABASE_URL: https://iijngozcfzskhvxrmlwi.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_oRJEh40C6q6otjUkhuCGtQ_Qo3VJOnh
+        run: |
+          set -u
+          probe() {
+            local label="$1"
+            local url="$2"
+            local body_file
+            body_file="$(mktemp)"
+            echo "::group::${label}"
+            local status
+            status="$(curl --silent --show-error --max-time 25 \
+              --header "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
+              --header "Accept: application/json" \
+              --output "${body_file}" --write-out "%{http_code}" \
+              "${url}")" || {
+                echo "TRANSPORT_ERROR: curl failed for ${label}"
+                rm -f "${body_file}"
+                echo "::endgroup::"
+                return 0
+              }
+            echo "HTTP_STATUS=${status}"
+            echo "RESPONSE_BODY_BEGIN"
+            head -c 2000 "${body_file}" || true
+            echo
+            echo "RESPONSE_BODY_END"
+            rm -f "${body_file}"
+            echo "::endgroup::"
+          }
+
+          echo "Target: Lamin-Test only; read-only HTTP requests; no database mutations."
+          probe "Auth health endpoint" "${SUPABASE_URL}/auth/v1/health"
+          probe "PostgREST root" "${SUPABASE_URL}/rest/v1/"
+          probe "PostgREST schools zero-row metadata check" "${SUPABASE_URL}/rest/v1/schools?select=id&limit=0"
