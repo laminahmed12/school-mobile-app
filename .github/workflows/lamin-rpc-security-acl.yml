@@ -71,3 +71,5 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
       - name: Assert negative authorization and cross-tenant write protections
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_rpc_functional_security.sql
+      - name: Validate academic rollover, opening balance and repeat execution
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_academic_rollover.sql
