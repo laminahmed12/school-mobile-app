@@ -111,11 +111,11 @@ $owner_bootstrap$;
 ROLLBACK;
 
 -- Confirm the failed cross-tenant write left no row behind.
-DO $
+DO $$
 DECLARE n integer;
 BEGIN
   SELECT count(*) INTO n FROM public.students
   WHERE id='20000000-0000-4000-8000-000000000099';
   IF n<>0 THEN RAISE EXCEPTION 'cross-tenant test row unexpectedly persisted'; END IF;
 END
-$;
+$$;
