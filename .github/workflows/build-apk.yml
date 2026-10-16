@@ -28,9 +28,19 @@ jobs:
         with:
           channel: stable
           cache: true
-      - run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
-      # Flutter create generates a template test referencing MyApp; this app uses a different entry point.
-      - run: rm -f test/widget_test.dart
+      - run: flutter pub get
+      - name: Verify Dart formatting without modifying the checkout
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Static analysis (fatal on infos and warnings)
+        run: flutter analyze --no-pub --fatal-infos --fatal-warnings
+      - name: Run automated tests
+        run: flutter test --no-pub
+      # Create Android platform files only after validation so flutter create's
+      # generated analysis_options.yaml cannot alter the lint set used in CI.
+      - name: Prepare Android platform files
+        run: |
+          flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+          rm -f test/widget_test.dart
       - name: Apply Lamin launcher identity
         run: |
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
@@ -78,12 +88,6 @@ jobs:
           
           class MainActivity : FlutterFragmentActivity()
           EOF
-      - run: flutter pub get
-      - name: Format Dart sources before validation
-        run: dart format lib test
-      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Run automated tests
-        run: flutter test
       - name: Build Android candidate APK
         run: flutter build apk --release --no-tree-shake-icons
       - name: Upload candidate APK for validation

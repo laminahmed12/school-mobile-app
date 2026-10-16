@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-String friendlyError(Object error, {String fallback = 'تعذر تنفيذ العملية. حاول مرة أخرى.'}) {
+String friendlyError(
+  Object error, {
+  String fallback = 'تعذر تنفيذ العملية. حاول مرة أخرى.',
+}) {
   final serverMessage = functionErrorMessage(error);
   if (serverMessage != null) return serverMessage;
 
@@ -41,7 +44,10 @@ String friendlyError(Object error, {String fallback = 'تعذر تنفيذ ال�
     return 'وصلت استجابة غير صالحة من الخادم. حاول مرة أخرى.';
   }
 
-  final text = error.toString().replaceFirst(RegExp(r'^(Exception|Error):\s*'), '').trim();
+  final text = error
+      .toString()
+      .replaceFirst(RegExp(r'^(Exception|Error):\s*'), '')
+      .trim();
   if (text.isEmpty || text.toLowerCase() == 'null') return fallback;
   return text;
 }

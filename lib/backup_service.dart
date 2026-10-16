@@ -14,7 +14,10 @@ class BackupService {
     final year = await repo.activeAcademicYearName() ?? 'current';
     final school = await repo.school();
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
-    final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'), '_');
+    final safeYear = year.replaceAll(
+      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
+      '_',
+    );
     final file = File('${backups.path}/lamin_${safeYear}_${schoolId}.json');
     final envelope = {
       'format': 'lamin-school-backup',
@@ -33,7 +36,9 @@ class BackupService {
     return file;
   }
 
-  static Future<Map<String, dynamic>?> readLatestLocalBackup(SchoolRepository repo) async {
+  static Future<Map<String, dynamic>?> readLatestLocalBackup(
+    SchoolRepository repo,
+  ) async {
     final dir = await getApplicationDocumentsDirectory();
     final backups = Directory('${dir.path}/LaameenBackups');
     if (!await backups.exists()) return null;
@@ -42,7 +47,9 @@ class BackupService {
     if (schoolId == null || schoolId.isEmpty) return null;
     final files = await backups
         .list()
-        .where((entry) => entry is File && entry.path.endsWith('_${schoolId}.json'))
+        .where(
+          (entry) => entry is File && entry.path.endsWith('_${schoolId}.json'),
+        )
         .cast<File>()
         .toList();
     if (files.isEmpty) return null;
@@ -94,7 +101,10 @@ class BackupService {
     final school = await repo.school();
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
     final year = await repo.activeAcademicYearName() ?? 'current';
-    final safeYear = year.replaceAll(RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'), '_');
+    final safeYear = year.replaceAll(
+      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
+      '_',
+    );
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -105,7 +115,9 @@ class BackupService {
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'data': data,
     };
-    final bytes = utf8.encode(const JsonEncoder.withIndent('  ').convert(envelope));
+    final bytes = utf8.encode(
+      const JsonEncoder.withIndent('  ').convert(envelope),
+    );
     return FilePicker.platform.saveFile(
       dialogTitle: 'حفظ النسخة الاحتياطية على Google Drive',
       fileName: 'lamin_${safeYear}_${schoolId}.json',

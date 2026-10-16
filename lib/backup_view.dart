@@ -7,19 +7,23 @@ class BackupView extends StatelessWidget {
   final Future<void> Function() onChanged;
   const BackupView({super.key, required this.repo, required this.onChanged});
 
-  bool get _allowed => true;
-
   void _message(BuildContext context, String text, {bool error = false}) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), backgroundColor: error ? Colors.red.shade700 : null),
+      SnackBar(
+        content: Text(text),
+        backgroundColor: error ? Colors.red.shade700 : null,
+      ),
     );
   }
 
   Future<void> _local(BuildContext context) async {
     try {
       await BackupService.createLocalBackup(repo);
-      _message(context, 'تم إنشاء النسخة المحلية داخل مساحة التطبيق على هذا الجهاز.');
+      _message(
+        context,
+        'تم إنشاء النسخة المحلية داخل مساحة التطبيق على هذا الجهاز.',
+      );
     } catch (e) {
       _message(context, 'تعذر إنشاء النسخة المحلية: $e', error: true);
     }
@@ -30,17 +34,29 @@ class BackupView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('حفظ نسخة خارج التطبيق'),
-        content: const Text('ستفتح نافذة حفظ النظام. اختر Google Drive أو موقعًا آخر يدعمه الجهاز، ثم تحقق من وجود الملف في الموقع المختار. اختيار «التنزيلات» لا يرفع الملف إلى Drive.'),
+        content: const Text(
+          'ستفتح نافذة حفظ النظام. اختر Google Drive أو موقعًا آخر يدعمه الجهاز، ثم تحقق من وجود الملف في الموقع المختار. اختيار «التنزيلات» لا يرفع الملف إلى Drive.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('اختيار الموقع')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('اختيار الموقع'),
+          ),
         ],
       ),
     );
     if (proceed != true || !context.mounted) return;
     try {
       final location = await BackupService.backupAndSave(repo);
-      if (location != null) _message(context, 'اكتمل الحفظ في الموقع الذي اخترته. تحقق من وجود الملف قبل الاعتماد عليه.');
+      if (location != null)
+        _message(
+          context,
+          'اكتمل الحفظ في الموقع الذي اخترته. تحقق من وجود الملف قبل الاعتماد عليه.',
+        );
     } catch (e) {
       _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
     }
@@ -50,33 +66,50 @@ class BackupView extends StatelessWidget {
     try {
       final envelope = await BackupService.readLatestLocalBackup(repo);
       if (envelope == null || !context.mounted) {
-        _message(context, 'لا توجد نسخة محلية محفوظة لهذه المدرسة على هذا الجهاز.');
+        _message(
+          context,
+          'لا توجد نسخة محلية محفوظة لهذه المدرسة على هذا الجهاز.',
+        );
         return;
       }
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
-        throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
+        throw Exception(
+          'هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.',
+        );
       }
       final data = Map<String, dynamic>.from(envelope['data'] as Map);
-      if (data['format'] != 'lamin-school-backup-v2' || data['school_filter']?.toString() != schoolId) {
+      if (data['format'] != 'lamin-school-backup-v2' ||
+          data['school_filter']?.toString() != schoolId) {
         throw Exception('محتوى النسخة المحلية لا يطابق المدرسة الحالية.');
       }
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('تأكيد استعادة النسخة المحلية'),
-          content: const Text('ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟'),
+          content: const Text(
+            'ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('استعادة'),
+            ),
           ],
         ),
       );
       if (confirmed != true || !context.mounted) return;
       final result = await repo.restoreBackup(data);
       await onChanged();
-      _message(context, 'اكتملت الاستعادة المحلية. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}');
+      _message(
+        context,
+        'اكتملت الاستعادة المحلية. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}',
+      );
     } catch (e) {
       _message(context, 'تعذرت استعادة النسخة المحلية: $e', error: true);
     }
@@ -89,10 +122,13 @@ class BackupView extends StatelessWidget {
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
-        throw Exception('هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية البيانات.');
+        throw Exception(
+          'هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية البيانات.',
+        );
       }
       final data = Map<String, dynamic>.from(envelope['data'] as Map);
-      if (data['format'] != 'lamin-school-backup-v2' || data['school_filter']?.toString() != schoolId) {
+      if (data['format'] != 'lamin-school-backup-v2' ||
+          data['school_filter']?.toString() != schoolId) {
         throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
       }
       final confirmed = await showDialog<bool>(
@@ -105,15 +141,24 @@ class BackupView extends StatelessWidget {
             'ستُدمج السجلات الناقصة من النسخة مع البيانات الحالية. لن تُحذف السجلات الحالية، ولن تُستبدل السجلات المتطابقة.',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('استعادة'),
+            ),
           ],
         ),
       );
       if (confirmed != true || !context.mounted) return;
       final result = await repo.restoreBackup(data);
       await onChanged();
-      _message(context, 'اكتملت الاستعادة الآمنة. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}');
+      _message(
+        context,
+        'اكتملت الاستعادة الآمنة. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}',
+      );
     } catch (e) {
       _message(context, 'تعذرت استعادة النسخة الاحتياطية: $e', error: true);
     }
@@ -125,42 +170,64 @@ class BackupView extends StatelessWidget {
     body: ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
       children: [
-        const Card(child: ListTile(
-          leading: Icon(Icons.shield_outlined),
-          title: Text('نسخ منفصلة بوضوح'),
-          subtitle: Text('النسخة المحلية تحفظ داخل التطبيق على هذا الجهاز. الحفظ الخارجي يحتاج إلى اختيار الموقع والتحقق من الملف يدويًا.'),
-        )),
-        Card(child: ListTile(
-          leading: const Icon(Icons.save_alt_outlined),
-          title: const Text('إنشاء نسخة محلية'),
-          subtitle: const Text('حفظ نسخة داخل مساحة التطبيق دون فتح نافذة خارجية'),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => _local(context),
-        )),
-        Card(child: ListTile(
-          leading: const Icon(Icons.cloud_upload_outlined),
-          title: const Text('حفظ نسخة خارج التطبيق'),
-          subtitle: const Text('اختر Google Drive أو موقعًا آخر من نافذة الحفظ'),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => _external(context),
-        )),
-        Card(child: ListTile(
-          leading: const Icon(Icons.restore_page_outlined),
-          title: const Text('استعادة النسخة المحلية'),
-          subtitle: const Text('دمج أحدث نسخة محفوظة داخل التطبيق مع السجلات الحالية'),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => _restoreLocal(context),
-        )),
-        Card(child: ListTile(
-          leading: const Icon(Icons.settings_backup_restore_outlined),
-          title: const Text('استعادة ملف نسخة احتياطية'),
-          subtitle: const Text('اختيار ملف JSON محفوظ على الجهاز أو في التخزين السحابي'),
-          trailing: const Icon(Icons.chevron_left),
-          onTap: () => _restoreFile(context),
-        )),
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.shield_outlined),
+            title: Text('نسخ منفصلة بوضوح'),
+            subtitle: Text(
+              'النسخة المحلية تحفظ داخل التطبيق على هذا الجهاز. الحفظ الخارجي يحتاج إلى اختيار الموقع والتحقق من الملف يدويًا.',
+            ),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.save_alt_outlined),
+            title: const Text('إنشاء نسخة محلية'),
+            subtitle: const Text(
+              'حفظ نسخة داخل مساحة التطبيق دون فتح نافذة خارجية',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _local(context),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.cloud_upload_outlined),
+            title: const Text('حفظ نسخة خارج التطبيق'),
+            subtitle: const Text(
+              'اختر Google Drive أو موقعًا آخر من نافذة الحفظ',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _external(context),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.restore_page_outlined),
+            title: const Text('استعادة النسخة المحلية'),
+            subtitle: const Text(
+              'دمج أحدث نسخة محفوظة داخل التطبيق مع السجلات الحالية',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _restoreLocal(context),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.settings_backup_restore_outlined),
+            title: const Text('استعادة ملف نسخة احتياطية'),
+            subtitle: const Text(
+              'اختيار ملف JSON محفوظ على الجهاز أو في التخزين السحابي',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _restoreFile(context),
+          ),
+        ),
         const Padding(
           padding: EdgeInsets.all(12),
-          child: Text('تنبيه: ملف النسخة الاحتياطية الحالي غير مشفر. احتفظ به في مكان موثوق ولا تشاركه مع غير المخولين.'),
+          child: Text(
+            'تنبيه: ملف النسخة الاحتياطية الحالي غير مشفر. احتفظ به في مكان موثوق ولا تشاركه مع غير المخولين.',
+          ),
         ),
       ],
     ),
