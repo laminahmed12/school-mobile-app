@@ -1,10 +1,8 @@
 -- Restore the minimum runtime privileges required by RLS policies.
--- The policies call these SECURITY DEFINER helpers to scope each request to
--- the authenticated caller's own active school and role. Do not grant EXECUTE
--- on every function in the private schema.
+-- Stored RLS expressions call these SECURITY DEFINER helpers to scope each
+-- request to the authenticated caller's own active school and role.
+-- Keep the private schema itself unexposed; grant no schema USAGE to clients.
 BEGIN;
-
-GRANT USAGE ON SCHEMA private TO authenticated;
 
 REVOKE ALL ON FUNCTION private.my_role() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION private.my_school() FROM PUBLIC, anon;
