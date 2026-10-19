@@ -119,8 +119,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
         publishableKey: supabasePublishableKey,
       );
       await _supabaseInitialization!.timeout(const Duration(seconds: 30));
-      final prefs = await SharedPreferences.getInstance()
-          .timeout(const Duration(seconds: 15));
+      final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
         _prefs = prefs;
