@@ -94,7 +94,7 @@ class LaminBootstrapApp extends StatefulWidget {
 }
 
 class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
-  Future<void>? _supabaseInitialization;
+  Future<Supabase>? _supabaseInitialization;
   SharedPreferences? _prefs;
   Object? _initializationError;
   bool _loading = true;
