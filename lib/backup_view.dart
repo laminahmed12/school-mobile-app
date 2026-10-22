@@ -63,14 +63,14 @@ class BackupView extends StatelessWidget {
                 builder: (ctx) => AlertDialog(
                   title: const Text('تأكيد حساب النسخ الاحتياطي'),
                   content: Text(
-                    'المدرسة: $schoolName\\n\\n'
-                    'سيتم رفع النسخة إلى حساب Google Drive التالي:\\n$accountEmail\\n\\n'
+                    'المدرسة: $schoolName\n\n'
+                    'سيتم رفع النسخة إلى حساب Google Drive التالي:\n$accountEmail\n\n'
                     'تأكد أن هذا هو الحساب المملوك لهذه المدرسة، وليس حساب مدرسة أخرى.',
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('اختيار حساب آخر / إلغاء'),
+                      child: const Text('إلغاء — يمكنك إعادة المحاولة لاختيار الحساب الصحيح'),
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
