@@ -165,8 +165,7 @@ class BackupService {
           _driveError(searchResponse.statusCode, searchResponse.body),
         );
       }
-      final searchJson =
-          jsonDecode(searchResponse.body) as Map<String, dynamic>;
+      final searchJson = jsonDecode(searchResponse.body) as Map<String, dynamic>;
       final files = searchJson['files'] as List<dynamic>? ?? const [];
       late final http.Response uploadResponse;
 
