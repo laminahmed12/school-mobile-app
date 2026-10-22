@@ -102,9 +102,9 @@ class BackupService {
     return envelope;
   }
 
-  static bool _googleSignInInitialized = false;
-  static const String _googleServerClientId =
-      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: const ['https://www.googleapis.com/auth/drive.file'],
+  );
 
   /// Uploads the generated backup directly to the signed-in user's Google Drive.
   /// Uses the narrow drive.file scope and updates this app's existing backup
@@ -137,28 +137,21 @@ class BackupService {
     );
 
     try {
-      final signIn = GoogleSignIn.instance;
-      if (_googleServerClientId.trim().isEmpty) {
-        throw Exception(
-          'تكامل Google Drive غير مهيأ: يلزم ضبط GOOGLE_SERVER_CLIENT_ID في إعدادات بناء التطبيق.',
-        );
-      }
-      if (!_googleSignInInitialized) {
-        await signIn.initialize(serverClientId: _googleServerClientId);
-        _googleSignInInitialized = true;
-      }
-
-      final account = await signIn.authenticate();
+      var account = _googleSignIn.currentUser;
+      account ??= await _googleSignIn.signInSilently();
+      account ??= await _googleSignIn.signIn();
+      if (account == null) return null;
       final accountEmail = account.email.trim();
       if (accountEmail.isEmpty) {
         throw Exception('تعذر التحقق من حساب Google الذي اختير للنسخ الاحتياطي.');
       }
       final accountConfirmed = await confirmAccount(accountEmail);
-      if (!accountConfirmed) return null;
-      final authorization = await account.authorizationClient.authorizeScopes(
-        const ['https://www.googleapis.com/auth/drive.file'],
-      );
-      final token = authorization.accessToken;
+      if (!accountConfirmed) {
+        await _googleSignIn.signOut();
+        return null;
+      }
+      final authentication = await account.authentication;
+      final token = authentication.accessToken ?? '';
       if (token.isEmpty) {
         throw Exception(
           'لم يمنح حساب Google صلاحية الوصول إلى ملف النسخة الاحتياطية.',
