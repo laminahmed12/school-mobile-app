@@ -109,7 +109,7 @@ class BackupService {
       RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
     );
-    final fileName = 'lamin_\${safeYear}_\${schoolId}.json';
+    final fileName = 'lamin_${safeYear}_${schoolId}.json';
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -178,7 +178,7 @@ class BackupService {
           body: bytes,
         );
       } else {
-        final boundary = 'lamin_backup_\${DateTime.now().microsecondsSinceEpoch}';
+        final boundary = 'lamin_backup_${DateTime.now().microsecondsSinceEpoch}';
         final metadata = jsonEncode({
           'name': fileName,
           'mimeType': 'application/json',
@@ -239,9 +239,9 @@ class BackupService {
     } catch (_) {}
     if (statusCode == 401 || statusCode == 403) {
       return 'رفض Google Drive الوصول (HTTP $statusCode). تحقق من إعداد OAuth وتفعيل Google Drive API.'
-          '\${detail == null ? '' : ' التفاصيل: $detail'}';
+          '${detail == null ? '' : ' التفاصيل: $detail'}';
     }
     return 'فشل رفع النسخة إلى Google Drive (HTTP $statusCode).'
-        '\${detail == null ? '' : ' التفاصيل: $detail'}';
+        '${detail == null ? '' : ' التفاصيل: $detail'}';
   }
 }
