@@ -115,7 +115,9 @@ jobs:
           flutter test
 
       - name: Build signed release APK
-        run: flutter build apk --release --no-tree-shake-icons
+        env:
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
+        run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
 
       - name: Verify APK signature and certificate
         env:
