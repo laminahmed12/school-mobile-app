@@ -53,10 +53,7 @@ class BackupView extends StatelessWidget {
     try {
       final location = await BackupService.backupAndSave(repo);
       if (location != null)
-        _message(
-          context,
-          'تم رفع النسخة الاحتياطية إلى Google Drive بنجاح.',
-        );
+        _message(context, 'تم رفع النسخة الاحتياطية إلى Google Drive بنجاح.');
     } catch (e) {
       _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
     }
