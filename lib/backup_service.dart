@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'repository.dart';
 
@@ -93,9 +95,11 @@ class BackupService {
     return envelope;
   }
 
-  /// Opens Android's native save-location picker instead of the share sheet.
-  /// The user can choose Google Drive (if available on the device) or another
-  /// destination. This avoids accidentally routing a backup into WhatsApp.
+  static bool _googleSignInInitialized = false;
+
+  /// Uploads the generated backup directly to the signed-in user's Google Drive.
+  /// Uses the narrow drive.file scope and updates this app's existing backup
+  /// for the same school/year rather than creating a duplicate on every run.
   static Future<String?> backupAndSave(SchoolRepository repo) async {
     final data = await repo.exportBackup();
     final school = await repo.school();
@@ -105,6 +109,7 @@ class BackupService {
       RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
     );
+    final fileName = 'lamin_\${safeYear}_\${schoolId}.json';
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -118,10 +123,125 @@ class BackupService {
     final bytes = utf8.encode(
       const JsonEncoder.withIndent('  ').convert(envelope),
     );
-    return FilePicker.platform.saveFile(
-      dialogTitle: 'حفظ النسخة الاحتياطية على Google Drive',
-      fileName: 'lamin_${safeYear}_${schoolId}.json',
-      bytes: bytes,
-    );
+
+    try {
+      final signIn = GoogleSignIn.instance;
+      if (!_googleSignInInitialized) {
+        await signIn.initialize();
+        _googleSignInInitialized = true;
+      }
+
+      final account = await signIn.authenticate();
+      final authorization = await account.authorizationClient.authorizeScopes(
+        const ['https://www.googleapis.com/auth/drive.file'],
+      );
+      final token = authorization.accessToken;
+      if (token.isEmpty) {
+        throw Exception(
+          'لم يمنح حساب Google صلاحية الوصول إلى ملف النسخة الاحتياطية.',
+        );
+      }
+      final headers = {'Authorization': 'Bearer $token'};
+      final escapedName = fileName.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+      final query = "name = '$escapedName' and trashed = false";
+      final searchUri = Uri.https('www.googleapis.com', '/drive/v3/files', {
+        'q': query,
+        'pageSize': '1',
+        'orderBy': 'modifiedTime desc',
+        'fields': 'files(id,name,webViewLink)',
+      });
+      final searchResponse = await http.get(searchUri, headers: headers);
+      if (searchResponse.statusCode != 200) {
+        throw Exception(_driveError(searchResponse.statusCode, searchResponse.body));
+      }
+      final searchJson = jsonDecode(searchResponse.body) as Map<String, dynamic>;
+      final files = searchJson['files'] as List<dynamic>? ?? const [];
+      late final http.Response uploadResponse;
+
+      if (files.isNotEmpty && files.first is Map) {
+        final existing = Map<String, dynamic>.from(files.first as Map);
+        final id = existing['id']?.toString();
+        if (id == null || id.isEmpty) {
+          throw Exception('تعذر تحديد ملف النسخة الاحتياطية الموجود في Drive.');
+        }
+        final updateUri = Uri.https(
+          'www.googleapis.com',
+          '/upload/drive/v3/files/$id',
+          {'uploadType': 'media', 'fields': 'id,name,webViewLink'},
+        );
+        uploadResponse = await http.patch(
+          updateUri,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: bytes,
+        );
+      } else {
+        final boundary = 'lamin_backup_\${DateTime.now().microsecondsSinceEpoch}';
+        final metadata = jsonEncode({
+          'name': fileName,
+          'mimeType': 'application/json',
+          'description': 'Lamīn school backup; school_id=$schoolId; year=$year',
+        });
+        final prefix = utf8.encode(
+          '--$boundary\r\n'
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+          '$metadata\r\n'
+          '--$boundary\r\n'
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n',
+        );
+        final suffix = utf8.encode('\r\n--$boundary--\r\n');
+        final body = <int>[...prefix, ...bytes, ...suffix];
+        final createUri = Uri.https(
+          'www.googleapis.com',
+          '/upload/drive/v3/files',
+          {'uploadType': 'multipart', 'fields': 'id,name,webViewLink'},
+        );
+        uploadResponse = await http.post(
+          createUri,
+          headers: {
+            ...headers,
+            'Content-Type': 'multipart/related; boundary=$boundary',
+          },
+          body: body,
+        );
+      }
+
+      if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
+        throw Exception(
+          _driveError(uploadResponse.statusCode, uploadResponse.body),
+        );
+      }
+      final result = jsonDecode(uploadResponse.body) as Map<String, dynamic>;
+      final fileId = result['id']?.toString();
+      if (fileId == null || fileId.isEmpty) {
+        throw Exception('لم يؤكد Google Drive حفظ ملف النسخة الاحتياطية.');
+      }
+      return fileId;
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (message.contains('canceled') || message.contains('cancelled')) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  static String _driveError(int statusCode, String body) {
+    String? detail;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final error = decoded['error'];
+        if (error is Map) detail = error['message']?.toString();
+      }
+    } catch (_) {}
+    if (statusCode == 401 || statusCode == 403) {
+      return 'رفض Google Drive الوصول (HTTP $statusCode). تحقق من إعداد OAuth وتفعيل Google Drive API.'
+          '\${detail == null ? '' : ' التفاصيل: $detail'}';
+    }
+    return 'فشل رفع النسخة إلى Google Drive (HTTP $statusCode).'
+        '\${detail == null ? '' : ' التفاصيل: $detail'}';
   }
 }
