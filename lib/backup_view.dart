@@ -35,7 +35,7 @@ class BackupView extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('حفظ نسخة خارج التطبيق'),
         content: const Text(
-          'ستفتح نافذة حفظ النظام. اختر Google Drive أو موقعًا آخر يدعمه الجهاز، ثم تحقق من وجود الملف في الموقع المختار. اختيار «التنزيلات» لا يرفع الملف إلى Drive.',
+          'سيطلب التطبيق تسجيل الدخول إلى Google ومنح صلاحية الوصول إلى ملفات النسخ الاحتياطية التي ينشئها لامين، ثم سيرفع الملف مباشرة إلى Google Drive. لن يتم حفظه في «التنزيلات» بدلًا من Drive.',
         ),
         actions: [
           TextButton(
@@ -44,7 +44,7 @@ class BackupView extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('اختيار الموقع'),
+            child: const Text('المتابعة إلى Google Drive'),
           ),
         ],
       ),
@@ -55,7 +55,7 @@ class BackupView extends StatelessWidget {
       if (location != null)
         _message(
           context,
-          'اكتمل الحفظ في الموقع الذي اخترته. تحقق من وجود الملف قبل الاعتماد عليه.',
+          'تم رفع النسخة الاحتياطية إلى Google Drive بنجاح.',
         );
     } catch (e) {
       _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
@@ -195,7 +195,7 @@ class BackupView extends StatelessWidget {
             leading: const Icon(Icons.cloud_upload_outlined),
             title: const Text('حفظ نسخة خارج التطبيق'),
             subtitle: const Text(
-              'اختر Google Drive أو موقعًا آخر من نافذة الحفظ',
+              'تسجيل الدخول إلى Google ورفع النسخة الاحتياطية مباشرة إلى Drive',
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => _external(context),
