@@ -149,7 +149,9 @@ class BackupService {
         );
       }
       final headers = {'Authorization': 'Bearer $token'};
-      final escapedName = fileName.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+      final escapedName = fileName
+          .replaceAll(r'\', r'\\')
+          .replaceAll("'", r"\'");
       final query = "name = '$escapedName' and trashed = false";
       final searchUri = Uri.https('www.googleapis.com', '/drive/v3/files', {
         'q': query,
@@ -159,9 +161,12 @@ class BackupService {
       });
       final searchResponse = await http.get(searchUri, headers: headers);
       if (searchResponse.statusCode != 200) {
-        throw Exception(_driveError(searchResponse.statusCode, searchResponse.body));
+        throw Exception(
+          _driveError(searchResponse.statusCode, searchResponse.body),
+        );
       }
-      final searchJson = jsonDecode(searchResponse.body) as Map<String, dynamic>;
+      final searchJson =
+          jsonDecode(searchResponse.body) as Map<String, dynamic>;
       final files = searchJson['files'] as List<dynamic>? ?? const [];
       late final http.Response uploadResponse;
 
@@ -185,7 +190,8 @@ class BackupService {
           body: bytes,
         );
       } else {
-        final boundary = 'lamin_backup_${DateTime.now().microsecondsSinceEpoch}';
+        final boundary =
+            'lamin_backup_${DateTime.now().microsecondsSinceEpoch}';
         final metadata = jsonEncode({
           'name': fileName,
           'mimeType': 'application/json',
