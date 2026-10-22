@@ -96,6 +96,8 @@ class BackupService {
   }
 
   static bool _googleSignInInitialized = false;
+  static const String _googleServerClientId =
+      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
   /// Uploads the generated backup directly to the signed-in user's Google Drive.
   /// Uses the narrow drive.file scope and updates this app's existing backup
@@ -126,8 +128,13 @@ class BackupService {
 
     try {
       final signIn = GoogleSignIn.instance;
+      if (_googleServerClientId.trim().isEmpty) {
+        throw Exception(
+          'تكامل Google Drive غير مهيأ: يلزم ضبط GOOGLE_SERVER_CLIENT_ID في إعدادات بناء التطبيق.',
+        );
+      }
       if (!_googleSignInInitialized) {
-        await signIn.initialize();
+        await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
 
