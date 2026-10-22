@@ -7,6 +7,13 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'repository.dart';
 
+class DriveBackupResult {
+  final String accountEmail;
+  final String fileId;
+
+  const DriveBackupResult({required this.accountEmail, required this.fileId});
+}
+
 class BackupService {
   static Future<File> createLocalBackup(SchoolRepository repo) async {
     final data = await repo.exportBackup();
@@ -102,7 +109,10 @@ class BackupService {
   /// Uploads the generated backup directly to the signed-in user's Google Drive.
   /// Uses the narrow drive.file scope and updates this app's existing backup
   /// for the same school/year rather than creating a duplicate on every run.
-  static Future<String?> backupAndSave(SchoolRepository repo) async {
+  static Future<DriveBackupResult?> backupAndSave(
+    SchoolRepository repo, {
+    required Future<bool> Function(String accountEmail) confirmAccount,
+  }) async {
     final data = await repo.exportBackup();
     final school = await repo.school();
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
@@ -139,6 +149,12 @@ class BackupService {
       }
 
       final account = await signIn.authenticate();
+      final accountEmail = account.email.trim();
+      if (accountEmail.isEmpty) {
+        throw Exception('تعذر التحقق من حساب Google الذي اختير للنسخ الاحتياطي.');
+      }
+      final accountConfirmed = await confirmAccount(accountEmail);
+      if (!accountConfirmed) return null;
       final authorization = await account.authorizationClient.authorizeScopes(
         const ['https://www.googleapis.com/auth/drive.file'],
       );
@@ -230,7 +246,7 @@ class BackupService {
       if (fileId == null || fileId.isEmpty) {
         throw Exception('لم يؤكد Google Drive حفظ ملف النسخة الاحتياطية.');
       }
-      return fileId;
+      return DriveBackupResult(accountEmail: accountEmail, fileId: fileId);
     } catch (e) {
       final message = e.toString().toLowerCase();
       if (message.contains('canceled') || message.contains('cancelled')) {
