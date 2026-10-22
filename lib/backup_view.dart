@@ -51,9 +51,43 @@ class BackupView extends StatelessWidget {
     );
     if (proceed != true || !context.mounted) return;
     try {
-      final location = await BackupService.backupAndSave(repo);
-      if (location != null)
-        _message(context, 'تم رفع النسخة الاحتياطية إلى Google Drive بنجاح.');
+      final result = await BackupService.backupAndSave(
+        repo,
+        confirmAccount: (accountEmail) async {
+          if (!context.mounted) return false;
+          final school = await repo.school();
+          final schoolName = school?['name']?.toString() ?? 'المدرسة الحالية';
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('تأكيد حساب النسخ الاحتياطي'),
+                  content: Text(
+                    'المدرسة: $schoolName\\n\\n'
+                    'سيتم رفع النسخة إلى حساب Google Drive التالي:\\n$accountEmail\\n\\n'
+                    'تأكد أن هذا هو الحساب المملوك لهذه المدرسة، وليس حساب مدرسة أخرى.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('اختيار حساب آخر / إلغاء'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('تأكيد ورفع النسخة'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        },
+      );
+      if (result != null && context.mounted) {
+        _message(
+          context,
+          'تم رفع النسخة الاحتياطية إلى Google Drive للحساب: ${result.accountEmail}',
+        );
+      }
     } catch (e) {
       _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
     }
