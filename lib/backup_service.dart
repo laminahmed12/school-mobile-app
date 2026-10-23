@@ -148,6 +148,10 @@ class BackupService {
         _googleSignInInitialized = true;
       }
 
+      // Clear a stale app-scoped Google Credential Manager session before
+      // starting a new interactive authentication. This prevents repeated
+      // attempts from failing with "[16] Account reauth failed".
+      await signIn.signOut();
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
       if (accountEmail.isEmpty) {
@@ -280,6 +284,10 @@ class BackupService {
         await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
+      // Clear a stale app-scoped Google Credential Manager session before
+      // starting a new interactive authentication. This prevents repeated
+      // attempts from failing with "[16] Account reauth failed".
+      await signIn.signOut();
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
       if (accountEmail.isEmpty) {
