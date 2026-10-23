@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
@@ -136,6 +138,7 @@ class BackupService {
       const JsonEncoder.withIndent('  ').convert(envelope),
     );
 
+    var stage = 'initialize';
     try {
       final signIn = GoogleSignIn.instance;
       if (_googleServerClientId.trim().isEmpty) {
@@ -144,21 +147,23 @@ class BackupService {
         );
       }
       if (!_googleSignInInitialized) {
+        stage = 'initialize';
         await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
 
-      // Clear a stale app-scoped Google Credential Manager session before
-      // starting a new interactive authentication. This prevents repeated
-      // attempts from failing with "[16] Account reauth failed".
-      await signIn.signOut();
+      // Do not force signOut immediately before authenticate: on Android's
+      // Credential Manager flow this can trigger an account re-auth failure.
+      stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
       if (accountEmail.isEmpty) {
         throw Exception('تعذر التحقق من حساب Google الذي اختير للنسخ الاحتياطي.');
       }
+      stage = 'confirm_account';
       final accountConfirmed = await confirmAccount(accountEmail);
       if (!accountConfirmed) return null;
+      stage = 'authorize_drive_scope';
       final authorization = await account.authorizationClient.authorizeScopes(
         const ['https://www.googleapis.com/auth/drive.file'],
       );
@@ -179,6 +184,7 @@ class BackupService {
         'orderBy': 'modifiedTime desc',
         'fields': 'files(id,name,webViewLink)',
       });
+      stage = 'drive_search';
       final searchResponse = await http.get(searchUri, headers: headers);
       if (searchResponse.statusCode != 200) {
         throw Exception(
@@ -200,6 +206,7 @@ class BackupService {
           '/upload/drive/v3/files/$id',
           {'uploadType': 'media', 'fields': 'id,name,webViewLink'},
         );
+        stage = 'drive_update_upload';
         uploadResponse = await http.patch(
           updateUri,
           headers: {
@@ -230,6 +237,7 @@ class BackupService {
           '/upload/drive/v3/files',
           {'uploadType': 'multipart', 'fields': 'id,name,webViewLink'},
         );
+        stage = 'drive_create_upload';
         uploadResponse = await http.post(
           createUri,
           headers: {
@@ -251,9 +259,9 @@ class BackupService {
         throw Exception('لم يؤكد Google Drive حفظ ملف النسخة الاحتياطية.');
       }
       return DriveBackupResult(accountEmail: accountEmail, fileId: fileId);
-    } catch (_) {
-      // Preserve authentication and Drive API failures for the UI to display.
-      // Do not disguise them as a user cancellation.
+    } catch (error, stackTrace) {
+      debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -275,25 +283,27 @@ class BackupService {
     );
     final fileName = 'lamin_${safeYear}_${schoolId}.json';
 
+    var stage = 'initialize';
     try {
       final signIn = GoogleSignIn.instance;
       if (_googleServerClientId.trim().isEmpty) {
         throw Exception('تكامل Google Drive غير مهيأ: يلزم ضبط GOOGLE_SERVER_CLIENT_ID.');
       }
       if (!_googleSignInInitialized) {
+        stage = 'initialize';
         await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
-      // Clear a stale app-scoped Google Credential Manager session before
-      // starting a new interactive authentication. This prevents repeated
-      // attempts from failing with "[16] Account reauth failed".
-      await signIn.signOut();
+      // Do not force signOut immediately before authenticate: on Android's
+      // Credential Manager flow this can trigger an account re-auth failure.
+      stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
       if (accountEmail.isEmpty) {
         throw Exception('تعذر التحقق من حساب Google المختار.');
       }
       if (!await confirmAccount(accountEmail)) return null;
+      stage = 'authorize_drive_scope';
       final authorization = await account.authorizationClient.authorizeScopes(
         const ['https://www.googleapis.com/auth/drive.file'],
       );
@@ -308,6 +318,7 @@ class BackupService {
         'orderBy': 'modifiedTime desc',
         'fields': 'files(id,name,mimeType,modifiedTime)',
       });
+      stage = 'drive_search';
       final searchResponse = await http.get(searchUri, headers: headers);
       if (searchResponse.statusCode != 200) {
         throw Exception(_driveError(searchResponse.statusCode, searchResponse.body));
@@ -325,6 +336,7 @@ class BackupService {
       final id = (matching.first as Map)['id']?.toString();
       if (id == null || id.isEmpty) throw Exception('تعذر تحديد ملف النسخة الاحتياطية في Drive.');
       final downloadUri = Uri.https('www.googleapis.com', '/drive/v3/files/$id', {'alt': 'media'});
+      stage = 'drive_download';
       final downloadResponse = await http.get(downloadUri, headers: headers);
       if (downloadResponse.statusCode != 200) {
         throw Exception(_driveError(downloadResponse.statusCode, downloadResponse.body));
@@ -337,8 +349,9 @@ class BackupService {
         throw Exception('النسخة الموجودة في Drive لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.');
       }
       return envelope;
-    } catch (_) {
-      // Preserve the original Google Sign-In / Drive exception for diagnostics.
+    } catch (error, stackTrace) {
+      debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
   }
