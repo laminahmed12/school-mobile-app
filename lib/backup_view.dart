@@ -99,6 +99,16 @@ class BackupView extends StatelessWidget {
             ],
           ),
         );
+      } else if (context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل عملية النسخ الاحتياطي'),
+            content: const Text('لم يتم تأكيد حفظ النسخة. قد تكون العملية أُلغيت أو لم يُؤكَّد اختيار الحساب. لم نعتبر النسخ ناجحًا.'),
+            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          ),
+        );
       }
     } catch (e) {
       if (!context.mounted) return;
@@ -175,7 +185,19 @@ class BackupView extends StatelessWidget {
   Future<void> _restoreFile(BuildContext context) async {
     try {
       final envelope = await BackupService.pickBackupFile();
-      if (envelope == null || !context.mounted) return;
+      if (!context.mounted) return;
+      if (envelope == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل الاستعادة'),
+            content: const Text('لم يتم تنزيل نسخة أو استعادتها. قد تكون العملية أُلغيت أو لم يتم تأكيد الحساب. لم تُجرَ أي استعادة.'),
+            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          ),
+        );
+        return;
+      }
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
