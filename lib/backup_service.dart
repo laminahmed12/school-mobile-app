@@ -152,8 +152,10 @@ class BackupService {
         _googleSignInInitialized = true;
       }
 
-      // Do not force signOut immediately before authenticate: on Android's
-      // Credential Manager flow this can trigger an account re-auth failure.
+      // Clear a stale app-scoped Google session before interactive auth.
+      // Keep the stage marker so the exact failing step is recorded.
+      stage = 'sign_out';
+      await signIn.signOut();
       stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
@@ -262,6 +264,13 @@ class BackupService {
     } catch (error, stackTrace) {
       debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      if (error.toString().contains('Account reauth failed')) {
+        throw Exception(
+          'مرحلة التشخيص: $stage. أعاد Google الخطأ [16] Account reauth failed أثناء المصادقة. '
+          'هذا الخطأ لا يحدد السبب وحده؛ أكثر أسباب إعداد OAuth شيوعًا هي عدم تطابق بصمة SHA-1 لشهادة APK المثبّت، '
+          'أو اسم الحزمة، أو Web Client ID. لا تُرسل أي رموز دخول أو أسرار.',
+        );
+      }
       rethrow;
     }
   }
@@ -294,8 +303,10 @@ class BackupService {
         await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
-      // Do not force signOut immediately before authenticate: on Android's
-      // Credential Manager flow this can trigger an account re-auth failure.
+      // Clear a stale app-scoped Google session before interactive auth.
+      // Keep the stage marker so the exact failing step is recorded.
+      stage = 'sign_out';
+      await signIn.signOut();
       stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
@@ -352,6 +363,13 @@ class BackupService {
     } catch (error, stackTrace) {
       debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      if (error.toString().contains('Account reauth failed')) {
+        throw Exception(
+          'مرحلة التشخيص: $stage. أعاد Google الخطأ [16] Account reauth failed أثناء المصادقة. '
+          'هذا الخطأ لا يحدد السبب وحده؛ أكثر أسباب إعداد OAuth شيوعًا هي عدم تطابق بصمة SHA-1 لشهادة APK المثبّت، '
+          'أو اسم الحزمة، أو Web Client ID. لا تُرسل أي رموز دخول أو أسرار.',
+        );
+      }
       rethrow;
     }
   }
