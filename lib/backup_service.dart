@@ -256,6 +256,88 @@ class BackupService {
     }
   }
 
+  /// Downloads the current school's backup from the selected Google Drive account.
+  static Future<Map<String, dynamic>?> restoreFromGoogleDrive(
+    SchoolRepository repo, {
+    required Future<bool> Function(String accountEmail) confirmAccount,
+  }) async {
+    final school = await repo.school();
+    final schoolId = school?['id']?.toString();
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية.');
+    }
+    final year = await repo.activeAcademicYearName() ?? 'current';
+    final safeYear = year.replaceAll(
+      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
+      '_',
+    );
+    final fileName = 'lamin_${safeYear}_${schoolId}.json';
+
+    try {
+      final signIn = GoogleSignIn.instance;
+      if (_googleServerClientId.trim().isEmpty) {
+        throw Exception('تكامل Google Drive غير مهيأ: يلزم ضبط GOOGLE_SERVER_CLIENT_ID.');
+      }
+      if (!_googleSignInInitialized) {
+        await signIn.initialize(serverClientId: _googleServerClientId);
+        _googleSignInInitialized = true;
+      }
+      final account = await signIn.authenticate();
+      final accountEmail = account.email.trim();
+      if (accountEmail.isEmpty) {
+        throw Exception('تعذر التحقق من حساب Google المختار.');
+      }
+      if (!await confirmAccount(accountEmail)) return null;
+      final authorization = await account.authorizationClient.authorizeScopes(
+        const ['https://www.googleapis.com/auth/drive.file'],
+      );
+      final token = authorization.accessToken;
+      if (token.isEmpty) throw Exception('لم يمنح Google صلاحية قراءة النسخة الاحتياطية.');
+      final headers = {'Authorization': 'Bearer $token'};
+      final escapedName = fileName.replaceAll(r'\\', r'\\\\').replaceAll("'", r"\\'");
+      final query = "name = '$escapedName' and trashed = false";
+      final searchUri = Uri.https('www.googleapis.com', '/drive/v3/files', {
+        'q': query,
+        'pageSize': '10',
+        'orderBy': 'modifiedTime desc',
+        'fields': 'files(id,name,mimeType,modifiedTime)',
+      });
+      final searchResponse = await http.get(searchUri, headers: headers);
+      if (searchResponse.statusCode != 200) {
+        throw Exception(_driveError(searchResponse.statusCode, searchResponse.body));
+      }
+      final files = (jsonDecode(searchResponse.body) as Map<String, dynamic>)['files'] as List<dynamic>? ?? const [];
+      if (files.isEmpty) {
+        throw Exception('لم نعثر على نسخة لهذه المدرسة في حساب Google Drive المختار. تأكد من استخدام الحساب نفسه الذي رُفعت إليه النسخة.');
+      }
+      final matching = files.where((entry) {
+        if (entry is! Map) return false;
+        final mime = entry['mimeType']?.toString();
+        return mime == 'application/json' || mime == 'application/octet-stream';
+      }).toList();
+      if (matching.isEmpty) throw Exception('عُثر على اسم النسخة لكن نوع الملف غير مدعوم.');
+      final id = (matching.first as Map)['id']?.toString();
+      if (id == null || id.isEmpty) throw Exception('تعذر تحديد ملف النسخة الاحتياطية في Drive.');
+      final downloadUri = Uri.https('www.googleapis.com', '/drive/v3/files/$id', {'alt': 'media'});
+      final downloadResponse = await http.get(downloadUri, headers: headers);
+      if (downloadResponse.statusCode != 200) {
+        throw Exception(_driveError(downloadResponse.statusCode, downloadResponse.body));
+      }
+      final decoded = jsonDecode(utf8.decode(downloadResponse.bodyBytes));
+      if (decoded is! Map) throw Exception('محتوى النسخة في Google Drive غير صالح.');
+      final envelope = Map<String, dynamic>.from(decoded);
+      if (envelope['format'] != 'lamin-school-backup' || envelope['version'] != 2 ||
+          envelope['school_id']?.toString() != schoolId || envelope['data'] is! Map) {
+        throw Exception('النسخة الموجودة في Drive لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.');
+      }
+      return envelope;
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (message.contains('canceled') || message.contains('cancelled')) return null;
+      rethrow;
+    }
+  }
+
   static String _driveError(int statusCode, String body) {
     String? detail;
     try {
