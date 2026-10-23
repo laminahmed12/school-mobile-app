@@ -247,11 +247,9 @@ class BackupService {
         throw Exception('لم يؤكد Google Drive حفظ ملف النسخة الاحتياطية.');
       }
       return DriveBackupResult(accountEmail: accountEmail, fileId: fileId);
-    } catch (e) {
-      final message = e.toString().toLowerCase();
-      if (message.contains('canceled') || message.contains('cancelled')) {
-        return null;
-      }
+    } catch (_) {
+      // Preserve authentication and Drive API failures for the UI to display.
+      // Do not disguise them as a user cancellation.
       rethrow;
     }
   }
@@ -331,9 +329,8 @@ class BackupService {
         throw Exception('النسخة الموجودة في Drive لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.');
       }
       return envelope;
-    } catch (e) {
-      final message = e.toString().toLowerCase();
-      if (message.contains('canceled') || message.contains('cancelled')) return null;
+    } catch (_) {
+      // Preserve the original Google Sign-In / Drive exception for diagnostics.
       rethrow;
     }
   }
