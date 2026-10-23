@@ -89,7 +89,7 @@ class BackupView extends StatelessWidget {
             icon: const Icon(Icons.check_circle, color: Colors.green, size: 44),
             title: const Text('تم حفظ النسخة الاحتياطية بنجاح'),
             content: Text(
-              'أكد Google Drive حفظ ملف النسخة الاحتياطية.\\n\\nحساب التخزين: ${result.accountEmail}\\nمعرّف الملف: ${result.fileId}',
+              'أكد Google Drive حفظ ملف النسخة الاحتياطية.\n\nحساب التخزين: ${result.accountEmail}\nمعرّف الملف: ${result.fileId}',
             ),
             actions: [
               FilledButton(
@@ -256,7 +256,7 @@ class BackupView extends StatelessWidget {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('تأكيد حساب استعادة النسخة'),
-                  content: Text('المدرسة: $schoolName\\n\\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\\n$accountEmail\\n\\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.'),
+                  content: Text('المدرسة: $schoolName\n\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\n$accountEmail\n\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.'),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
                     FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
@@ -265,7 +265,26 @@ class BackupView extends StatelessWidget {
               ) ?? false;
         },
       );
-      if (envelope == null || !context.mounted) return;
+      if (!context.mounted) return;
+      if (envelope == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل استعادة Google Drive'),
+            content: const Text(
+              'لم يتم تنزيل نسخة أو استعادة أي بيانات. لم يؤكد التطبيق اكتمال العملية. إذا لم تُلغِ العملية بنفسك، أعد المحاولة؛ وإذا تكرر الأمر فستظهر رسالة الخطأ التقنية.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إغلاق'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
@@ -281,8 +300,8 @@ class BackupView extends StatelessWidget {
         builder: (ctx) => AlertDialog(
           title: const Text('تأكيد استعادة نسخة Google Drive'),
           content: Text(
-            'المدرسة: ${envelope['school_name'] ?? 'المدرسة'}\\n'
-            'تاريخ النسخة: ${envelope['created_at'] ?? 'غير معروف'}\\n\\n'
+            'المدرسة: ${envelope['school_name'] ?? 'المدرسة'}\n'
+            'تاريخ النسخة: ${envelope['created_at'] ?? 'غير معروف'}\n\n'
             'ستُدمج السجلات الناقصة فقط. لن تُحذف السجلات الحالية أو تُستبدل السجلات المتطابقة.',
           ),
           actions: [
