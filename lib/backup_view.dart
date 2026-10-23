@@ -195,6 +195,81 @@ class BackupView extends StatelessWidget {
     }
   }
 
+  Future<void> _restoreDrive(BuildContext context) async {
+    try {
+      final envelope = await BackupService.restoreFromGoogleDrive(
+        repo,
+        confirmAccount: (accountEmail) async {
+          if (!context.mounted) return false;
+          final school = await repo.school();
+          final schoolName = school?['name']?.toString() ?? 'المدرسة الحالية';
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('تأكيد حساب استعادة النسخة'),
+                  content: Text('المدرسة: $schoolName\\n\\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\\n$accountEmail\\n\\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+                  ],
+                ),
+              ) ?? false;
+        },
+      );
+      if (envelope == null || !context.mounted) return;
+      final school = await repo.school();
+      final schoolId = school?['id']?.toString();
+      if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
+        throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
+      }
+      final data = Map<String, dynamic>.from(envelope['data'] as Map);
+      if (data['format'] != 'lamin-school-backup-v2' ||
+          data['school_filter']?.toString() != schoolId) {
+        throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
+      }
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تأكيد استعادة نسخة Google Drive'),
+          content: Text(
+            'المدرسة: ${envelope['school_name'] ?? 'المدرسة'}\\n'
+            'تاريخ النسخة: ${envelope['created_at'] ?? 'غير معروف'}\\n\\n'
+            'ستُدمج السجلات الناقصة فقط. لن تُحذف السجلات الحالية أو تُستبدل السجلات المتطابقة.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة الآن')),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+      final result = await repo.restoreBackup(data);
+      await onChanged();
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 42),
+          title: const Text('تمت الاستعادة بنجاح'),
+          content: Text(result['message']?.toString() ?? 'تم دمج السجلات المتاحة من نسخة Google Drive.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('حسنًا'))],
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.error_outline, color: Colors.red, size: 42),
+          title: const Text('فشلت استعادة نسخة Google Drive'),
+          content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('التخزين والنسخ الاحتياطي')),
@@ -252,6 +327,17 @@ class BackupView extends StatelessWidget {
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => _restoreFile(context),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.cloud_download_outlined),
+            title: const Text('استعادة نسخة من Google Drive'),
+            subtitle: const Text(
+              'تسجيل الدخول إلى الحساب الذي حُفظت فيه النسخة، ثم تنزيلها واستعادة سجلات المدرسة',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _restoreDrive(context),
           ),
         ),
         const Padding(
