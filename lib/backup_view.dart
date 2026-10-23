@@ -83,13 +83,39 @@ class BackupView extends StatelessWidget {
         },
       );
       if (result != null && context.mounted) {
-        _message(
-          context,
-          'تم رفع النسخة الاحتياطية إلى Google Drive للحساب: ${result.accountEmail}',
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.check_circle, color: Colors.green, size: 44),
+            title: const Text('تم حفظ النسخة الاحتياطية بنجاح'),
+            content: Text(
+              'أكد Google Drive حفظ ملف النسخة الاحتياطية.\\n\\nحساب التخزين: ${result.accountEmail}\\nمعرّف الملف: ${result.fileId}',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('حسنًا'),
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
-      _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.error_outline, color: Colors.red, size: 44),
+          title: const Text('فشل حفظ النسخة الاحتياطية'),
+          content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
