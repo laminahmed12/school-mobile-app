@@ -131,7 +131,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
       pw.Text('مطالبة مالية مدرسية',style:pw.TextStyle(font: bold,fontSize:24)),pw.SizedBox(height:24),
       pw.Text('الطالب: ${studentName(charge['student_id'])}'),pw.Text('العام الدراسي: ${years.where((y)=>y['id'].toString()==yearId).map((y)=>y['name']).firstOrNull??''}'),
       pw.Text('البيان: ${charge['title']}'),pw.Text('النوع: ${_type(charge['charge_type'])}'),pw.Text('المبلغ المطلوب: ${charge['amount']} د.ل'),pw.Text('التاريخ: ${charge['incident_date']??''}'),pw.SizedBox(height:40),pw.Text('توقيع الإدارة: ____________________')
-    ]))));
+    ])))));
     await Printing.layoutPdf(onLayout:(_)=>doc.save());
   }
   Future<void> printPlan(Map<String,dynamic> plan,List<Map<String,dynamic>> ins) async {
