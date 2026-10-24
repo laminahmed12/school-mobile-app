@@ -1137,17 +1137,21 @@ class _StudentsViewState extends State<StudentsView> {
                           s.className +
                               (s.phone.isEmpty ? '' : ' • ${s.phone}'),
                         ),
-                        trailing: IconButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => StudentProfileView(
-                                repo: widget.repo,
-                                student: s,
-                              ),
-                            ),
-                          ),
-                          icon: const Icon(Icons.chevron_left),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (action) async {
+                            if (action == 'profile') {
+                              await Navigator.push(context, MaterialPageRoute(builder: (_) => StudentProfileView(repo: widget.repo, student: s)));
+                            } else if (action == 'edit') {
+                              await editStudent(s);
+                            } else if (action == 'delete') {
+                              await deleteStudent(s);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(value: 'profile', child: Text('ملف الطالب')),
+                            if (widget.canAdd) const PopupMenuItem(value: 'edit', child: Text('تعديل بيانات الطالب')),
+                            if (widget.canAdd) const PopupMenuItem(value: 'delete', child: Text('حذف الطالب')),
+                          ],
                         ),
                       ),
                     );
@@ -1156,6 +1160,46 @@ class _StudentsViewState extends State<StudentsView> {
         ),
       ],
     );
+  }
+
+
+  Future<void> editStudent(Student student) async {
+    final name=TextEditingController(text:student.name);
+    final className=TextEditingController(text:student.className);
+    final phone=TextEditingController(text:student.phone);
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تعديل بيانات الطالب'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الطالب')),
+        TextField(controller:className,decoration:const InputDecoration(labelText:'الصف / الفصل')),
+        TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'هاتف ولي الأمر')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
+    ));
+    if(ok!=true || name.text.trim().length<2 || className.text.trim().isEmpty) return;
+    try {
+      await db.from('students').update({'name':name.text.trim(),'class_name':className.text.trim(),'phone':phone.text.replaceAll(RegExp(r'[^0-9+]'),'')}).eq('id',student.id);
+      await widget.onChanged();
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعديل بيانات الطالب.')));
+    } catch(e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل الطالب: ${friendlyError(e,fallback:'تعذر حفظ التغييرات.')}')));
+    }
+  }
+
+  Future<void> deleteStudent(Student student) async {
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تأكيد حذف الطالب'),
+      content:Text('سيُحذف سجل الطالب «${student.name}» إذا سمحت علاقات قاعدة البيانات بذلك. قد تمنع سجلات الحضور والدرجات والمدفوعات الحذف لحماية التاريخ.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف الطالب'))],
+    ));
+    if(ok!=true) return;
+    try {
+      await db.from('students').delete().eq('id',student.id);
+      await widget.onChanged();
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حذف الطالب.')));
+    } catch(e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('لم يُحذف الطالب؛ قد تكون له سجلات مرتبطة. احتفظ بسجلاته وأرشفه بدل الحذف. التفاصيل: ${friendlyError(e,fallback:'عملية الحذف مرفوضة.')}')));
+    }
   }
 
   Future<void> addStudent(BuildContext context) async {
@@ -2897,6 +2941,51 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     if (mounted) setState(() => loading = false);
   }
 
+
+  Future<void> editTeacher(Teacher teacher) async {
+    final name=TextEditingController(text:teacher.name);
+    final subject=TextEditingController(text:teacher.subject);
+    final phone=TextEditingController(text:teacher.phone);
+    final salary=TextEditingController(text:teacher.salary.toString());
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تعديل بيانات المعلم'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:name,decoration:const InputDecoration(labelText:'اسم المعلم')),
+        TextField(controller:subject,decoration:const InputDecoration(labelText:'المادة / التخصص')),
+        TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'الهاتف')),
+        TextField(controller:salary,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الراتب الشهري (د.ل)')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
+    ));
+    final monthly=double.tryParse(salary.text.replaceAll(',','.'));
+    if(ok!=true || name.text.trim().length<2 || subject.text.trim().isEmpty || monthly==null || monthly<0) return;
+    try {
+      setState(()=>saving=true);
+      await db.from('teachers').update({'name':name.text.trim(),'subject':subject.text.trim(),'phone':phone.text.replaceAll(RegExp(r'[^0-9+]'),''),'salary':monthly}).eq('id',teacher.id);
+      await load();
+      await widget.onChanged();
+    } catch(e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل المعلم: ${friendlyError(e,fallback:'تعذر حفظ التغييرات.')}')));
+    } finally { if(mounted)setState(()=>saving=false); }
+  }
+
+  Future<void> deleteTeacher(Teacher teacher) async {
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تأكيد حذف المعلم'),
+      content:Text('سيُحذف سجل «${teacher.name}» إذا لم تكن له سجلات رواتب أو حضور مرتبطة. ستمنع قاعدة البيانات الحذف عند وجود علاقات تحمي السجل التاريخي.'),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف المعلم'))],
+    ));
+    if(ok!=true)return;
+    try {
+      setState(()=>saving=true);
+      await db.from('teachers').delete().eq('id',teacher.id);
+      await load();
+      await widget.onChanged();
+    } catch(e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('لم يُحذف المعلم؛ قد تكون له سجلات رواتب أو سنوات دراسية. أرشفه للحفاظ على التاريخ. التفاصيل: ${friendlyError(e,fallback:'عملية الحذف مرفوضة.')}')));
+    } finally { if(mounted)setState(()=>saving=false); }
+  }
+
   Future<void> addTeacher() async {
     final name = TextEditingController();
     final subject = TextEditingController();
@@ -3087,7 +3176,16 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                         subtitle: Text(
                           '${t.subject}${t.phone.isEmpty ? '' : ' • ${t.phone}'}',
                         ),
-                        trailing: const Icon(Icons.chevron_left),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (action) {
+                            if (action == 'edit') editTeacher(t);
+                            if (action == 'delete') deleteTeacher(t);
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'edit', child: Text('تعديل بيانات المعلم')),
+                            PopupMenuItem(value: 'delete', child: Text('حذف المعلم')),
+                          ],
+                        ),
                       ),
                     ),
                   )
