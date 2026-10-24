@@ -152,10 +152,10 @@ class BackupService {
         _googleSignInInitialized = true;
       }
 
-      // Clear a stale app-scoped Google session before interactive auth.
-      // Keep the stage marker so the exact failing step is recorded.
-      stage = 'sign_out';
-      await signIn.signOut();
+      // Do not sign out immediately before interactive authentication.
+      // Forcing sign-out here can trigger Google account reauthentication
+      // failures on Android; authenticate directly and let Google handle the
+      // account/session state.
       stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
@@ -303,10 +303,10 @@ class BackupService {
         await signIn.initialize(serverClientId: _googleServerClientId);
         _googleSignInInitialized = true;
       }
-      // Clear a stale app-scoped Google session before interactive auth.
-      // Keep the stage marker so the exact failing step is recorded.
-      stage = 'sign_out';
-      await signIn.signOut();
+      // Do not sign out immediately before interactive authentication.
+      // Forcing sign-out here can trigger Google account reauthentication
+      // failures on Android; authenticate directly and let Google handle the
+      // account/session state.
       stage = 'authenticate';
       final account = await signIn.authenticate();
       final accountEmail = account.email.trim();
