@@ -19,6 +19,7 @@ import 'owner_console.dart';
 import 'auth_service.dart';
 import 'backup_view.dart';
 import 'backup_service.dart';
+import 'manager_requests.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -1443,6 +1444,23 @@ class FinanceView extends StatelessWidget {
           ],
         ),
       ),
+      if (canManageFees)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ManagerRequestsView(repo: repo),
+                ),
+              ),
+              icon: const Icon(Icons.assignment_outlined),
+              label: const Text('متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل'),
+            ),
+          ),
+        ),
       if (canManageFees)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
