@@ -1,9 +1,9 @@
 name: Validate Lamin and build Android candidate
 on:
   push:
-    branches: [main]
+    branches: [main, feature/manager-school-finance-requests]
   pull_request:
-    branches: [main]
+    branches: [main, fix/google-drive-backup-20261022]
   workflow_dispatch:
   schedule:
     # Nightly full validation at 04:23 Africa/Tripoli (02:23 UTC).
