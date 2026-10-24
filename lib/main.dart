@@ -2946,7 +2946,8 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     final name=TextEditingController(text:teacher.name);
     final subject=TextEditingController(text:teacher.subject);
     final phone=TextEditingController(text:teacher.phone);
-    final salary=TextEditingController(text:teacher.salary.toString());
+    final current=await db.from('teachers').select('salary').eq('id',teacher.id).maybeSingle();
+    final salary=TextEditingController(text:current?['salary']?.toString()??'0');
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
       title:const Text('تعديل بيانات المعلم'),
       content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
