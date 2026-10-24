@@ -35,7 +35,7 @@ class BackupView extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('حفظ نسخة خارج التطبيق'),
         content: const Text(
-          'ستفتح نافذة حفظ النظام. اختر Google Drive أو موقعًا آخر يدعمه الجهاز، ثم تحقق من وجود الملف في الموقع المختار. اختيار «التنزيلات» لا يرفع الملف إلى Drive.',
+          'سجّل الدخول باستخدام حساب Google Drive الخاص بهذه المدرسة، وليس حساب مدرسة أخرى. سيطلب التطبيق صلاحية الوصول إلى ملفات النسخ الاحتياطية التي ينشئها لامين، ثم يرفع الملف مباشرة إلى Drive هذا الحساب. لن يُستخدم حساب مركزي تابع إلى لامين.',
         ),
         actions: [
           TextButton(
@@ -44,21 +44,88 @@ class BackupView extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('اختيار الموقع'),
+            child: const Text('المتابعة إلى Google Drive'),
           ),
         ],
       ),
     );
     if (proceed != true || !context.mounted) return;
     try {
-      final location = await BackupService.backupAndSave(repo);
-      if (location != null)
-        _message(
-          context,
-          'اكتمل الحفظ في الموقع الذي اخترته. تحقق من وجود الملف قبل الاعتماد عليه.',
+      final result = await BackupService.backupAndSave(
+        repo,
+        confirmAccount: (accountEmail) async {
+          if (!context.mounted) return false;
+          final school = await repo.school();
+          final schoolName = school?['name']?.toString() ?? 'المدرسة الحالية';
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('تأكيد حساب النسخ الاحتياطي'),
+                  content: Text(
+                    'المدرسة: $schoolName\n\n'
+                    'سيتم رفع النسخة إلى حساب Google Drive التالي:\n$accountEmail\n\n'
+                    'تأكد أن هذا هو الحساب المملوك لهذه المدرسة، وليس حساب مدرسة أخرى.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('إلغاء — يمكنك إعادة المحاولة لاختيار الحساب الصحيح'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('تأكيد ورفع النسخة'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        },
+      );
+      if (result != null && context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.check_circle, color: Colors.green, size: 44),
+            title: const Text('تم حفظ النسخة الاحتياطية بنجاح'),
+            content: Text(
+              'أكد Google Drive حفظ ملف النسخة الاحتياطية.\n\nحساب التخزين: ${result.accountEmail}\nمعرّف الملف: ${result.fileId}',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('حسنًا'),
+              ),
+            ],
+          ),
         );
+      } else if (context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل عملية النسخ الاحتياطي'),
+            content: const Text('لم يتم تأكيد حفظ النسخة. قد تكون العملية أُلغيت أو لم يُؤكَّد اختيار الحساب. لم نعتبر النسخ ناجحًا.'),
+            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          ),
+        );
+      }
     } catch (e) {
-      _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.error_outline, color: Colors.red, size: 44),
+          title: const Text('فشل حفظ النسخة الاحتياطية'),
+          content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -118,7 +185,19 @@ class BackupView extends StatelessWidget {
   Future<void> _restoreFile(BuildContext context) async {
     try {
       final envelope = await BackupService.pickBackupFile();
-      if (envelope == null || !context.mounted) return;
+      if (!context.mounted) return;
+      if (envelope == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل الاستعادة'),
+            content: const Text('لم يتم تنزيل نسخة أو استعادتها. قد تكون العملية أُلغيت أو لم يتم تأكيد الحساب. لم تُجرَ أي استعادة.'),
+            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          ),
+        );
+        return;
+      }
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
@@ -164,6 +243,100 @@ class BackupView extends StatelessWidget {
     }
   }
 
+  Future<void> _restoreDrive(BuildContext context) async {
+    try {
+      final envelope = await BackupService.restoreFromGoogleDrive(
+        repo,
+        confirmAccount: (accountEmail) async {
+          if (!context.mounted) return false;
+          final school = await repo.school();
+          final schoolName = school?['name']?.toString() ?? 'المدرسة الحالية';
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('تأكيد حساب استعادة النسخة'),
+                  content: Text('المدرسة: $schoolName\n\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\n$accountEmail\n\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+                  ],
+                ),
+              ) ?? false;
+        },
+      );
+      if (!context.mounted) return;
+      if (envelope == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.info_outline, size: 42),
+            title: const Text('لم تكتمل استعادة Google Drive'),
+            content: const Text(
+              'لم يتم تنزيل نسخة أو استعادة أي بيانات. لم يؤكد التطبيق اكتمال العملية. إذا لم تُلغِ العملية بنفسك، أعد المحاولة؛ وإذا تكرر الأمر فستظهر رسالة الخطأ التقنية.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إغلاق'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      final school = await repo.school();
+      final schoolId = school?['id']?.toString();
+      if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
+        throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
+      }
+      final data = Map<String, dynamic>.from(envelope['data'] as Map);
+      if (data['format'] != 'lamin-school-backup-v2' ||
+          data['school_filter']?.toString() != schoolId) {
+        throw Exception('محتوى النسخة لا يطابق المدرسة الحالية.');
+      }
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تأكيد استعادة نسخة Google Drive'),
+          content: Text(
+            'المدرسة: ${envelope['school_name'] ?? 'المدرسة'}\n'
+            'تاريخ النسخة: ${envelope['created_at'] ?? 'غير معروف'}\n\n'
+            'ستُدمج السجلات الناقصة فقط. لن تُحذف السجلات الحالية أو تُستبدل السجلات المتطابقة.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة الآن')),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+      final result = await repo.restoreBackup(data);
+      await onChanged();
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 42),
+          title: const Text('تمت الاستعادة بنجاح'),
+          content: Text(result['message']?.toString() ?? 'تم دمج السجلات المتاحة من نسخة Google Drive.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('حسنًا'))],
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.error_outline, color: Colors.red, size: 42),
+          title: const Text('فشلت استعادة نسخة Google Drive'),
+          content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('التخزين والنسخ الاحتياطي')),
@@ -175,7 +348,7 @@ class BackupView extends StatelessWidget {
             leading: Icon(Icons.shield_outlined),
             title: Text('نسخ منفصلة بوضوح'),
             subtitle: Text(
-              'النسخة المحلية تحفظ داخل التطبيق على هذا الجهاز. الحفظ الخارجي يحتاج إلى اختيار الموقع والتحقق من الملف يدويًا.',
+              'النسخة المحلية تحفظ داخل التطبيق على هذا الجهاز. تُرفع النسخة الخارجية إلى حساب Google Drive الذي تسجّل المدرسة الدخول به؛ لكل مدرسة حسابها الخاص، ولا يستخدم لامين حساب Drive مركزيًا.',
             ),
           ),
         ),
@@ -195,7 +368,7 @@ class BackupView extends StatelessWidget {
             leading: const Icon(Icons.cloud_upload_outlined),
             title: const Text('حفظ نسخة خارج التطبيق'),
             subtitle: const Text(
-              'اختر Google Drive أو موقعًا آخر من نافذة الحفظ',
+              'تسجيل الدخول إلى Google ورفع النسخة الاحتياطية مباشرة إلى Drive',
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => _external(context),
@@ -221,6 +394,17 @@ class BackupView extends StatelessWidget {
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => _restoreFile(context),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.cloud_download_outlined),
+            title: const Text('استعادة نسخة من Google Drive'),
+            subtitle: const Text(
+              'تسجيل الدخول إلى الحساب الذي حُفظت فيه النسخة، ثم تنزيلها واستعادة سجلات المدرسة',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => _restoreDrive(context),
           ),
         ),
         const Padding(
