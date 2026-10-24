@@ -56,9 +56,9 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
         onChanged:(v){setState(()=>yearId=v);load();},
       )),
       Expanded(child:TabBarView(controller:tabs,children:[
-        _list(teacherRecords.map((r)=>ListTile(title:Text(teacherName(r['teacher_id'])),subtitle:Text('المادة: ${r['subject']??'—'} • الراتب: ${r['salary']??'—'} د.ل • ${r['active']==true?'نشط':'غير نشط'}'))).toList(),
+        _list(teacherRecords.map((r)=>ListTile(title:Text(teacherName(r['teacher_id'])),subtitle:Text('المادة: ${r['subject']??'—'} • الراتب: ${r['salary']??'—'} د.ل • ${r['active']==true?'نشط':'غير نشط'}'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'تعديل',icon:const Icon(Icons.edit_outlined),onPressed:()=>editTeacherYear(r)),IconButton(tooltip:'حذف سجل العام',icon:const Icon(Icons.delete_outline),onPressed:()=>deleteRecord('teacher_academic_year_records',r['id'],'حذف سجل المعلم لهذا العام؟'))]))).toList(),
           'إضافة معلم لهذا العام',addTeacherYear),
-        _list(charges.map((r)=>ListTile(title:Text('${r['title']} — ${studentName(r['student_id'])}'),subtitle:Text('${_type(r['charge_type'])} • ${r['amount']} د.ل • ${r['incident_date']??''}'),trailing:IconButton(icon:const Icon(Icons.print_outlined),onPressed:()=>printClaim(r)))).toList(),
+        _list(charges.map((r)=>ListTile(title:Text('${r['title']} — ${studentName(r['student_id'])}'),subtitle:Text('${_type(r['charge_type'])} • ${r['amount']} د.ل • ${r['incident_date']??''}'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'طباعة المطالبة',icon:const Icon(Icons.print_outlined),onPressed:()=>printClaim(r)),IconButton(tooltip:'تعديل الرسم',icon:const Icon(Icons.edit_outlined),onPressed:()=>editCharge(r)),IconButton(tooltip:'حذف الرسم',icon:const Icon(Icons.delete_outline),onPressed:()=>deleteRecord('student_extra_charges',r['id'],'حذف الرسم أو الغرامة؟'))]))).toList(),
           'إضافة رسم أو غرامة',addCharge),
         _list(plans.map((r){final ins=installments.where((i)=>i['plan_id']==r['id']).toList();return Card(child:ExpansionTile(title:Text('${studentName(r['student_id'])} — ${r['title']}'),subtitle:Text('الإجمالي: ${r['total_amount']} د.ل • ${ins.length} دفعات'),children:[...ins.map((i)=>ListTile(title:Text('دفعة ${i['installment_number']} — ${i['amount']} د.ل'),subtitle:Text('تستحق: ${i['due_date']}'))),TextButton.icon(onPressed:()=>printPlan(r,ins),icon:const Icon(Icons.print),label:const Text('طباعة المطالبة'))]));}).toList(),
           'إنشاء خطة تحصيل',addPlan),
@@ -125,6 +125,64 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
   }
 
   Future<void> _save(Future<dynamic> Function() action) async {setState(()=>saving=true);try{await action();await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}finally{if(mounted)setState(()=>saving=false);}}
+
+
+  Future<void> deleteRecord(String table, dynamic id, String prompt) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تأكيد الحذف'),
+      content: Text('$prompt\\n\\nالحذف هنا مخصص للسجلات الإدارية غير المسددة؛ لا تستخدمه لمحو أثر عملية مالية مكتملة.'),
+      actions: [TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف'))],
+    ));
+    if (ok != true) return;
+    await _save(() async {
+      if (table == 'student_payment_plans') {
+        await db.from('student_payment_installments').delete().eq('school_id',schoolId!).eq('plan_id',id.toString());
+      }
+      await db.from(table).delete().eq('school_id',schoolId!).eq('id',id);
+    });
+  }
+
+  Future<void> editTeacherYear(Map<String,dynamic> row) async {
+    final subject=TextEditingController(text:row['subject']?.toString()??'');
+    final salary=TextEditingController(text:row['salary']?.toString()??'');
+    final phone=TextEditingController(text:row['phone']?.toString()??'');
+    bool active=row['active']==true;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(
+      title:const Text('تعديل سجل المعلم لهذا العام'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:subject,decoration:const InputDecoration(labelText:'المادة')),
+        TextField(controller:salary,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الراتب الشهري')),
+        TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),
+        SwitchListTile(value:active,onChanged:(v)=>setD(()=>active=v),title:const Text('نشط في هذا العام')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
+    )));
+    final value=double.tryParse(salary.text.replaceAll(',','.'));
+    if(ok!=true || (salary.text.trim().isNotEmpty && (value==null || value<0))) return;
+    await _save(()=>db.from('teacher_academic_year_records').update({'subject':subject.text.trim(),'salary':value,'phone':phone.text.trim(),'active':active}).eq('school_id',schoolId!).eq('academic_year_id',yearId!).eq('id',row['id']));
+  }
+
+  Future<void> editCharge(Map<String,dynamic> row) async {
+    final title=TextEditingController(text:row['title']?.toString()??'');
+    final amount=TextEditingController(text:row['amount']?.toString()??'');
+    final date=TextEditingController(text:row['incident_date']?.toString()??'');
+    final note=TextEditingController(text:row['notes']?.toString()??'');
+    String type=row['charge_type']?.toString()??'other';
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(
+      title:const Text('تعديل الرسم أو الغرامة'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<String>(initialValue:type,items:const [DropdownMenuItem(value:'transport',child:Text('مواصلات')),DropdownMenuItem(value:'tutoring',child:Text('تقويات')),DropdownMenuItem(value:'damage',child:Text('غرامة إتلاف')),DropdownMenuItem(value:'other',child:Text('رسم إضافي'))],onChanged:(v){if(v!=null)setD(()=>type=v);}),
+        TextField(controller:title,decoration:const InputDecoration(labelText:'البيان')),
+        TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ بالدينار الليبي')),
+        TextField(controller:date,decoration:const InputDecoration(labelText:'التاريخ YYYY-MM-DD')),
+        TextField(controller:note,decoration:const InputDecoration(labelText:'ملاحظات')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
+    )));
+    final value=double.tryParse(amount.text.replaceAll(',','.'));
+    if(ok!=true || title.text.trim().isEmpty || value==null || value<=0 || (date.text.trim().isNotEmpty && DateTime.tryParse(date.text.trim())==null)) return;
+    await _save(()=>db.from('student_extra_charges').update({'title':title.text.trim(),'charge_type':type,'amount':value,'incident_date':date.text.trim().isEmpty?null:date.text.trim(),'notes':note.text.trim()}).eq('school_id',schoolId!).eq('academic_year_id',yearId!).eq('id',row['id']));
+  }
 
   Future<void> printClaim(Map<String,dynamic> charge) async {
     final doc=pw.Document();final font=await PdfGoogleFonts.notoNaskhArabicRegular();final bold=await PdfGoogleFonts.notoNaskhArabicBold();
