@@ -50,7 +50,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     ),
     body:loading?const Center(child:CircularProgressIndicator()):Column(children:[
       Padding(padding:const EdgeInsets.all(12),child:DropdownButtonFormField<String>(
-        value:yearId,decoration:const InputDecoration(labelText:'العام الدراسي'),
+        initialValue:yearId,decoration:const InputDecoration(labelText:'العام الدراسي'),
         items:years.map((y)=>DropdownMenuItem(value:y['id'].toString(),child:Text(y['name'].toString()))).toList(),
         onChanged:(v){setState(()=>yearId=v);load();},
       )),
@@ -76,7 +76,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     if(teachers.isEmpty||yearId==null||schoolId==null)return;
     String tid=teachers.first['id'].toString(); final subject=TextEditingController(text:teachers.first['subject']?.toString()??''); final salary=TextEditingController(text:teachers.first['salary']?.toString()??''); final phone=TextEditingController(text:teachers.first['phone']?.toString()??''); bool active=true;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(title:const Text('بيانات المعلم لهذا العام'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      DropdownButtonFormField<String>(value:tid,items:teachers.map((t)=>DropdownMenuItem(value:t['id'].toString(),child:Text(t['name'].toString()))).toList(),onChanged:(v){if(v!=null)setD(()=>tid=v);}),
+      DropdownButtonFormField<String>(initialValue:tid,items:teachers.map((t)=>DropdownMenuItem(value:t['id'].toString(),child:Text(t['name'].toString()))).toList(),onChanged:(v){if(v!=null)setD(()=>tid=v);}),
       TextField(controller:subject,decoration:const InputDecoration(labelText:'المادة')),
       TextField(controller:salary,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الراتب الشهري')),
       TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),
@@ -90,8 +90,8 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     if(students.isEmpty||yearId==null||schoolId==null)return;
     String sid=students.first['id'].toString(), type='transport'; final title=TextEditingController(); final amount=TextEditingController(); final date=TextEditingController(text:DateTime.now().toIso8601String().substring(0,10)); final note=TextEditingController();
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('رسم إضافي أو غرامة'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      DropdownButtonFormField<String>(value:sid,items:students.map((s)=>DropdownMenuItem(value:s['id'].toString(),child:Text(s['name'].toString()))).toList(),onChanged:(v){if(v!=null)sid=v;}),
-      DropdownButtonFormField<String>(value:type,items:const [DropdownMenuItem(value:'transport',child:Text('مواصلات')),DropdownMenuItem(value:'tutoring',child:Text('تقويات')),DropdownMenuItem(value:'damage',child:Text('غرامة إتلاف')),DropdownMenuItem(value:'other',child:Text('رسم إضافي'))],onChanged:(v){if(v!=null)type=v;}),
+      DropdownButtonFormField<String>(initialValue:sid,items:students.map((s)=>DropdownMenuItem(value:s['id'].toString(),child:Text(s['name'].toString()))).toList(),onChanged:(v){if(v!=null)sid=v;}),
+      DropdownButtonFormField<String>(initialValue:type,items:const [DropdownMenuItem(value:'transport',child:Text('مواصلات')),DropdownMenuItem(value:'tutoring',child:Text('تقويات')),DropdownMenuItem(value:'damage',child:Text('غرامة إتلاف')),DropdownMenuItem(value:'other',child:Text('رسم إضافي'))],onChanged:(v){if(v!=null)type=v;}),
       TextField(controller:title,decoration:const InputDecoration(labelText:'البيان (مثال: إتلاف مقعد)')),
       TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ بالدينار الليبي')),
       TextField(controller:date,decoration:const InputDecoration(labelText:'التاريخ YYYY-MM-DD')),
@@ -105,7 +105,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     if(students.isEmpty||yearId==null||schoolId==null)return;
     String sid=students.first['id'].toString(); final title=TextEditingController(text:'خطة سداد الرسوم'); final total=TextEditingController(); final count=TextEditingController(text:'2'); final firstDate=TextEditingController(text:DateTime.now().toIso8601String().substring(0,10));
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('خطة تحصيل على دفعات'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      DropdownButtonFormField<String>(value:sid,items:students.map((s)=>DropdownMenuItem(value:s['id'].toString(),child:Text(s['name'].toString()))).toList(),onChanged:(v){if(v!=null)sid=v;}),
+      DropdownButtonFormField<String>(initialValue:sid,items:students.map((s)=>DropdownMenuItem(value:s['id'].toString(),child:Text(s['name'].toString()))).toList(),onChanged:(v){if(v!=null)sid=v;}),
       TextField(controller:title,decoration:const InputDecoration(labelText:'اسم الخطة')),
       TextField(controller:total,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'القيمة الكاملة')),
       TextField(controller:count,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'عدد الدفعات')),
