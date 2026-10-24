@@ -60,7 +60,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
           'إضافة معلم لهذا العام',addTeacherYear),
         _list(charges.map((r)=>ListTile(title:Text('${r['title']} — ${studentName(r['student_id'])}'),subtitle:Text('${_type(r['charge_type'])} • ${r['amount']} د.ل • ${r['incident_date']??''}'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'طباعة المطالبة',icon:const Icon(Icons.print_outlined),onPressed:()=>printClaim(r)),IconButton(tooltip:'تعديل الرسم',icon:const Icon(Icons.edit_outlined),onPressed:()=>editCharge(r)),IconButton(tooltip:'حذف الرسم',icon:const Icon(Icons.delete_outline),onPressed:()=>deleteRecord('student_extra_charges',r['id'],'حذف الرسم أو الغرامة؟'))]))).toList(),
           'إضافة رسم أو غرامة',addCharge),
-        _list(plans.map((r){final ins=installments.where((i)=>i['plan_id']==r['id']).toList();return Card(child:ExpansionTile(title:Text('${studentName(r['student_id'])} — ${r['title']}'),subtitle:Text('الإجمالي: ${r['total_amount']} د.ل • ${ins.length} دفعات'),children:[...ins.map((i)=>ListTile(title:Text('دفعة ${i['installment_number']} — ${i['amount']} د.ل'),subtitle:Text('تستحق: ${i['due_date']}'))),TextButton.icon(onPressed:()=>printPlan(r,ins),icon:const Icon(Icons.print),label:const Text('طباعة المطالبة'))]));}).toList(),
+        _list(plans.map((r){final ins=installments.where((i)=>i['plan_id']==r['id']).toList();return Card(child:ExpansionTile(title:Text('${studentName(r['student_id'])} — ${r['title']}'),subtitle:Text('الإجمالي: ${r['total_amount']} د.ل • ${ins.length} دفعات'),children:[...ins.map((i)=>ListTile(title:Text('دفعة ${i['installment_number']} — ${i['amount']} د.ل'),subtitle:Text('تستحق: ${i['due_date']}'))),Wrap(spacing:8,children:[TextButton.icon(onPressed:()=>printPlan(r,ins),icon:const Icon(Icons.print),label:const Text('طباعة المطالبة')),TextButton.icon(onPressed:()=>editPlan(r),icon:const Icon(Icons.edit_outlined),label:const Text('تعديل الخطة')),TextButton.icon(onPressed:()=>deleteRecord('student_payment_plans',r['id'],'حذف خطة التحصيل ودفعاتها المرتبطة؟'),icon:const Icon(Icons.delete_outline),label:const Text('حذف الخطة'))])]));}).toList(),
           'إنشاء خطة تحصيل',addPlan),
       ]))
     ]),
@@ -182,6 +182,43 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     final value=double.tryParse(amount.text.replaceAll(',','.'));
     if(ok!=true || title.text.trim().isEmpty || value==null || value<=0 || (date.text.trim().isNotEmpty && DateTime.tryParse(date.text.trim())==null)) return;
     await _save(()=>db.from('student_extra_charges').update({'title':title.text.trim(),'charge_type':type,'amount':value,'incident_date':date.text.trim().isEmpty?null:date.text.trim(),'notes':note.text.trim()}).eq('school_id',schoolId!).eq('academic_year_id',yearId!).eq('id',row['id']));
+  }
+
+
+  Future<void> editPlan(Map<String,dynamic> row) async {
+    final title=TextEditingController(text:row['title']?.toString()??'');
+    final total=TextEditingController(text:row['total_amount']?.toString()??'');
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('تعديل خطة التحصيل'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:title,decoration:const InputDecoration(labelText:'اسم الخطة')),
+        TextField(controller:total,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الإجمالي')),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
+    ));
+    final value=double.tryParse(total.text.replaceAll(',','.'));
+    if(ok!=true || title.text.trim().isEmpty || value==null || value<=0) return;
+    final related=installments.where((i)=>i['plan_id'].toString()==row['id'].toString()).toList();
+    final settled=related.any((i)=>i['status']=='paid' || (double.tryParse((i['paid_amount']??0).toString())??0)>0);
+    if(settled && (value-(double.tryParse(row['total_amount'].toString())??0)).abs()>0.009) {
+      _messageError('لا يمكن تغيير إجمالي خطة بها دفعات مسددة؛ يلزم تصحيح الدفعات عبر السجل المالي.');
+      return;
+    }
+    await _save(() async {
+      await db.from('student_payment_plans').update({'title':title.text.trim(),'total_amount':value}).eq('school_id',schoolId!).eq('academic_year_id',yearId!).eq('id',row['id']);
+      if(!settled && related.isNotEmpty) {
+        final n=related.length;
+        final base=(value/n*100).floorToDouble()/100;
+        for(var index=0;index<related.length;index++) {
+          final item=related[index];
+          await db.from('student_payment_installments').update({'amount':index==n-1?double.parse((value-base*(n-1)).toStringAsFixed(2)):base}).eq('school_id',schoolId!).eq('plan_id',row['id'].toString()).eq('id',item['id']);
+        }
+      }
+    });
+  }
+
+  void _messageError(String message) {
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(message)));
   }
 
   Future<void> printClaim(Map<String,dynamic> charge) async {
