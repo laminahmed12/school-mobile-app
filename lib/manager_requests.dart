@@ -82,7 +82,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
       TextField(controller:salary,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الراتب الشهري')),
       TextField(controller:phone,decoration:const InputDecoration(labelText:'الهاتف')),
       SwitchListTile(value:active,onChanged:(v)=>setD(()=>active=v),title:const Text('نشط في هذا العام')),
-    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))]))));
+    ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))])));
     if(ok!=true)return;
     await _save(()=>db.from('teacher_academic_year_records').upsert({'school_id':schoolId,'teacher_id':tid,'academic_year_id':yearId,'subject':subject.text.trim(),'salary':double.tryParse(salary.text.replaceAll(',','.')),'phone':phone.text.trim(),'active':active},onConflict:'school_id,teacher_id,academic_year_id'));
   }
