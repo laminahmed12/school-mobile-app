@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'supabase_config.dart';
 import 'repository.dart';
@@ -221,7 +222,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
   }
 
   Future<void> printClaim(Map<String,dynamic> charge) async {
-    final doc=pw.Document();final font=await pw.PdfGoogleFonts.notoNaskhArabicRegular();final bold=await pw.PdfGoogleFonts.notoNaskhArabicBold();
+    final doc=pw.Document();final font=await PdfGoogleFonts.notoNaskhArabicRegular();final bold=await PdfGoogleFonts.notoNaskhArabicBold();
     doc.addPage(pw.Page(pageFormat:PdfPageFormat.a4,theme:pw.ThemeData.withFont(base:font,bold:bold),build:(_)=>pw.Directionality(textDirection:pw.TextDirection.rtl,child:pw.Padding(padding:const pw.EdgeInsets.all(32),child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.stretch,children:[
       pw.Text('مطالبة مالية مدرسية',style:pw.TextStyle(font: bold,fontSize:24)),pw.SizedBox(height:24),
       pw.Text('الطالب: ${studentName(charge['student_id'])}'),pw.Text('العام الدراسي: ${years.where((y)=>y['id'].toString()==yearId).map((y)=>y['name']).firstOrNull??''}'),
@@ -230,7 +231,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     await Printing.layoutPdf(onLayout:(_)=>doc.save());
   }
   Future<void> printPlan(Map<String,dynamic> plan,List<Map<String,dynamic>> ins) async {
-    final doc=pw.Document();final font=await pw.PdfGoogleFonts.notoNaskhArabicRegular();final bold=await pw.PdfGoogleFonts.notoNaskhArabicBold();
+    final doc=pw.Document();final font=await PdfGoogleFonts.notoNaskhArabicRegular();final bold=await PdfGoogleFonts.notoNaskhArabicBold();
     doc.addPage(pw.MultiPage(pageFormat:PdfPageFormat.a4,theme:pw.ThemeData.withFont(base:font,bold:bold),build:(_)=>[
       pw.Directionality(textDirection:pw.TextDirection.rtl,child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.stretch,children:[
         pw.Text('مطالبة مالية وخطة سداد',style:pw.TextStyle(font:bold,fontSize:24)),pw.SizedBox(height:14),
