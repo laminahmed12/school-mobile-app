@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:pdf/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'supabase_config.dart';
 import 'repository.dart';
@@ -76,7 +75,7 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
   Future<void> addTeacherYear() async {
     if(teachers.isEmpty||yearId==null||schoolId==null)return;
     String tid=teachers.first['id'].toString(); final subject=TextEditingController(text:teachers.first['subject']?.toString()??''); final salary=TextEditingController(text:teachers.first['salary']?.toString()??''); final phone=TextEditingController(text:teachers.first['phone']?.toString()??''); bool active=true;
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(title:const Text('بيانات المعلم لهذا العام'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(title:const Text('بيانات المعلم لهذا العام'),content:SingleChildScrollView(child:Column(children:[
       DropdownButtonFormField<String>(initialValue:tid,items:teachers.map((t)=>DropdownMenuItem(value:t['id'].toString(),child:Text(t['name'].toString()))).toList(),onChanged:(v){if(v!=null)setD(()=>tid=v);}),
       TextField(controller:subject,decoration:const InputDecoration(labelText:'المادة')),
       TextField(controller:salary,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الراتب الشهري')),
@@ -190,10 +189,10 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView> with SingleTi
     final total=TextEditingController(text:row['total_amount']?.toString()??'');
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
       title:const Text('تعديل خطة التحصيل'),
-      content:Column(mainAxisSize:MainAxisSize.min,children:[
+      content:SingleChildScrollView(child:Column(children:[
         TextField(controller:title,decoration:const InputDecoration(labelText:'اسم الخطة')),
         TextField(controller:total,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الإجمالي')),
-      ]),
+      ])),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
     ));
     final value=double.tryParse(total.text.replaceAll(',','.'));
