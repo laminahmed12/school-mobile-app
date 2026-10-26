@@ -20,6 +20,7 @@ import 'auth_service.dart';
 import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
+import 'test_builder.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -3329,6 +3330,19 @@ class MoreView extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => ReportsView(repo: repo)),
+              ),
+            ),
+          ),
+        if (isAdmin || isSupervisor)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.quiz_outlined),
+              title: const Text('منشئ الاختبارات والتدريبات'),
+              subtitle: const Text('إنشاء الأسئلة، نماذج متعددة، تصحيح تلقائي وتصدير النتائج'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TestBuilderView()),
               ),
             ),
           ),
