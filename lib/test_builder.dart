@@ -210,12 +210,14 @@ class _TestBuilderViewState extends State<TestBuilderView> {
           for (var i = 0; i < questions.length; i++) ...[
             Text('${i + 1}. ${questions[i]['text']} (${questions[i]['points']} درجة)', style: const TextStyle(fontWeight: FontWeight.bold)),
             if (questions[i]['kind'] == 'اختيار من متعدد')
-              for (final option in List<String>.from(questions[i]['options'] as List))
-                RadioListTile<String>(
-                  dense: true, title: Text(option), value: option,
-                  groupValue: choices[questions[i]['id'].toString()],
-                  onChanged: (v) => refresh(() { if (v != null) choices[questions[i]['id'].toString()] = v; }),
-                )
+              RadioGroup<String>(
+                groupValue: choices[questions[i]['id'].toString()],
+                onChanged: (v) => refresh(() { if (v != null) choices[questions[i]['id'].toString()] = v; }),
+                child: Column(children: [
+                  for (final option in List<String>.from(questions[i]['options'] as List))
+                    RadioListTile<String>(dense: true, title: Text(option), value: option),
+                ]),
+              )
             else if (questions[i]['kind'] == 'صح أو خطأ')
               RadioGroup<String>(
                 groupValue: choices[questions[i]['id'].toString()],
