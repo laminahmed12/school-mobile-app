@@ -40,7 +40,9 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     _points.dispose();
     _answer.dispose();
     _student.dispose();
-    for (final c in _options) { c.dispose(); }
+    for (final c in _options) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -49,8 +51,12 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     final raw = prefs.getString(_storageKey);
     if (raw != null) {
       try {
-        _tests = (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)).toList();
-      } catch (_) { _tests = []; }
+        _tests = (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      } catch (_) {
+        _tests = [];
+      }
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -81,8 +87,12 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     if (_kind == 'اختيار من متعدد') {
       final opts = _options.map((e) => e.text.trim()).toList();
       final answer = _answer.text.trim();
-      if (opts.any((e) => e.isEmpty) || answer.isEmpty || !opts.contains(answer)) {
-        _message('أكمل الخيارات الأربعة واكتب الإجابة الصحيحة مطابقة لأحد الخيارات.');
+      if (opts.any((e) => e.isEmpty) ||
+          answer.isEmpty ||
+          !opts.contains(answer)) {
+        _message(
+          'أكمل الخيارات الأربعة واكتب الإجابة الصحيحة مطابقة لأحد الخيارات.',
+        );
         return;
       }
       item['options'] = opts;
@@ -104,7 +114,9 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     setState(() {
       _questions.add(item);
       _question.clear();
-      for (final c in _options) { c.clear(); }
+      for (final c in _options) {
+        c.clear();
+      }
       _answer.clear();
       _points.text = '1';
     });
@@ -122,20 +134,33 @@ class _TestBuilderViewState extends State<TestBuilderView> {
       'questions': _questions.map((e) => Map<String, dynamic>.from(e)).toList(),
       'results': <Map<String, dynamic>>[],
     };
-    setState(() { _tests.insert(0, test); _questions = []; _title.clear(); });
+    setState(() {
+      _tests.insert(0, test);
+      _questions = [];
+      _title.clear();
+    });
     await _persist();
     _message('تم حفظ الاختبار على هذا الجهاز.');
   }
 
   Future<void> _deleteTest(Map<String, dynamic> test) async {
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('حذف الاختبار؟'),
-      content: Text('سيُحذف «${test['title']}» ونتائجه المحفوظة محليًا.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف')),
-      ],
-    ));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الاختبار؟'),
+        content: Text('سيُحذف «${test['title']}» ونتائجه المحفوظة محليًا.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
     if (ok != true) return;
     setState(() => _tests.removeWhere((e) => e['id'] == test['id']));
     await _persist();
@@ -157,7 +182,10 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     final variants = <String>[];
     for (var i = 0; i < 3; i++) {
       final qs = _variant(test, DateTime.now().microsecondsSinceEpoch + i * 37);
-      final lines = <String>['النموذج ${String.fromCharCode(65 + i)} — ${test['title']}', ''];
+      final lines = <String>[
+        'النموذج ${String.fromCharCode(65 + i)} — ${test['title']}',
+        '',
+      ];
       for (var j = 0; j < qs.length; j++) {
         final q = qs[j];
         lines.add('${j + 1}. ${q['text']} (${q['points']} درجة)');
@@ -175,69 +203,150 @@ class _TestBuilderViewState extends State<TestBuilderView> {
       }
       variants.add(lines.join('\n'));
     }
-    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('ثلاثة نماذج مختلفة'),
-      content: SizedBox(width: 600, child: SingleChildScrollView(child: SelectableText(variants.join('\n\n────────────────\n\n')))),
-      actions: [
-        TextButton.icon(
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: variants.join('\n\n────────────────\n\n')));
-            if (ctx.mounted) Navigator.pop(ctx);
-            _message('نُسخت النماذج الثلاثة إلى الحافظة.');
-          },
-          icon: const Icon(Icons.copy), label: const Text('نسخ النماذج'),
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ثلاثة نماذج مختلفة'),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: SelectableText(variants.join('\n\n────────────────\n\n')),
+          ),
         ),
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
-      ],
-    ));
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(
+                ClipboardData(text: variants.join('\n\n────────────────\n\n')),
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              _message('نُسخت النماذج الثلاثة إلى الحافظة.');
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('نسخ النماذج'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _takeTest(Map<String, dynamic> test) async {
-    final questions = (test['questions'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    final questions = (test['questions'] as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
     final controllers = <String, TextEditingController>{};
     final choices = <String, String>{};
-    for (final q in questions) { controllers[q['id'].toString()] = TextEditingController(); }
+    for (final q in questions) {
+      controllers[q['id'].toString()] = TextEditingController();
+    }
     final formKey = GlobalKey<FormState>();
     final name = TextEditingController();
-    final submitted = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
-      title: Text('تطبيق الاختبار: ${test['title']}'),
-      content: SizedBox(width: 650, child: Form(key: formKey, child: SingleChildScrollView(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الطالب')),
-          const SizedBox(height: 12),
-          for (var i = 0; i < questions.length; i++) ...[
-            Text('${i + 1}. ${questions[i]['text']} (${questions[i]['points']} درجة)', style: const TextStyle(fontWeight: FontWeight.bold)),
-            if (questions[i]['kind'] == 'اختيار من متعدد')
-              RadioGroup<String>(
-                groupValue: choices[questions[i]['id'].toString()],
-                onChanged: (v) => refresh(() { if (v != null) choices[questions[i]['id'].toString()] = v; }),
-                child: Column(children: [
-                  for (final option in List<String>.from(questions[i]['options'] as List))
-                    RadioListTile<String>(dense: true, title: Text(option), value: option),
-                ]),
-              )
-            else if (questions[i]['kind'] == 'صح أو خطأ')
-              RadioGroup<String>(
-                groupValue: choices[questions[i]['id'].toString()],
-                onChanged: (v) => refresh(() { if (v != null) choices[questions[i]['id'].toString()] = v; }),
-                child: const Column(children: [
-                  RadioListTile<String>(dense: true, title: Text('صح'), value: 'صح'),
-                  RadioListTile<String>(dense: true, title: Text('خطأ'), value: 'خطأ'),
-                ]),
-              )
-            else
-              TextField(controller: controllers[questions[i]['id'].toString()], decoration: const InputDecoration(labelText: 'الإجابة')),
-            const Divider(),
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, refresh) => AlertDialog(
+          title: Text('تطبيق الاختبار: ${test['title']}'),
+          content: SizedBox(
+            width: 650,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: name,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الطالب',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (var i = 0; i < questions.length; i++) ...[
+                      Text(
+                        '${i + 1}. ${questions[i]['text']} (${questions[i]['points']} درجة)',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      if (questions[i]['kind'] == 'اختيار من متعدد')
+                        RadioGroup<String>(
+                          groupValue: choices[questions[i]['id'].toString()],
+                          onChanged: (v) => refresh(() {
+                            if (v != null)
+                              choices[questions[i]['id'].toString()] = v;
+                          }),
+                          child: Column(
+                            children: [
+                              for (final option in List<String>.from(
+                                questions[i]['options'] as List,
+                              ))
+                                RadioListTile<String>(
+                                  dense: true,
+                                  title: Text(option),
+                                  value: option,
+                                ),
+                            ],
+                          ),
+                        )
+                      else if (questions[i]['kind'] == 'صح أو خطأ')
+                        RadioGroup<String>(
+                          groupValue: choices[questions[i]['id'].toString()],
+                          onChanged: (v) => refresh(() {
+                            if (v != null)
+                              choices[questions[i]['id'].toString()] = v;
+                          }),
+                          child: const Column(
+                            children: [
+                              RadioListTile<String>(
+                                dense: true,
+                                title: Text('صح'),
+                                value: 'صح',
+                              ),
+                              RadioListTile<String>(
+                                dense: true,
+                                title: Text('خطأ'),
+                                value: 'خطأ',
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        TextField(
+                          controller:
+                              controllers[questions[i]['id'].toString()],
+                          decoration: const InputDecoration(
+                            labelText: 'الإجابة',
+                          ),
+                        ),
+                      const Divider(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty) {
+                  _message('أدخل اسم الطالب.');
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('تصحيح وحفظ'),
+            ),
           ],
-        ],
-      )))),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-        FilledButton(onPressed: () { if (name.text.trim().isEmpty) { _message('أدخل اسم الطالب.'); return; } Navigator.pop(ctx, true); }, child: const Text('تصحيح وحفظ')),
-      ],
-    )));
+        ),
+      ),
+    );
     if (submitted == true) {
       double score = 0, total = 0;
       final details = <Map<String, dynamic>>[];
@@ -251,34 +360,66 @@ class _TestBuilderViewState extends State<TestBuilderView> {
         final points = (q['points'] as num).toDouble();
         total += points;
         if (correct) score += points;
-        details.add({'question': q['text'], 'given': answer, 'correct': q['answer'], 'earned': correct ? points : 0, 'possible': points, 'correctAnswer': correct});
+        details.add({
+          'question': q['text'],
+          'given': answer,
+          'correct': q['answer'],
+          'earned': correct ? points : 0,
+          'possible': points,
+          'correctAnswer': correct,
+        });
       }
       final result = <String, dynamic>{
-        'student': name.text.trim(), 'date': DateTime.now().toIso8601String(),
-        'score': score, 'total': total, 'details': details,
+        'student': name.text.trim(),
+        'date': DateTime.now().toIso8601String(),
+        'score': score,
+        'total': total,
+        'details': details,
       };
       final live = _tests.firstWhere((e) => e['id'] == test['id']);
       setState(() => (live['results'] as List).insert(0, result));
       await _persist();
-      if (mounted) await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
-        title: const Text('نتيجة الاختبار'),
-        content: Text('${name.text.trim()}\nالدرجة: $score / $total\nالنسبة: ${total == 0 ? 0 : (score / total * 100).toStringAsFixed(1)}%'),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('حسنًا'))],
-      ));
+      if (mounted)
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('نتيجة الاختبار'),
+            content: Text(
+              '${name.text.trim()}\nالدرجة: $score / $total\nالنسبة: ${total == 0 ? 0 : (score / total * 100).toStringAsFixed(1)}%',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('حسنًا'),
+              ),
+            ],
+          ),
+        );
     }
-    for (final c in controllers.values) { c.dispose(); }
+    for (final c in controllers.values) {
+      c.dispose();
+    }
     name.dispose();
   }
 
   Future<void> _exportResults(Map<String, dynamic> test) async {
-    final results = List<Map<String, dynamic>>.from((test['results'] as List).map((e) => Map<String, dynamic>.from(e)));
-    if (results.isEmpty) { _message('لا توجد نتائج لتصديرها.'); return; }
-    final csv = StringBuffer('الطالب,الدرجة,الدرجة الكاملة,النسبة المئوية,التاريخ\n');
+    final results = List<Map<String, dynamic>>.from(
+      (test['results'] as List).map((e) => Map<String, dynamic>.from(e)),
+    );
+    if (results.isEmpty) {
+      _message('لا توجد نتائج لتصديرها.');
+      return;
+    }
+    final csv = StringBuffer(
+      'الطالب,الدرجة,الدرجة الكاملة,النسبة المئوية,التاريخ\n',
+    );
     for (final r in results) {
       final total = (r['total'] as num).toDouble();
       final score = (r['score'] as num).toDouble();
       String cell(dynamic v) => '"${v.toString().replaceAll('"', '""')}"';
-      csv.writeln('${cell(r['student'])},${score.toStringAsFixed(2)},${total.toStringAsFixed(2)},${total == 0 ? 0 : (score / total * 100).toStringAsFixed(1)},${cell(r['date'])}');
+      csv.writeln(
+        '${cell(r['student'])},${score.toStringAsFixed(2)},${total.toStringAsFixed(2)},${total == 0 ? 0 : (score / total * 100).toStringAsFixed(1)},${cell(r['date'])}',
+      );
     }
     await Clipboard.setData(ClipboardData(text: csv.toString()));
     _message('نُسخت النتائج بتنسيق CSV إلى الحافظة؛ الصقها في Excel.');
@@ -286,22 +427,32 @@ class _TestBuilderViewState extends State<TestBuilderView> {
 
   Future<void> _printTest(Map<String, dynamic> test) async {
     final doc = pw.Document();
-    final qs = (test['questions'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
-    doc.addPage(pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      build: (_) => [
-        pw.Text(test['title'].toString(), style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 14),
-        for (var i = 0; i < qs.length; i++) ...[
-          pw.Text('${i + 1}. ${qs[i]['text']}  (${qs[i]['points']} درجة)'),
-          if (qs[i]['kind'] == 'اختيار من متعدد')
-            for (var j = 0; j < (qs[i]['options'] as List).length; j++)
-              pw.Text('   ${String.fromCharCode(65 + j)}. ${qs[i]['options'][j]}'),
-          if (qs[i]['kind'] != 'اختيار من متعدد') pw.Text('   الإجابة: __________________________'),
-          pw.SizedBox(height: 10),
+    final qs = (test['questions'] as List)
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (_) => [
+          pw.Text(
+            test['title'].toString(),
+            style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 14),
+          for (var i = 0; i < qs.length; i++) ...[
+            pw.Text('${i + 1}. ${qs[i]['text']}  (${qs[i]['points']} درجة)'),
+            if (qs[i]['kind'] == 'اختيار من متعدد')
+              for (var j = 0; j < (qs[i]['options'] as List).length; j++)
+                pw.Text(
+                  '   ${String.fromCharCode(65 + j)}. ${qs[i]['options'][j]}',
+                ),
+            if (qs[i]['kind'] != 'اختيار من متعدد')
+              pw.Text('   الإجابة: __________________________'),
+            pw.SizedBox(height: 10),
+          ],
         ],
-      ],
-    ));
+      ),
+    );
     await Printing.layoutPdf(onLayout: (_) => doc.save());
   }
 
@@ -309,69 +460,174 @@ class _TestBuilderViewState extends State<TestBuilderView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('منشئ الاختبارات والتدريبات')),
-      body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text('إنشاء اختبار', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          TextField(controller: _title, decoration: const InputDecoration(labelText: 'عنوان الاختبار')),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _kind,
-            decoration: const InputDecoration(labelText: 'نوع السؤال'),
-            items: const [
-              DropdownMenuItem(value: 'اختيار من متعدد', child: Text('اختيار من متعدد')),
-              DropdownMenuItem(value: 'صح أو خطأ', child: Text('صح أو خطأ')),
-              DropdownMenuItem(value: 'إجابة قصيرة', child: Text('إجابة قصيرة — تطابق حرفي بعد توحيد حالة الأحرف')),
-            ],
-            onChanged: (v) => setState(() => _kind = v ?? 'اختيار من متعدد'),
-          ),
-          TextField(controller: _question, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'نص السؤال')),
-          if (_kind == 'اختيار من متعدد')
-            for (var i = 0; i < _options.length; i++)
-              TextField(controller: _options[i], decoration: InputDecoration(labelText: 'الخيار ${String.fromCharCode(65 + i)}')),
-          TextField(controller: _answer, decoration: InputDecoration(labelText: _kind == 'اختيار من متعدد' ? 'الإجابة الصحيحة (اكتب نص الخيار نفسه)' : _kind == 'صح أو خطأ' ? 'الإجابة الصحيحة: صح أو خطأ' : 'الإجابة النموذجية')),
-          TextField(controller: _points, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'درجة السؤال')),
-          const SizedBox(height: 8),
-          FilledButton.icon(onPressed: _addQuestion, icon: const Icon(Icons.add), label: Text('إضافة السؤال (${_questions.length})')),
-          if (_questions.isNotEmpty)
-            Card(child: Column(children: [
-              for (var i = 0; i < _questions.length; i++)
-                ListTile(
-                  title: Text('${i + 1}. ${_questions[i]['text']}'),
-                  subtitle: Text('${_questions[i]['kind']} • ${_questions[i]['points']} درجة'),
-                  trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => setState(() => _questions.removeAt(i))),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const Text(
+                  'إنشاء اختبار',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-            ])),
-          FilledButton.tonalIcon(onPressed: _saveTest, icon: const Icon(Icons.save_outlined), label: const Text('حفظ الاختبار')),
-          const Divider(height: 32),
-          const Text('الاختبارات المحفوظة على هذا الجهاز', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          if (_tests.isEmpty) const Padding(padding: EdgeInsets.all(20), child: Text('لم تُنشأ اختبارات بعد.')),
-          for (final test in _tests)
-            Card(
-              child: ExpansionTile(
-                leading: const Icon(Icons.quiz_outlined),
-                title: Text(test['title'].toString()),
-                subtitle: Text('${(test['questions'] as List).length} سؤال • ${(test['results'] as List).length} نتيجة'),
-                children: [
-                  Wrap(spacing: 8, runSpacing: 4, alignment: WrapAlignment.center, children: [
-                    TextButton.icon(onPressed: () => _takeTest(test), icon: const Icon(Icons.play_arrow), label: const Text('تطبيق وتصحيح')),
-                    TextButton.icon(onPressed: () => _makeVariants(test), icon: const Icon(Icons.copy_all), label: const Text('3 نماذج')),
-                    TextButton.icon(onPressed: () => _printTest(test), icon: const Icon(Icons.print), label: const Text('طباعة PDF')),
-                    TextButton.icon(onPressed: () => _exportResults(test), icon: const Icon(Icons.table_view), label: const Text('تصدير النتائج CSV')),
-                    TextButton.icon(onPressed: () => _deleteTest(test), icon: const Icon(Icons.delete_outline), label: const Text('حذف')),
-                  ]),
-                  if ((test['results'] as List).isNotEmpty)
-                    for (final r in List<Map<String, dynamic>>.from((test['results'] as List).map((e) => Map<String, dynamic>.from(e))))
-                      ListTile(
-                        leading: const Icon(Icons.assessment_outlined),
-                        title: Text(r['student'].toString()),
-                        subtitle: Text('الدرجة ${r['score']} / ${r['total']} • ${((r['score'] as num) / ((r['total'] as num) == 0 ? 1 : (r['total'] as num)) * 100).toStringAsFixed(1)}%'),
+                TextField(
+                  controller: _title,
+                  decoration: const InputDecoration(
+                    labelText: 'عنوان الاختبار',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _kind,
+                  decoration: const InputDecoration(labelText: 'نوع السؤال'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'اختيار من متعدد',
+                      child: Text('اختيار من متعدد'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'صح أو خطأ',
+                      child: Text('صح أو خطأ'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'إجابة قصيرة',
+                      child: Text(
+                        'إجابة قصيرة — تطابق حرفي بعد توحيد حالة الأحرف',
                       ),
-                ],
-              ),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _kind = v ?? 'اختيار من متعدد'),
+                ),
+                TextField(
+                  controller: _question,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'نص السؤال'),
+                ),
+                if (_kind == 'اختيار من متعدد')
+                  for (var i = 0; i < _options.length; i++)
+                    TextField(
+                      controller: _options[i],
+                      decoration: InputDecoration(
+                        labelText: 'الخيار ${String.fromCharCode(65 + i)}',
+                      ),
+                    ),
+                TextField(
+                  controller: _answer,
+                  decoration: InputDecoration(
+                    labelText: _kind == 'اختيار من متعدد'
+                        ? 'الإجابة الصحيحة (اكتب نص الخيار نفسه)'
+                        : _kind == 'صح أو خطأ'
+                        ? 'الإجابة الصحيحة: صح أو خطأ'
+                        : 'الإجابة النموذجية',
+                  ),
+                ),
+                TextField(
+                  controller: _points,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'درجة السؤال'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _addQuestion,
+                  icon: const Icon(Icons.add),
+                  label: Text('إضافة السؤال (${_questions.length})'),
+                ),
+                if (_questions.isNotEmpty)
+                  Card(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < _questions.length; i++)
+                          ListTile(
+                            title: Text('${i + 1}. ${_questions[i]['text']}'),
+                            subtitle: Text(
+                              '${_questions[i]['kind']} • ${_questions[i]['points']} درجة',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () =>
+                                  setState(() => _questions.removeAt(i)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                FilledButton.tonalIcon(
+                  onPressed: _saveTest,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('حفظ الاختبار'),
+                ),
+                const Divider(height: 32),
+                const Text(
+                  'الاختبارات المحفوظة على هذا الجهاز',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                if (_tests.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('لم تُنشأ اختبارات بعد.'),
+                  ),
+                for (final test in _tests)
+                  Card(
+                    child: ExpansionTile(
+                      leading: const Icon(Icons.quiz_outlined),
+                      title: Text(test['title'].toString()),
+                      subtitle: Text(
+                        '${(test['questions'] as List).length} سؤال • ${(test['results'] as List).length} نتيجة',
+                      ),
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _takeTest(test),
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('تطبيق وتصحيح'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _makeVariants(test),
+                              icon: const Icon(Icons.copy_all),
+                              label: const Text('3 نماذج'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _printTest(test),
+                              icon: const Icon(Icons.print),
+                              label: const Text('طباعة PDF'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _exportResults(test),
+                              icon: const Icon(Icons.table_view),
+                              label: const Text('تصدير النتائج CSV'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _deleteTest(test),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('حذف'),
+                            ),
+                          ],
+                        ),
+                        if ((test['results'] as List).isNotEmpty)
+                          for (final r in List<Map<String, dynamic>>.from(
+                            (test['results'] as List).map(
+                              (e) => Map<String, dynamic>.from(e),
+                            ),
+                          ))
+                            ListTile(
+                              leading: const Icon(Icons.assessment_outlined),
+                              title: Text(r['student'].toString()),
+                              subtitle: Text(
+                                'الدرجة ${r['score']} / ${r['total']} • ${((r['score'] as num) / ((r['total'] as num) == 0 ? 1 : (r['total'] as num)) * 100).toStringAsFixed(1)}%',
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }

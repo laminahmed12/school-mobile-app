@@ -1141,7 +1141,15 @@ class _StudentsViewState extends State<StudentsView> {
                         trailing: PopupMenuButton<String>(
                           onSelected: (action) async {
                             if (action == 'profile') {
-                              await Navigator.push(context, MaterialPageRoute(builder: (_) => StudentProfileView(repo: widget.repo, student: s)));
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => StudentProfileView(
+                                    repo: widget.repo,
+                                    student: s,
+                                  ),
+                                ),
+                              );
                             } else if (action == 'edit') {
                               await editStudent(s);
                             } else if (action == 'delete') {
@@ -1149,9 +1157,20 @@ class _StudentsViewState extends State<StudentsView> {
                             }
                           },
                           itemBuilder: (_) => [
-                            const PopupMenuItem(value: 'profile', child: Text('ملف الطالب')),
-                            if (widget.canAdd) const PopupMenuItem(value: 'edit', child: Text('تعديل بيانات الطالب')),
-                            if (widget.canAdd) const PopupMenuItem(value: 'delete', child: Text('حذف الطالب')),
+                            const PopupMenuItem(
+                              value: 'profile',
+                              child: Text('ملف الطالب'),
+                            ),
+                            if (widget.canAdd)
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('تعديل بيانات الطالب'),
+                              ),
+                            if (widget.canAdd)
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('حذف الطالب'),
+                              ),
                           ],
                         ),
                       ),
@@ -1163,43 +1182,113 @@ class _StudentsViewState extends State<StudentsView> {
     );
   }
 
-
   Future<void> editStudent(Student student) async {
-    final name=TextEditingController(text:student.name);
-    final className=TextEditingController(text:student.className);
-    final phone=TextEditingController(text:student.phone);
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تعديل بيانات الطالب'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextField(controller:name,decoration:const InputDecoration(labelText:'اسم الطالب')),
-        TextField(controller:className,decoration:const InputDecoration(labelText:'الصف / الفصل')),
-        TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'هاتف ولي الأمر')),
-      ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
-    ));
-    if(ok!=true || name.text.trim().length<2 || className.text.trim().isEmpty) return;
+    final name = TextEditingController(text: student.name);
+    final className = TextEditingController(text: student.className);
+    final phone = TextEditingController(text: student.phone);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل بيانات الطالب'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'اسم الطالب'),
+              ),
+              TextField(
+                controller: className,
+                decoration: const InputDecoration(labelText: 'الصف / الفصل'),
+              ),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'هاتف ولي الأمر'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true ||
+        name.text.trim().length < 2 ||
+        className.text.trim().isEmpty)
+      return;
     try {
-      await db.from('students').update({'name':name.text.trim(),'class_name':className.text.trim(),'phone':phone.text.replaceAll(RegExp(r'[^0-9+]'),'')}).eq('id',student.id);
+      await db
+          .from('students')
+          .update({
+            'name': name.text.trim(),
+            'class_name': className.text.trim(),
+            'phone': phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+          })
+          .eq('id', student.id);
       await widget.onChanged();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعديل بيانات الطالب.')));
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل الطالب: ${friendlyError(e,fallback:'تعذر حفظ التغييرات.')}')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تعديل بيانات الطالب.')),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تعذر تعديل الطالب: ${friendlyError(e, fallback: 'تعذر حفظ التغييرات.')}',
+            ),
+          ),
+        );
     }
   }
 
   Future<void> deleteStudent(Student student) async {
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تأكيد حذف الطالب'),
-      content:Text('سيُحذف سجل الطالب «${student.name}» إذا سمحت علاقات قاعدة البيانات بذلك. قد تمنع سجلات الحضور والدرجات والمدفوعات الحذف لحماية التاريخ.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف الطالب'))],
-    ));
-    if(ok!=true) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد حذف الطالب'),
+        content: Text(
+          'سيُحذف سجل الطالب «${student.name}» إذا سمحت علاقات قاعدة البيانات بذلك. قد تمنع سجلات الحضور والدرجات والمدفوعات الحذف لحماية التاريخ.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف الطالب'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
-      await db.from('students').delete().eq('id',student.id);
+      await db.from('students').delete().eq('id', student.id);
       await widget.onChanged();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حذف الطالب.')));
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('لم يُحذف الطالب؛ قد تكون له سجلات مرتبطة. احتفظ بسجلاته وأرشفه بدل الحذف. التفاصيل: ${friendlyError(e,fallback:'عملية الحذف مرفوضة.')}')));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تم حذف الطالب.')));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'لم يُحذف الطالب؛ قد تكون له سجلات مرتبطة. احتفظ بسجلاته وأرشفه بدل الحذف. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
+            ),
+          ),
+        );
     }
   }
 
@@ -1502,7 +1591,9 @@ class FinanceView extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.assignment_outlined),
-              label: const Text('متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل'),
+              label: const Text(
+                'متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل',
+              ),
             ),
           ),
         ),
@@ -2055,16 +2146,24 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                           subtitle: Text(
                             '${p['payment_date'] ?? p['created_at']?.toString().split('T').first ?? ''} • ${p['term'] ?? 'غير محدد'}${(p['note']?.toString().isNotEmpty ?? false) ? ' • ${p['note']}' : ''}',
                           ),
-                          trailing: widget.canManageFees ? PopupMenuButton<String>(
-                            onSelected: (action) {
-                              if (action == 'edit') editPayment(p);
-                              if (action == 'delete') deletePayment(p);
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'edit', child: Text('تعديل الدفعة')),
-                              PopupMenuItem(value: 'delete', child: Text('حذف الدفعة')),
-                            ],
-                          ) : null,
+                          trailing: widget.canManageFees
+                              ? PopupMenuButton<String>(
+                                  onSelected: (action) {
+                                    if (action == 'edit') editPayment(p);
+                                    if (action == 'delete') deletePayment(p);
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('تعديل الدفعة'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('حذف الدفعة'),
+                                    ),
+                                  ],
+                                )
+                              : null,
                         ),
                       ),
                     ),
@@ -2074,45 +2173,132 @@ class _StudentAccountViewState extends State<StudentAccountView> {
     );
   }
 
-
-  Future<void> editPayment(Map<String,dynamic> payment) async {
-    final amount=TextEditingController(text:payment['amount']?.toString()??'');
-    final note=TextEditingController(text:payment['note']?.toString()??'');
-    final date=TextEditingController(text:payment['payment_date']?.toString()??'');
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تعديل عملية مالية'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'المبلغ (د.ل)')),
-        TextField(controller:date,decoration:const InputDecoration(labelText:'تاريخ الدفع YYYY-MM-DD')),
-        TextField(controller:note,decoration:const InputDecoration(labelText:'ملاحظة / رقم إيصال')),
-      ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
-    ));
-    final value=double.tryParse(amount.text.replaceAll(',','.'));
-    if(ok!=true || value==null || value<=0 || DateTime.tryParse(date.text.trim())==null) return;
+  Future<void> editPayment(Map<String, dynamic> payment) async {
+    final amount = TextEditingController(
+      text: payment['amount']?.toString() ?? '',
+    );
+    final note = TextEditingController(text: payment['note']?.toString() ?? '');
+    final date = TextEditingController(
+      text: payment['payment_date']?.toString() ?? '',
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل عملية مالية'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'المبلغ (د.ل)'),
+              ),
+              TextField(
+                controller: date,
+                decoration: const InputDecoration(
+                  labelText: 'تاريخ الدفع YYYY-MM-DD',
+                ),
+              ),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظة / رقم إيصال',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    final value = double.tryParse(amount.text.replaceAll(',', '.'));
+    if (ok != true ||
+        value == null ||
+        value <= 0 ||
+        DateTime.tryParse(date.text.trim()) == null)
+      return;
     try {
-      await db.from('payments').update({'amount':value,'payment_date':date.text.trim(),'note':note.text.trim()}).eq('id',payment['id']).eq('student_id',widget.student.id);
+      await db
+          .from('payments')
+          .update({
+            'amount': value,
+            'payment_date': date.text.trim(),
+            'note': note.text.trim(),
+          })
+          .eq('id', payment['id'])
+          .eq('student_id', widget.student.id);
       await load();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تعديل الدفعة وتحديث كشف الحساب.')));
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل الدفعة: ${friendlyError(e,fallback:'قد تمنع الصلاحيات أو القيود المحاسبية التعديل.')}')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تعديل الدفعة وتحديث كشف الحساب.')),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تعذر تعديل الدفعة: ${friendlyError(e, fallback: 'قد تمنع الصلاحيات أو القيود المحاسبية التعديل.')}',
+            ),
+          ),
+        );
     }
   }
 
-  Future<void> deletePayment(Map<String,dynamic> payment) async {
-    final amount=(double.tryParse(payment['amount']?.toString()??'0')??0).toStringAsFixed(2);
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تأكيد حذف الدفعة'),
-      content:Text('سيتم حذف الدفعة بقيمة $amount د.ل من سجل الطالب. استخدم هذا الإجراء فقط لتصحيح إدخال خاطئ؛ قد تمنع قاعدة البيانات الحذف إذا كانت العملية مرتبطة بسجلات مالية أخرى.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف الدفعة'))],
-    ));
-    if(ok!=true)return;
+  Future<void> deletePayment(Map<String, dynamic> payment) async {
+    final amount = (double.tryParse(payment['amount']?.toString() ?? '0') ?? 0)
+        .toStringAsFixed(2);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد حذف الدفعة'),
+        content: Text(
+          'سيتم حذف الدفعة بقيمة $amount د.ل من سجل الطالب. استخدم هذا الإجراء فقط لتصحيح إدخال خاطئ؛ قد تمنع قاعدة البيانات الحذف إذا كانت العملية مرتبطة بسجلات مالية أخرى.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف الدفعة'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
-      await db.from('payments').delete().eq('id',payment['id']).eq('student_id',widget.student.id);
+      await db
+          .from('payments')
+          .delete()
+          .eq('id', payment['id'])
+          .eq('student_id', widget.student.id);
       await load();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حذف الدفعة وتحديث كشف الحساب.')));
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('لم تُحذف الدفعة: ${friendlyError(e,fallback:'عملية الحذف مرفوضة من قاعدة البيانات.')}')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف الدفعة وتحديث كشف الحساب.')),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'لم تُحذف الدفعة: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة من قاعدة البيانات.')}',
+            ),
+          ),
+        );
     }
   }
 
@@ -2994,50 +3180,135 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     if (mounted) setState(() => loading = false);
   }
 
-
   Future<void> editTeacher(Teacher teacher) async {
-    final name=TextEditingController(text:teacher.name);
-    final subject=TextEditingController(text:teacher.subject);
-    final phone=TextEditingController(text:teacher.phone);
-    final current=await db.from('teachers').select('salary').eq('id',teacher.id).maybeSingle();
-    final salary=TextEditingController(text:current?['salary']?.toString()??'0');
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تعديل بيانات المعلم'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextField(controller:name,decoration:const InputDecoration(labelText:'اسم المعلم')),
-        TextField(controller:subject,decoration:const InputDecoration(labelText:'المادة / التخصص')),
-        TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'الهاتف')),
-        TextField(controller:salary,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الراتب الشهري (د.ل)')),
-      ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حفظ'))],
-    ));
-    final monthly=double.tryParse(salary.text.replaceAll(',','.'));
-    if(ok!=true || name.text.trim().length<2 || subject.text.trim().isEmpty || monthly==null || monthly<0) return;
+    final name = TextEditingController(text: teacher.name);
+    final subject = TextEditingController(text: teacher.subject);
+    final phone = TextEditingController(text: teacher.phone);
+    final current = await db
+        .from('teachers')
+        .select('salary')
+        .eq('id', teacher.id)
+        .maybeSingle();
+    final salary = TextEditingController(
+      text: current?['salary']?.toString() ?? '0',
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعديل بيانات المعلم'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'اسم المعلم'),
+              ),
+              TextField(
+                controller: subject,
+                decoration: const InputDecoration(labelText: 'المادة / التخصص'),
+              ),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'الهاتف'),
+              ),
+              TextField(
+                controller: salary,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'الراتب الشهري (د.ل)',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    final monthly = double.tryParse(salary.text.replaceAll(',', '.'));
+    if (ok != true ||
+        name.text.trim().length < 2 ||
+        subject.text.trim().isEmpty ||
+        monthly == null ||
+        monthly < 0)
+      return;
     try {
-      setState(()=>saving=true);
-      await db.from('teachers').update({'name':name.text.trim(),'subject':subject.text.trim(),'phone':phone.text.replaceAll(RegExp(r'[^0-9+]'),''),'salary':monthly}).eq('id',teacher.id);
+      setState(() => saving = true);
+      await db
+          .from('teachers')
+          .update({
+            'name': name.text.trim(),
+            'subject': subject.text.trim(),
+            'phone': phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+            'salary': monthly,
+          })
+          .eq('id', teacher.id);
       await load();
       await widget.onChanged();
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تعديل المعلم: ${friendlyError(e,fallback:'تعذر حفظ التغييرات.')}')));
-    } finally { if(mounted)setState(()=>saving=false); }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تعذر تعديل المعلم: ${friendlyError(e, fallback: 'تعذر حفظ التغييرات.')}',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   Future<void> deleteTeacher(Teacher teacher) async {
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('تأكيد حذف المعلم'),
-      content:Text('سيُحذف سجل «${teacher.name}» إذا لم تكن له سجلات رواتب أو حضور مرتبطة. ستمنع قاعدة البيانات الحذف عند وجود علاقات تحمي السجل التاريخي.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('حذف المعلم'))],
-    ));
-    if(ok!=true)return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد حذف المعلم'),
+        content: Text(
+          'سيُحذف سجل «${teacher.name}» إذا لم تكن له سجلات رواتب أو حضور مرتبطة. ستمنع قاعدة البيانات الحذف عند وجود علاقات تحمي السجل التاريخي.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف المعلم'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
-      setState(()=>saving=true);
-      await db.from('teachers').delete().eq('id',teacher.id);
+      setState(() => saving = true);
+      await db.from('teachers').delete().eq('id', teacher.id);
       await load();
       await widget.onChanged();
-    } catch(e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('لم يُحذف المعلم؛ قد تكون له سجلات رواتب أو سنوات دراسية. أرشفه للحفاظ على التاريخ. التفاصيل: ${friendlyError(e,fallback:'عملية الحذف مرفوضة.')}')));
-    } finally { if(mounted)setState(()=>saving=false); }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'لم يُحذف المعلم؛ قد تكون له سجلات رواتب أو سنوات دراسية. أرشفه للحفاظ على التاريخ. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   Future<void> addTeacher() async {
@@ -3236,8 +3507,14 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                             if (action == 'delete') deleteTeacher(t);
                           },
                           itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('تعديل بيانات المعلم')),
-                            PopupMenuItem(value: 'delete', child: Text('حذف المعلم')),
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('تعديل بيانات المعلم'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('حذف المعلم'),
+                            ),
                           ],
                         ),
                       ),
@@ -3338,7 +3615,9 @@ class MoreView extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.quiz_outlined),
               title: const Text('منشئ الاختبارات والتدريبات'),
-              subtitle: const Text('إنشاء الأسئلة، نماذج متعددة، تصحيح تلقائي وتصدير النتائج'),
+              subtitle: const Text(
+                'إنشاء الأسئلة، نماذج متعددة، تصحيح تلقائي وتصدير النتائج',
+              ),
               trailing: const Icon(Icons.chevron_left),
               onTap: () => Navigator.push(
                 context,
