@@ -193,7 +193,14 @@ class BackupView extends StatelessWidget {
 
   Future<void> _restoreFile(BuildContext context) async {
     try {
-      final envelope = await BackupService.pickBackupFile();
+      final school = await repo.school();
+      final schoolId = school?['id']?.toString();
+      if (schoolId == null || schoolId.isEmpty) {
+        throw Exception('تعذر تحديد المدرسة الحالية.');
+      }
+      final envelope = await BackupService.pickBackupFile(
+        expectedSchoolId: schoolId,
+      );
       if (!context.mounted) return;
       if (envelope == null) {
         await showDialog<void>(
@@ -214,9 +221,7 @@ class BackupView extends StatelessWidget {
         );
         return;
       }
-      final school = await repo.school();
-      final schoolId = school?['id']?.toString();
-      if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
+      if (envelope['school_id']?.toString() != schoolId) {
         throw Exception(
           'هذه النسخة تخص مدرسة أخرى أو بيئة مختلفة. لن تُستعاد لحماية البيانات.',
         );
