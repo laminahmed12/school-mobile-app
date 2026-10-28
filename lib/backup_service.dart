@@ -19,7 +19,7 @@ class DriveBackupResult {
 class BackupService {
   /// Validates both the outer backup envelope and the school-scoped RPC payload.
   /// This is enforced in the service layer as well as in the UI.
-  static Map<String, dynamic> _validateEnvelope(
+  static Map<String, dynamic> validateBackupEnvelope(
     dynamic decoded, {
     required String expectedSchoolId,
   }) {
@@ -91,7 +91,7 @@ class BackupService {
     if (files.isEmpty) return null;
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     final decoded = jsonDecode(await files.first.readAsString());
-    return _validateEnvelope(decoded, expectedSchoolId: schoolId);
+    return validateBackupEnvelope(decoded, expectedSchoolId: schoolId);
   }
 
   static Future<Map<String, dynamic>?> pickBackupFile({
@@ -109,7 +109,7 @@ class BackupService {
       throw Exception('تعذر قراءة ملف النسخة الاحتياطية.');
     }
     final decoded = jsonDecode(utf8.decode(bytes));
-    return _validateEnvelope(decoded, expectedSchoolId: expectedSchoolId);
+    return validateBackupEnvelope(decoded, expectedSchoolId: expectedSchoolId);
   }
 
   static bool _googleSignInInitialized = false;
@@ -385,7 +385,7 @@ class BackupService {
         );
       }
       final decoded = jsonDecode(utf8.decode(downloadResponse.bodyBytes));
-      return _validateEnvelope(decoded, expectedSchoolId: schoolId);
+      return validateBackupEnvelope(decoded, expectedSchoolId: schoolId);
     } catch (error, stackTrace) {
       debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
       debugPrintStack(stackTrace: stackTrace);
