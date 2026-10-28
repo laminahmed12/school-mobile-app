@@ -32,31 +32,8 @@ DateTime? _schoolTrialEnd(Map<String, dynamic>? school) {
   if (raw == null || raw.isEmpty) return null;
   final started = DateTime.tryParse(raw)?.toUtc();
   if (started == null) return null;
-  final firstOfTargetMonth = DateTime.utc(
-    started.year,
-    started.month + 1,
-    1,
-    started.hour,
-    started.minute,
-    started.second,
-    started.millisecond,
-    started.microsecond,
-  );
-  final lastDay = DateTime.utc(
-    firstOfTargetMonth.year,
-    firstOfTargetMonth.month + 1,
-    0,
-  ).day;
-  return DateTime.utc(
-    firstOfTargetMonth.year,
-    firstOfTargetMonth.month,
-    started.day > lastDay ? lastDay : started.day,
-    started.hour,
-    started.minute,
-    started.second,
-    started.millisecond,
-    started.microsecond,
-  );
+  // Product requirement: the trial is exactly 30 days, not one calendar month.
+  return started.add(const Duration(days: 30));
 }
 
 String? _schoolTrialStatus(Map<String, dynamic>? school) {
@@ -70,7 +47,7 @@ String? _schoolTrialStatus(Map<String, dynamic>? school) {
   final days = (remaining.inSeconds / Duration.secondsPerDay).ceil();
   final date =
       '${ends.year.toString().padLeft(4, '0')}-${ends.month.toString().padLeft(2, '0')}-${ends.day.toString().padLeft(2, '0')}';
-  return 'فترة تجريبية لمدة شهر — متبقي $days يوم. تنتهي في $date';
+  return 'فترة تجريبية لمدة 30 يومًا — متبقي $days يوم. تنتهي في $date';
 }
 
 Future<void> main() async {
