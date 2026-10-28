@@ -21,26 +21,18 @@ import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
 import 'test_builder.dart';
+import 'trial_policy.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
 const brandInk = Color(0xFF20312C);
 const brandCanvas = Color(0xFFF3F6F3);
 
-DateTime? _schoolTrialEnd(Map<String, dynamic>? school) {
-  final raw = school?['trial_started_at']?.toString();
-  if (raw == null || raw.isEmpty) return null;
-  final started = DateTime.tryParse(raw)?.toUtc();
-  if (started == null) return null;
-  // Product requirement: the trial is exactly 30 days, not one calendar month.
-  return started.add(const Duration(days: 30));
-}
-
 String? _schoolTrialStatus(Map<String, dynamic>? school) {
   if (school == null) return null;
   if (school['active'] == false) return 'المدرسة موقوفة من المالك';
   if (school['licensed'] == true) return 'الترخيص الدائم مفعّل';
-  final ends = _schoolTrialEnd(school);
+  final ends = schoolTrialEnd(school);
   if (ends == null) return null;
   final remaining = ends.difference(DateTime.now().toUtc());
   if (remaining <= Duration.zero) return 'انتهت الفترة التجريبية';
