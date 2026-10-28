@@ -17,6 +17,31 @@ class DriveBackupResult {
 }
 
 class BackupService {
+  /// Validates both the outer backup envelope and the school-scoped RPC payload.
+  /// This is enforced in the service layer as well as in the UI.
+  static Map<String, dynamic> _validateEnvelope(
+    dynamic decoded, {
+    required String expectedSchoolId,
+  }) {
+    if (decoded is! Map) {
+      throw Exception('تنسيق ملف النسخة الاحتياطية غير صالح.');
+    }
+    final envelope = Map<String, dynamic>.from(decoded);
+    if (envelope['format'] != 'lamin-school-backup' ||
+        envelope['version'] != 2 ||
+        envelope['school_id']?.toString() != expectedSchoolId ||
+        envelope['data'] is! Map) {
+      throw Exception('النسخة الاحتياطية لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.');
+    }
+    final data = Map<String, dynamic>.from(envelope['data'] as Map);
+    if (data['format'] != 'lamin-school-backup-v2' ||
+        data['school_filter']?.toString() != expectedSchoolId) {
+      throw Exception('محتوى النسخة الاحتياطية لا يطابق المدرسة الحالية.');
+    }
+    envelope['data'] = data;
+    return envelope;
+  }
+
   static Future<File> createLocalBackup(SchoolRepository repo) async {
     final data = await repo.exportBackup();
     final dir = await getApplicationDocumentsDirectory();
@@ -66,18 +91,12 @@ class BackupService {
     if (files.isEmpty) return null;
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     final decoded = jsonDecode(await files.first.readAsString());
-    if (decoded is! Map) throw Exception('تنسيق النسخة المحلية غير صالح.');
-    final envelope = Map<String, dynamic>.from(decoded);
-    if (envelope['format'] != 'lamin-school-backup' ||
-        envelope['version'] != 2 ||
-        envelope['school_id']?.toString() != schoolId ||
-        envelope['data'] is! Map) {
-      throw Exception('النسخة المحلية لا تطابق المدرسة الحالية.');
-    }
-    return envelope;
+    return _validateEnvelope(decoded, expectedSchoolId: schoolId);
   }
 
-  static Future<Map<String, dynamic>?> pickBackupFile() async {
+  static Future<Map<String, dynamic>?> pickBackupFile({
+    required String expectedSchoolId,
+  }) async {
     final selection = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
@@ -90,18 +109,7 @@ class BackupService {
       throw Exception('تعذر قراءة ملف النسخة الاحتياطية.');
     }
     final decoded = jsonDecode(utf8.decode(bytes));
-    if (decoded is! Map) {
-      throw Exception('تنسيق ملف النسخة الاحتياطية غير صالح.');
-    }
-    final envelope = Map<String, dynamic>.from(decoded);
-    if (envelope['format'] != 'lamin-school-backup' ||
-        envelope['version'] != 2) {
-      throw Exception('إصدار النسخة الاحتياطية غير مدعوم.');
-    }
-    if (envelope['data'] is! Map || envelope['school_id'] == null) {
-      throw Exception('ملف النسخة الاحتياطية ناقص البيانات.');
-    }
-    return envelope;
+    return _validateEnvelope(decoded, expectedSchoolId: expectedSchoolId);
   }
 
   static bool _googleSignInInitialized = false;
@@ -377,18 +385,7 @@ class BackupService {
         );
       }
       final decoded = jsonDecode(utf8.decode(downloadResponse.bodyBytes));
-      if (decoded is! Map)
-        throw Exception('محتوى النسخة في Google Drive غير صالح.');
-      final envelope = Map<String, dynamic>.from(decoded);
-      if (envelope['format'] != 'lamin-school-backup' ||
-          envelope['version'] != 2 ||
-          envelope['school_id']?.toString() != schoolId ||
-          envelope['data'] is! Map) {
-        throw Exception(
-          'النسخة الموجودة في Drive لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.',
-        );
-      }
-      return envelope;
+      return _validateEnvelope(decoded, expectedSchoolId: schoolId);
     } catch (error, stackTrace) {
       debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
       debugPrintStack(stackTrace: stackTrace);
