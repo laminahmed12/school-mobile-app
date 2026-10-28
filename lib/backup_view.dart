@@ -70,7 +70,9 @@ class BackupView extends StatelessWidget {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('إلغاء — يمكنك إعادة المحاولة لاختيار الحساب الصحيح'),
+                      child: const Text(
+                        'إلغاء — يمكنك إعادة المحاولة لاختيار الحساب الصحيح',
+                      ),
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
@@ -105,8 +107,15 @@ class BackupView extends StatelessWidget {
           builder: (ctx) => AlertDialog(
             icon: const Icon(Icons.info_outline, size: 42),
             title: const Text('لم تكتمل عملية النسخ الاحتياطي'),
-            content: const Text('لم يتم تأكيد حفظ النسخة. قد تكون العملية أُلغيت أو لم يُؤكَّد اختيار الحساب. لم نعتبر النسخ ناجحًا.'),
-            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+            content: const Text(
+              'لم يتم تأكيد حفظ النسخة. قد تكون العملية أُلغيت أو لم يُؤكَّد اختيار الحساب. لم نعتبر النسخ ناجحًا.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إغلاق'),
+              ),
+            ],
           ),
         );
       }
@@ -192,8 +201,15 @@ class BackupView extends StatelessWidget {
           builder: (ctx) => AlertDialog(
             icon: const Icon(Icons.info_outline, size: 42),
             title: const Text('لم تكتمل الاستعادة'),
-            content: const Text('لم يتم تنزيل نسخة أو استعادتها. قد تكون العملية أُلغيت أو لم يتم تأكيد الحساب. لم تُجرَ أي استعادة.'),
-            actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+            content: const Text(
+              'لم يتم تنزيل نسخة أو استعادتها. قد تكون العملية أُلغيت أو لم يتم تأكيد الحساب. لم تُجرَ أي استعادة.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إغلاق'),
+              ),
+            ],
           ),
         );
         return;
@@ -256,13 +272,22 @@ class BackupView extends StatelessWidget {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('تأكيد حساب استعادة النسخة'),
-                  content: Text('المدرسة: $schoolName\n\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\n$accountEmail\n\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.'),
+                  content: Text(
+                    'المدرسة: $schoolName\n\nسيتم البحث عن النسخة الاحتياطية في حساب Google Drive التالي:\n$accountEmail\n\nيجب اختيار الحساب الذي حُفظت فيه نسخة هذه المدرسة.',
+                  ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('متابعة')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('إلغاء'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('متابعة'),
+                    ),
                   ],
                 ),
-              ) ?? false;
+              ) ??
+              false;
         },
       );
       if (!context.mounted) return;
@@ -288,7 +313,9 @@ class BackupView extends StatelessWidget {
       final school = await repo.school();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
-        throw Exception('هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.');
+        throw Exception(
+          'هذه النسخة تخص مدرسة أخرى. لن تُستعاد لحماية البيانات.',
+        );
       }
       final data = Map<String, dynamic>.from(envelope['data'] as Map);
       if (data['format'] != 'lamin-school-backup-v2' ||
@@ -305,8 +332,14 @@ class BackupView extends StatelessWidget {
             'ستُدمج السجلات الناقصة فقط. لن تُحذف السجلات الحالية أو تُستبدل السجلات المتطابقة.',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة الآن')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('استعادة الآن'),
+            ),
           ],
         ),
       );
@@ -317,10 +350,22 @@ class BackupView extends StatelessWidget {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 42),
+          icon: const Icon(
+            Icons.check_circle_outline,
+            color: Colors.green,
+            size: 42,
+          ),
           title: const Text('تمت الاستعادة بنجاح'),
-          content: Text(result['message']?.toString() ?? 'تم دمج السجلات المتاحة من نسخة Google Drive.'),
-          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('حسنًا'))],
+          content: Text(
+            result['message']?.toString() ??
+                'تم دمج السجلات المتاحة من نسخة Google Drive.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('حسنًا'),
+            ),
+          ],
         ),
       );
     } catch (e) {
@@ -331,7 +376,12 @@ class BackupView extends StatelessWidget {
           icon: const Icon(Icons.error_outline, color: Colors.red, size: 42),
           title: const Text('فشلت استعادة نسخة Google Drive'),
           content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
-          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق'))],
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق'),
+            ),
+          ],
         ),
       );
     }
