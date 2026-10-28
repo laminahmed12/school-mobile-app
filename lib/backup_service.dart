@@ -31,7 +31,9 @@ class BackupService {
         envelope['version'] != 2 ||
         envelope['school_id']?.toString() != expectedSchoolId ||
         envelope['data'] is! Map) {
-      throw Exception('النسخة الاحتياطية لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.');
+      throw Exception(
+        'النسخة الاحتياطية لا تطابق المدرسة الحالية أو أن تنسيقها غير مدعوم.',
+      );
     }
     final data = Map<String, dynamic>.from(envelope['data'] as Map);
     if (data['format'] != 'lamin-school-backup-v2' ||
