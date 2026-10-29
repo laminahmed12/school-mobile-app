@@ -49,8 +49,46 @@ $("remember-login")?.addEventListener("change", () => {
 });
 restoreRememberedLogin();
 
+function restoreOfflinePortal() {
+  try {
+    const candidates = Object.keys(localStorage).filter(key => key.startsWith(OFFLINE_SNAPSHOT_PREFIX));
+    if (!candidates.length) return false;
+    const snapshots = candidates.map(key => ({ key, value: JSON.parse(localStorage.getItem(key) || "null") })).filter(x => x.value?.profile && x.value?.school && x.value?.data);
+    const cached = snapshots.sort((a,b) => new Date(b.value.savedAt)-new Date(a.value.savedAt))[0]?.value;
+    if (!cached) return false;
+    state.profile = cached.profile; state.school = cached.school;
+    Object.assign(state, cached.data); state.offline = true;
+    $("school-name").textContent = state.school.name || "مدرستك";
+    $("setting-school-name").textContent = state.school.name || "—";
+    $("setting-school-code").textContent = state.school.code || "—";
+    $("setting-school-currency").textContent = state.school.currency || "LYD";
+    $("setting-role").textContent = state.profile.role || "—";
+    $("session-label").textContent = (state.profile.username || "مستخدم") + " · " + (state.profile.role || "مستخدم");
+    $("today-label").textContent = "وضع عدم الاتصال";
+    switchView(true); switchPanel("overview"); setOfflineMode(true);
+    const metrics = cached.metrics || {};
+    for (const [id,value] of Object.entries(metrics)) if ($(id)) $(id).textContent = value;
+    const studentNames = new Map(state.students.map(s => [s.id,s.name]));
+    $("students-table").innerHTML = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td></tr>`).join("") || '<tr><td colspan="3">لا توجد سجلات محفوظة.</td></tr>';
+    $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
+    $("attendance-table").innerHTML = state.attendance.map(a => `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.attendance_date)}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
+    $("results-table").innerHTML = state.results.map(r => `<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج محفوظة.</td></tr>';
+    const paidByAssessment = new Map();
+    for (const p of state.payments || []) if (p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id, (paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
+    $("fees-table").innerHTML = state.assessments.map(a => { const fee=Number(a.total_fee||0), discount=Number(a.discount||0), paid=paidByAssessment.get(a.id)||0, balance=Math.max(0,fee-discount-paid); return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`; }).join("") || '<tr><td colspan="7">لا توجد رسوم محفوظة.</td></tr>';
+    $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
+    showMessage("app-message", "عرض نسخة محفوظة بتاريخ " + new Date(cached.savedAt).toLocaleString("ar-LY") + ". لا يمكن حفظ تغييرات جديدة دون اتصال.");
+    return true;
+  } catch (error) { console.error("Lamin offline restore failed", error); return false; }
+}
 async function login(event) {
-  event.preventDefault(); showMessage("login-message", "جارٍ التحقق من بيانات الدخول…");
+  event.preventDefault();
+  if (!navigator.onLine) {
+    if (restoreOfflinePortal()) return;
+    showMessage("login-message", "لا يمكن تسجيل الدخول لأول مرة دون إنترنت. افتح البوابة واتصل بالإنترنت وسجّل الدخول مرة واحدة أولًا.", true);
+    return;
+  }
+  showMessage("login-message", "جارٍ التحقق من بيانات الدخول…");
   const form = new FormData(event.currentTarget);
   try {
     const { data, error } = await db.functions.invoke("auth-login", { body: { school: String(form.get("school")).trim(), username: String(form.get("username")).trim(), password: String(form.get("password")) } });
@@ -224,11 +262,11 @@ async function restoreBackup() {
 $("login-form").addEventListener("submit", (e) => login(e).catch((err) => { console.error(err); showMessage("login-message", "تعذر تحميل البوابة.", true); }));
 $("logout").addEventListener("click", async () => { await db.auth.signOut(); state.profile = state.school = null; switchView(false); $("session-label").textContent = ""; });
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchPanel(button.dataset.panel)));
-$("refresh-dashboard").addEventListener("click", () => refreshDashboard());
-$("create-backup").addEventListener("click", () => createBackup());
+$("refresh-dashboard").addEventListener("click", () => { if (!navigator.onLine) { showMessage("app-message", OFFLINE_MODE_MESSAGE, true); return; } refreshDashboard(); });
+$("create-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("backup-status", OFFLINE_MODE_MESSAGE, true); return; } createBackup(); });
 $("backup-file").addEventListener("change", (e) => inspectBackup(e.target.files?.[0]));
 $("restore-confirm").addEventListener("input", updateRestoreButton);
-$("restore-backup").addEventListener("click", () => restoreBackup());
+$("restore-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("restore-status", OFFLINE_MODE_MESSAGE, true); return; } restoreBackup(); });
 $("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
 $("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]));
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
@@ -261,4 +299,15 @@ $("export-pdf").addEventListener("click", () => {
   window.print();
 });
 db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) switchView(false); });
-(async () => { try { const { data } = await db.auth.getSession(); if (data.session) await loadPortal(); } catch (error) { console.error(error); switchView(false); } })();
+window.addEventListener("online", () => { if (state.offline) showMessage("app-message", "عاد الاتصال. حدّث البيانات للتحقق من أحدث السجلات."); });
+window.addEventListener("offline", () => { if (state.profile) setOfflineMode(true); });
+(async () => {
+  try {
+    const { data } = await db.auth.getSession();
+    if (data.session && navigator.onLine) await loadPortal();
+    else if (!navigator.onLine) restoreOfflinePortal();
+  } catch (error) {
+    console.error(error);
+    if (!restoreOfflinePortal()) switchView(false);
+  }
+})();
