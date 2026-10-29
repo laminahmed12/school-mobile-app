@@ -146,7 +146,7 @@ function updateRestoreButton() {
 }
 async function restoreBackup() {
   if (!state.backup || $("restore-confirm").value.trim() !== "استعادة") return;
-  if (!["owner", "admin"].includes(state.profile?.role)) { showMessage("restore-status", "الاستعادة متاحة لمدير المدرسة أو مالك النظام فقط.", true); return; }
+  if (state.profile?.role !== "admin") { showMessage("restore-status", "الاستعادة متاحة لمدير المدرسة فقط وفق صلاحيات الخادم.", true); return; }
   const btn = $("restore-backup"); btn.disabled = true;
   showMessage("restore-status", "جارٍ إرسال النسخة إلى إجراء الاستعادة المحمي على الخادم…");
   try {
