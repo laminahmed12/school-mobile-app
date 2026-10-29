@@ -620,7 +620,7 @@ class _LoginPageState extends State<LoginPage> {
                     },
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('حفظ اسم المستخدم على هذا الجهاز'),
+                    title: const Text('تذكرني'),
                     subtitle: const Text('يمكنك إلغاء الخيار في أي وقت.'),
                     dense: true,
                   ),
