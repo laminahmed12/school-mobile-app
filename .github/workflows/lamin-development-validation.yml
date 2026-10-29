@@ -75,7 +75,9 @@ jobs:
           EOF
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
       - name: Build Android candidate (unsigned)
-        run: flutter build apk --release --no-tree-shake-icons
+        env:
+          GOOGLE_SERVER_CLIENT_ID: 207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com
+        run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
       - name: Upload candidate APK
         uses: actions/upload-artifact@v4
         with:
