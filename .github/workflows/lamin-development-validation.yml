@@ -9,6 +9,10 @@ on:
       - development/lamin-after-obour-2026-10-28
 permissions:
   contents: read
+
+concurrency:
+  group: lamin-development-validation-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: ubuntu-latest
