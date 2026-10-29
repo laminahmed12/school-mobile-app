@@ -41,6 +41,47 @@ jobs:
       - name: Generate Android platform files
         run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
 
+      - name: Apply premium Lamin launcher icon and app name
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
+          cat > android/app/src/main/res/values/lamin_launcher.xml <<'EOF'
+          <resources>
+              <color name="lamin_launcher_background">#0B3D32</color>
+          </resources>
+          EOF
+          cat > android/app/src/main/res/drawable/ic_lamin_launcher_foreground.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#FFD7B45C"
+                  android:pathData="M54,13 C40,31 28,31 22,44 L31,44 C37,34 46,33 54,24 C62,33 71,34 77,44 L86,44 C80,31 68,31 54,13 Z"/>
+              <path android:fillColor="#FFD7B45C"
+                  android:pathData="M54,31 L60,43 L73,48 L60,53 L54,66 L48,53 L35,48 L48,43 Z"/>
+              <path android:fillColor="#FFFFF5DE"
+                  android:pathData="M14,51 L48,62 C51,63 53,66 54,69 C55,66 57,63 60,62 L94,51 L94,81 L60,91 C57,92 55,94 54,96 C53,94 51,92 48,91 L14,81 Z"/>
+              <path android:fillColor="#FF0B3D32"
+                  android:pathData="M18,56 L46,65 C49,66 51,68 52,72 L52,88 C50,85 48,84 45,83 L18,75 Z"/>
+              <path android:fillColor="#FF0B3D32"
+                  android:pathData="M90,56 L62,65 C59,66 57,68 56,72 L56,88 C58,85 60,84 63,83 L90,75 Z"/>
+              <path android:fillColor="#FFD7B45C"
+                  android:pathData="M14,83 L46,92 C50,93 52,96 54,99 C56,96 58,93 62,92 L94,83 L94,88 L62,98 C58,99 56,101 54,103 C52,101 50,99 46,98 L14,88 Z"/>
+          </vector>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/lamin_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_lamin_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'EOF'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/lamin_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_lamin_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+          sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
+
       - name: Apply Lamin Android identity
         shell: bash
         run: |
