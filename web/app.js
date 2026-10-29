@@ -169,7 +169,7 @@ async function refreshDashboard() {
       db.from("teachers").select("id,name,subject,phone,salary").order("name").limit(1000),
       db.from("attendance").select("student_id,attendance_date,status,minutes_late").order("attendance_date",{ascending:false}).limit(1000),
       db.from("student_results").select("student_id,term,exam_name,score,max_score,created_at").order("created_at",{ascending:false}).limit(1000),
-      db.from("student_fee_assessments").select("id,student_id,academic_year_label,term,total_fee,discount").limit(2000),
+      db.from("student_fee_assessments").select("id,student_id,academic_year_label,term,total_fee,discount,note").limit(2000),
       db.from("audit_log").select("created_at,username,action,entity,details").order("created_at",{ascending:false}).limit(500),
       db.from("expenses").select("title,category,amount,created_at").order("created_at",{ascending:false}).limit(1000),
       db.from("payroll_transactions").select("transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
@@ -190,7 +190,7 @@ async function refreshDashboard() {
     const paymentsResult = await db.from("payments").select("fee_assessment_id,amount").limit(5000);
     if (!paymentsResult.error) for(const p of safeRows(paymentsResult.data)) if(p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id,(paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     let totalFees=0,totalDiscount=0,totalPaid=0;
-    $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`;}).join("") || '<tr><td colspan="7">لا توجد تقديرات رسوم متاحة.</td></tr>';
+    $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role) ? `<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button></td>` : ""}</tr>`;}).join("") || '<tr><td colspan="7">لا توجد تقديرات رسوم متاحة.</td></tr>';
     $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
     $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
     showMessage("app-message", "تم تحديث البيانات المتاحة. قد تكون بعض الأقسام فارغة إذا كانت صلاحيات قاعدة البيانات تمنع قراءتها.");
@@ -269,6 +269,51 @@ $("restore-confirm").addEventListener("input", updateRestoreButton);
 $("restore-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("restore-status", OFFLINE_MODE_MESSAGE, true); return; } restoreBackup(); });
 $("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
 $("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]));
+const feeForm = $("fee-edit-form");
+$("fees-table").addEventListener("click", event => {
+  const button = event.target.closest("[data-fee-edit]");
+  if (!button) return;
+  if (state.offline || !navigator.onLine) { showMessage("fee-edit-status", "تعديل الرسوم يتطلب اتصالًا بالإنترنت.", true); return; }
+  if (!["admin","owner","accountant"].includes(state.profile?.role)) { showMessage("app-message", "ليست لديك صلاحية تعديل الرسوم.", true); return; }
+  const item = state.assessments.find(a => String(a.id) === button.dataset.feeEdit);
+  if (!item) return;
+  $("fee-edit-id").value = item.id;
+  $("fee-edit-student").textContent = (state.students.find(s => s.id === item.student_id)?.name || "طالب") + " · " + (item.academic_year_label || "") + " · " + (item.term || "");
+  $("fee-edit-total").value = Number(item.total_fee || 0);
+  $("fee-edit-discount").value = Number(item.discount || 0);
+  $("fee-edit-note").value = item.note || "";
+  $("fee-edit-status").textContent = "";
+  feeForm.classList.remove("hidden");
+  feeForm.scrollIntoView({behavior:"smooth",block:"center"});
+});
+$("fee-edit-cancel").addEventListener("click", () => feeForm.classList.add("hidden"));
+feeForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (state.offline || !navigator.onLine) { showMessage("fee-edit-status", "تعديل الرسوم يتطلب اتصالًا بالإنترنت.", true); return; }
+  if (!["admin","owner","accountant"].includes(state.profile?.role)) { showMessage("fee-edit-status", "ليست لديك صلاحية تعديل الرسوم.", true); return; }
+  const id = $("fee-edit-id").value;
+  const totalFee = Number($("fee-edit-total").value);
+  const discount = Number($("fee-edit-discount").value);
+  if (!Number.isFinite(totalFee) || !Number.isFinite(discount) || totalFee < 0 || discount < 0 || discount > totalFee) {
+    showMessage("fee-edit-status", "تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.", true); return;
+  }
+  const saveButton = feeForm.querySelector('button[type="submit"]');
+  saveButton.disabled = true;
+  showMessage("fee-edit-status", "جارٍ حفظ التعديل والتحقق من صلاحيات قاعدة البيانات…");
+  try {
+    const { data, error } = await db.from("student_fee_assessments").update({ total_fee: totalFee, discount, note: $("fee-edit-note").value.trim() }).eq("id", id).eq("school_id", state.school.id).select("id").maybeSingle();
+    if (error) throw error;
+    if (!data?.id) throw new Error("لم تؤكد قاعدة البيانات حفظ التعديل. تحقق من صلاحيات الحساب.");
+    const item = state.assessments.find(a => String(a.id) === String(id));
+    if (item) { item.total_fee = totalFee; item.discount = discount; item.note = $("fee-edit-note").value.trim(); }
+    feeForm.classList.add("hidden");
+    showMessage("app-message", "تم حفظ الرسوم والخصم في قاعدة البيانات.");
+    await refreshDashboard();
+  } catch (error) {
+    console.error("Fee update failed", error);
+    showMessage("fee-edit-status", error?.message || "تعذر حفظ الرسوم. لم نعتبر التعديل ناجحًا.", true);
+  } finally { saveButton.disabled = false; }
+});
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
 $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
 $("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
