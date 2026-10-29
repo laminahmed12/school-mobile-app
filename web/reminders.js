@@ -178,16 +178,29 @@ function enhanceAuditTable() {
     let parsed;
     try { parsed = JSON.parse(raw); } catch { parsed = raw; }
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const preferred = [["student_name","اسم الطالب"],["student_id","معرّف الطالب"],["amount","المبلغ"],["payment_date","تاريخ الدفع"],["term","الفصل"],["academic_year_label","السنة الدراسية"],["note","ملاحظة"],["restored_from_audit_id","مرجع سجل الاستعادة"]];
-      const entries = preferred.filter(([key]) => parsed[key] != null && parsed[key] !== "").map(([key,label]) => [label, parsed[key]]);
-      const extra = Object.entries(parsed).filter(([key]) => !preferred.some(([known]) => known === key));
-      const summary = entries.map(([label,value]) => '<div><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(value) + '</div>').join("");
+      const labels = {
+        role: "الدور", username: "اسم المستخدم", restored_from_audit_id: "مرجع سجل الاستعادة",
+        student_name: "اسم الطالب", student_id: "معرّف الطالب", amount: "المبلغ",
+        payment_date: "تاريخ الدفع", term: "الفصل الدراسي", academic_year_label: "السنة الدراسية",
+        note: "ملاحظة", school_code: "رمز المدرسة", email: "البريد الإلكتروني",
+        full_name: "الاسم الكامل", name: "الاسم", status: "الحالة", created_at: "تاريخ الإنشاء",
+        updated_at: "تاريخ التحديث", deleted_at: "تاريخ الحذف", id: "المعرّف"
+      };
+      const valueLabels = { supervisor: "مشرف", admin: "مدير", teacher: "معلم", parent: "ولي أمر", student: "طالب", true: "نعم", false: "لا", active: "نشط", inactive: "غير نشط" };
+      const entries = Object.entries(parsed);
+      const summary = entries.map(([key, value]) => {
+        const label = labels[key] || key.replace(/_/g, " ");
+        const displayValue = value !== null && typeof value === "object" ? JSON.stringify(value) : (valueLabels[String(value)] || value);
+        return '<div><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(displayValue ?? "—") + '</div>';
+      }).join("");
       const details = document.createElement("details");
       details.className = "audit-detail";
-      details.innerHTML = '<summary>عرض التفاصيل (' + Object.keys(parsed).length + ' حقول)</summary>' + (summary ? '<div class="backup-preview">' + summary + '</div>' : '') + '<pre></pre>';
+      details.innerHTML = '<summary>عرض التفاصيل (' + entries.length + ' حقول)</summary>' +
+        (summary ? '<div class="backup-preview">' + summary + '</div>' : '') +
+        '<details class="audit-raw"><summary>عرض البيانات التقنية الأصلية</summary><pre></pre></details>';
       details.querySelector("pre").textContent = JSON.stringify(parsed, null, 2);
       cells[4].replaceChildren(details);
-      row.dataset.search = [cells[0].textContent,cells[1].textContent,action,cells[3].textContent,JSON.stringify(parsed)].join(" ").toLocaleLowerCase();
+      row.dataset.search = [cells[0].textContent,cells[1].textContent,action,cells[3].textContent,JSON.stringify(parsed),entries.map(([key,value]) => (labels[key] || key) + " " + value).join(" ")].join(" ").toLocaleLowerCase();
     } else row.dataset.search = row.textContent.toLocaleLowerCase();
     row.dataset.action = action.toLowerCase();
   }
