@@ -8,7 +8,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 const $ = (id) => document.getElementById(id);
-const state = { profile: null, school: null, students: [], teachers: [], backup: null, backupFileName: "" };
+const state = { profile: null, school: null, students: [], teachers: [], attendance: [], results: [], assessments: [], audit: [], expenses: [], payroll: [], backup: null, backupFileName: "" };
 const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", currency: "LYD", maximumFractionDigits: 2 }).format(Number(value || 0));
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -51,10 +51,14 @@ async function loadPortal() {
   if (profileError) throw profileError;
   if (!profile || !profile.active || !profile.school_id) throw new Error("الحساب غير مرتبط بمدرسة فعالة.");
   state.profile = profile;
-  const { data: school, error: schoolError } = await db.from("schools").select("id,name,code").eq("id", profile.school_id).maybeSingle();
+  const { data: school, error: schoolError } = await db.from("schools").select("id,name,code,currency").eq("id", profile.school_id).maybeSingle();
   if (schoolError) throw schoolError;
   state.school = school;
   $("school-name").textContent = school?.name || "مدرستك";
+  $("setting-school-name").textContent = school?.name || "—";
+  $("setting-school-code").textContent = school?.code || "—";
+  $("setting-school-currency").textContent = school?.currency || "LYD";
+  $("setting-role").textContent = profile.role || "—";
   $("session-label").textContent = `${profile.username || user.email || "مستخدم"} · ${profile.role || "مستخدم"}`;
   $("today-label").textContent = new Intl.DateTimeFormat("ar-LY", { dateStyle: "full" }).format(new Date());
   switchView(true); switchPanel("overview");
@@ -99,15 +103,36 @@ async function refreshDashboard() {
     $("finance-payments").textContent = money(payments);
     $("finance-expenses").textContent = money(expenses);
     $("finance-payroll").textContent = money(payroll);
-    const [{ data: students, error: studentError }, { data: teachers, error: teacherError }] = await Promise.all([
-      db.from("students").select("name,class_name,phone").order("name").limit(500),
-      db.from("teachers").select("name,subject,phone,salary").order("name").limit(500),
+    const [studentsResult, teachersResult, attendanceResult, resultsResult, assessmentsResult, auditResult, expensesResult, payrollResult] = await Promise.all([
+      db.from("students").select("id,name,class_name,phone,active,status").order("name").limit(1000),
+      db.from("teachers").select("id,name,subject,phone,salary").order("name").limit(1000),
+      db.from("attendance").select("student_id,attendance_date,status,minutes_late").order("attendance_date",{ascending:false}).limit(1000),
+      db.from("student_results").select("student_id,term,exam_name,score,max_score,created_at").order("created_at",{ascending:false}).limit(1000),
+      db.from("student_fee_assessments").select("id,student_id,academic_year_label,term,total_fee,discount").limit(2000),
+      db.from("audit_log").select("created_at,username,action,entity,details").order("created_at",{ascending:false}).limit(500),
+      db.from("expenses").select("title,category,amount,created_at").order("created_at",{ascending:false}).limit(1000),
+      db.from("payroll_transactions").select("transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
     ]);
-    if (studentError) throw studentError; if (teacherError) throw teacherError;
-    state.students = safeRows(students); state.teachers = safeRows(teachers);
+    const results = [studentsResult,teachersResult,attendanceResult,resultsResult,assessmentsResult,auditResult,expensesResult,payrollResult];
+    const labels = ["الطلاب","المعلمون","الحضور","النتائج","الرسوم","التدقيق","المصروفات","الرواتب"];
+    results.forEach((r,i)=>{ if(r.error) console.warn("Lamin portal optional dataset unavailable:",labels[i],r.error.message); });
+    state.students = safeRows(studentsResult.data); state.teachers = safeRows(teachersResult.data);
+    state.attendance = safeRows(attendanceResult.data); state.results = safeRows(resultsResult.data);
+    state.assessments = safeRows(assessmentsResult.data); state.audit = safeRows(auditResult.data);
+    state.expenses = safeRows(expensesResult.data); state.payroll = safeRows(payrollResult.data);
+    const studentNames = new Map(state.students.map(s=>[s.id,s.name]));
     $("students-table").innerHTML = state.students.map((s) => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td></tr>`).join("") || '<tr><td colspan="3">لا توجد سجلات متاحة.</td></tr>';
     $("teachers-table").innerHTML = state.teachers.map((t) => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
-    showMessage("app-message", "تم تحديث البيانات.");
+    $("attendance-table").innerHTML = state.attendance.map(a=>`<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.attendance_date)}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة أو لا تسمح الصلاحيات بعرضها.</td></tr>';
+    $("results-table").innerHTML = state.results.map(r=>`<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج متاحة.</td></tr>';
+    const paidByAssessment = new Map();
+    const paymentsResult = await db.from("payments").select("fee_assessment_id,amount").limit(5000);
+    if (!paymentsResult.error) for(const p of safeRows(paymentsResult.data)) if(p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id,(paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
+    let totalFees=0,totalDiscount=0,totalPaid=0;
+    $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`;}).join("") || '<tr><td colspan="7">لا توجد تقديرات رسوم متاحة.</td></tr>';
+    $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
+    $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
+    showMessage("app-message", "تم تحديث البيانات المتاحة. قد تكون بعض الأقسام فارغة إذا كانت صلاحيات قاعدة البيانات تمنع قراءتها.");
   } catch (error) {
     console.error("Lamin dashboard read failed", error);
     showMessage("app-message", "تعذر تحميل بعض البيانات. تحقق من صلاحيات قاعدة البيانات؛ لم تُغيّر أي بيانات.", true);
@@ -181,6 +206,12 @@ $("create-backup").addEventListener("click", () => createBackup());
 $("backup-file").addEventListener("change", (e) => inspectBackup(e.target.files?.[0]));
 $("restore-confirm").addEventListener("input", updateRestoreButton);
 $("restore-backup").addEventListener("click", () => restoreBackup());
-$("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف"], ...state.students.map((s) => [s.name, s.class_name, s.phone])]));
+$("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
+$("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]));
+$("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
+$("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
+$("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
+$("export-audit").addEventListener("click", () => csvDownload("lamin-audit-log.csv", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map((a) => [a.created_at,a.username,a.action,a.entity,JSON.stringify(a.details||{})])]));
+$("settings-refresh").addEventListener("click", () => loadPortal().catch(e=>showMessage("app-message", "تعذر تحديث بيانات المدرسة.", true)));
 db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) switchView(false); });
 (async () => { try { const { data } = await db.auth.getSession(); if (data.session) await loadPortal(); } catch (error) { console.error(error); switchView(false); } })();
