@@ -67,11 +67,22 @@ async function getCount(table) {
   return count ?? 0;
 }
 async function sumColumn(table, column, filter = null) {
-  let query = db.from(table).select(column);
-  if (filter) query = filter(query);
-  const { data, error } = await query;
-  if (error) throw error;
-  return safeRows(data).reduce((sum, row) => sum + Number(row[column] || 0), 0);
+  // Page through every row so large schools do not get silently truncated at
+  // Supabase's per-request row limit and display misleading financial totals.
+  const pageSize = 500;
+  let offset = 0;
+  let total = 0;
+  while (true) {
+    let query = db.from(table).select(column).range(offset, offset + pageSize - 1);
+    if (filter) query = filter(query);
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = safeRows(data);
+    total += rows.reduce((sum, row) => sum + Number(row[column] || 0), 0);
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+  return total;
 }
 async function refreshDashboard() {
   showMessage("app-message", "جارٍ تحديث الملخص…");
