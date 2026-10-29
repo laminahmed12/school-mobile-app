@@ -467,6 +467,9 @@ class _LoginPageState extends State<LoginPage> {
       password = TextEditingController();
   final auth = LaminAuthService();
   bool loading = false, hide = true, schoolLocked = false;
+  bool rememberUsername = false;
+  static const _rememberUsernameKey = 'lamin_remember_username';
+  static const _savedUsernameKey = 'lamin_saved_username';
   String? error;
   int _ownerTaps = 0;
   DateTime? _lastOwnerTap;
@@ -475,6 +478,26 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadSchool();
+    _loadRememberedUsername();
+  }
+
+  Future<void> _loadRememberedUsername() async {
+    final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
+    final saved = enabled ? widget.prefs.getString(_savedUsernameKey) : null;
+    if (!mounted) return;
+    setState(() {
+      rememberUsername = enabled;
+      if (saved != null) username.text = saved;
+    });
+  }
+
+  Future<void> _saveUsernamePreference() async {
+    await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
+    if (rememberUsername) {
+      await widget.prefs.setString(_savedUsernameKey, username.text.trim());
+    } else {
+      await widget.prefs.remove(_savedUsernameKey);
+    }
   }
 
   Future<void> _loadSchool() async {
@@ -504,6 +527,7 @@ class _LoginPageState extends State<LoginPage> {
         password: password.text,
       );
       if (!mounted) return;
+      if (r.ok) await _saveUsernamePreference();
       setState(
         () => error = r.ok
             ? null
@@ -585,7 +609,23 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: CheckboxListTile(
+                    value: rememberUsername,
+                    onChanged: (value) async {
+                      setState(() => rememberUsername = value ?? false);
+                      await _saveUsernamePreference();
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('حفظ اسم المستخدم على هذا الجهاز'),
+                    subtitle: const Text('يمكنك إلغاء الخيار في أي وقت.'),
+                    dense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: password,
                   obscureText: hide,
