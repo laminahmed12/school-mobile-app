@@ -213,5 +213,29 @@ $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-s
 $("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
 $("export-audit").addEventListener("click", () => csvDownload("lamin-audit-log.csv", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map((a) => [a.created_at,a.username,a.action,a.entity,JSON.stringify(a.details||{})])]));
 $("settings-refresh").addEventListener("click", () => loadPortal().catch(e=>showMessage("app-message", "تعذر تحديث بيانات المدرسة.", true)));
+$("export-xlsx").addEventListener("click", async () => {
+  try {
+    showMessage("app-message", "جارٍ تجهيز ملف Excel…");
+    const XLSX = await import("https://esm.sh/xlsx@0.18.5");
+    const workbook = XLSX.utils.book_new();
+    const sheets = [
+      ["الطلاب", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map(s=>[s.name,s.class_name,s.phone,s.status])]],
+      ["المعلمون", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map(t=>[t.name,t.subject,t.phone,t.salary])]],
+      ["الحضور", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map(a=>[state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]],
+      ["الرسوم", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map(a=>[state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]],
+      ["التدقيق", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map(a=>[a.created_at,a.username,a.action,a.entity,JSON.stringify(a.details||{})])]]
+    ];
+    for (const [name, rows] of sheets) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name);
+    XLSX.writeFile(workbook, "lamin-school-report.xlsx");
+    showMessage("app-message", "تم تجهيز تقرير Excel من البيانات المتاحة.");
+  } catch (error) {
+    console.error("Excel export failed", error);
+    showMessage("app-message", "تعذر إنشاء ملف Excel. يمكنك استخدام تصدير CSV.", true);
+  }
+});
+$("export-pdf").addEventListener("click", () => {
+  switchPanel("reports");
+  window.print();
+});
 db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) switchView(false); });
 (async () => { try { const { data } = await db.auth.getSession(); if (data.session) await loadPortal(); } catch (error) { console.error(error); switchView(false); } })();
