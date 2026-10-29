@@ -286,6 +286,17 @@ class BackupService {
         );
       }
       rethrow;
+    } finally {
+      // Clear Credential Manager's cached Google account relationship after
+      // each Drive operation. Re-authenticating without signOut can fail with
+      // [16] Account reauth failed on subsequent attempts on Android.
+      if (_googleSignInInitialized) {
+        try {
+          await GoogleSignIn.instance.signOut();
+        } catch (cleanupError) {
+          debugPrint('LAMIN_DRIVE_SIGNOUT_CLEANUP error=$cleanupError');
+        }
+      }
     }
   }
 
@@ -399,6 +410,16 @@ class BackupService {
         );
       }
       rethrow;
+    } finally {
+      // Match upload cleanup so the next restore starts with a clean Google
+      // authentication state instead of reusing a stale Credential Manager session.
+      if (_googleSignInInitialized) {
+        try {
+          await GoogleSignIn.instance.signOut();
+        } catch (cleanupError) {
+          debugPrint('LAMIN_DRIVE_SIGNOUT_CLEANUP error=$cleanupError');
+        }
+      }
     }
   }
 
