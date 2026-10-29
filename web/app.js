@@ -27,6 +27,28 @@ function csvDownload(filename, rows) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
+const REMEMBER_LOGIN_KEY = "lamin-portal-remember-login-v1";
+function restoreRememberedLogin() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REMEMBER_LOGIN_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+    $("school-code").value = typeof saved.school === "string" ? saved.school : "";
+    $("username").value = typeof saved.username === "string" ? saved.username : "";
+    $("remember-login").checked = Boolean(saved.school || saved.username);
+  } catch { /* Browser storage may be disabled. */ }
+}
+function saveRememberedLogin() {
+  try {
+    if ($("remember-login").checked) {
+      localStorage.setItem(REMEMBER_LOGIN_KEY, JSON.stringify({ school: $("school-code").value.trim(), username: $("username").value.trim() }));
+    } else localStorage.removeItem(REMEMBER_LOGIN_KEY);
+  } catch { showMessage("login-message", "تم تسجيل الدخول، لكن المتصفح لم يسمح بحفظ بيانات التذكّر.", true); }
+}
+$("remember-login")?.addEventListener("change", () => {
+  if (!$("remember-login").checked) { try { localStorage.removeItem(REMEMBER_LOGIN_KEY); } catch {} }
+});
+restoreRememberedLogin();
+
 async function login(event) {
   event.preventDefault(); showMessage("login-message", "جارٍ التحقق من بيانات الدخول…");
   const form = new FormData(event.currentTarget);
@@ -36,6 +58,7 @@ async function login(event) {
     if (!data?.refresh_token) throw new Error("استجابة الدخول غير مكتملة.");
     const { error: sessionError } = await db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
     if (sessionError) throw sessionError;
+    saveRememberedLogin();
     $("password").value = "";
     await loadPortal();
   } catch (error) {
