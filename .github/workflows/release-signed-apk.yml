@@ -157,13 +157,13 @@ jobs:
 
       - name: Validate Google Drive OAuth configuration
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
         run: |
           test -n "$GOOGLE_SERVER_CLIENT_ID" || { echo "::error::Missing repository variable GOOGLE_SERVER_CLIENT_ID. Set it to the Web application OAuth client ID; otherwise Google Drive backup cannot work."; exit 1; }
 
       - name: Build signed release APK
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
 
       - name: Verify APK signature and certificate
