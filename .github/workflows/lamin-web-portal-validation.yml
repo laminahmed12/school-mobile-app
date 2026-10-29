@@ -37,3 +37,6 @@ jobs:
           grep -q 'student_fee_assessments' web/app.js
           grep -q 'audit_log' web/app.js
           grep -q 'panel-settings' web/index.html
+          grep -q 'export-xlsx' web/index.html
+          grep -q 'export-pdf' web/index.html
+          grep -q 'XLSX.writeFile' web/app.js
