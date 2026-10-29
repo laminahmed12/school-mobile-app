@@ -11,6 +11,8 @@ styles.textContent = `
 .reminder-form{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin-top:16px}
 .reminder-form .wide{grid-column:1/-1}
 .reminder-form label{display:block;color:var(--muted);font-size:13px;margin-bottom:6px}
+#reminder-due{direction:ltr;text-align:left;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+#reminder-due::-webkit-calendar-picker-indicator{cursor:pointer}
 .reminder-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .reminder-list{display:grid;gap:10px;margin-top:16px}
 .reminder-item{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border:1px solid var(--line);background:#0b211b;border-radius:12px;padding:14px}
