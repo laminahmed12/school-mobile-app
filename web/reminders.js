@@ -30,7 +30,7 @@ if (reports) {
   const reminderPanel = document.createElement("section");
   reminderPanel.className = "panel reminder-panel";
   reminderPanel.innerHTML = `
-    <div class="section-heading"><div><h2>تذكيرني</h2><p class="muted">أنشئ تذكيرًا بموعد تحصيل أو متابعة أو مهمة إدارية. تحفظ التذكيرات في هذا المتصفح لهذا الحساب/المدرسة.</p></div><button class="button button-secondary" id="reminder-notifications" type="button">تفعيل إشعارات التذكير</button></div>
+    <div class="section-heading"><div><h2>التذكيرات والتنبيهات</h2><p class="muted">أنشئ تذكيرًا بموعد تحصيل أو متابعة أو مهمة إدارية. تحفظ التذكيرات في هذا المتصفح لهذا الحساب/المدرسة.</p></div><button class="button button-secondary" id="reminder-notifications" type="button">تفعيل إشعارات التذكير</button></div>
     <form class="reminder-form" id="reminder-form">
       <div><label for="reminder-title">عنوان التذكير</label><input id="reminder-title" required maxlength="120" placeholder="مثال: متابعة دفعة متأخرة"></div>
       <div><label for="reminder-due">الموعد</label><input id="reminder-due" type="datetime-local" required></div>
