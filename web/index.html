@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b3d32">
+  <title>لامين | بوابة إدارة المدرسة</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="#" aria-label="لامين"><span class="brand-mark">ل</span><span><strong>لامين</strong><small>بوابة إدارة المدرسة</small></span></a><div id="session-label" class="session-label"></div><button id="logout" class="button button-quiet hidden" type="button">تسجيل الخروج</button></header>
+  <main>
+    <section id="login-view" class="login-layout">
+      <div class="intro"><p class="eyebrow">LAMIN · SCHOOL MANAGEMENT</p><h1>إدارة مدرستك<br><span>من شاشة واحدة</span></h1><p>بوابة الحاسوب المتصلة بتطبيق لامين وقاعدة البيانات المشتركة، مع صلاحيات المدرسة وسجلها المالي.</p><div class="trust-row"><span>بيانات موحّدة</span><span>صلاحيات آمنة</span><span>نسخ احتياطي</span></div></div>
+      <form id="login-form" class="panel login-panel">
+        <h2>تسجيل الدخول</h2><p class="muted">استخدم بيانات حساب لامين الحالية.</p>
+        <label for="school-code">رمز المدرسة</label><input id="school-code" name="school" autocomplete="organization" required>
+        <label for="username">اسم المستخدم</label><input id="username" name="username" autocomplete="username" required>
+        <label for="password">كلمة المرور</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button class="button button-primary full" type="submit">دخول آمن</button><p id="login-message" class="message" role="status"></p>
+      </form>
+    </section>
+    <section id="app-view" class="hidden">
+      <div class="welcome"><div><p class="eyebrow">لوحة التحكم</p><h1 id="school-name">مدرستك</h1><p class="muted">ملخص البيانات من قاعدة لامين المشتركة.</p></div><div class="date-chip" id="today-label"></div></div>
+      <nav class="nav-tabs" aria-label="أقسام البوابة"><button class="tab active" data-panel="overview">نظرة عامة</button><button class="tab" data-panel="students">الطلاب</button><button class="tab" data-panel="staff">المعلمون</button><button class="tab" data-panel="finance">الإدارة المالية</button><button class="tab" data-panel="backup">النسخ والاستعادة</button></nav>
+      <p id="app-message" class="message" role="status"></p>
+      <section id="panel-overview" class="tab-panel">
+        <div class="metric-grid"><article class="metric"><span>الطلاب</span><strong id="count-students">—</strong><small>السجلات المتاحة لحسابك</small></article><article class="metric"><span>المعلمون</span><strong id="count-teachers">—</strong><small>السجلات المتاحة لحسابك</small></article><article class="metric"><span>الصفوف</span><strong id="count-classes">—</strong><small>الصفوف المسجلة</small></article><article class="metric"><span>إجمالي المقبوضات</span><strong id="total-payments">—</strong><small>بالدينار الليبي</small></article><article class="metric"><span>المصروفات والرواتب</span><strong id="total-expenses">—</strong><small>بالدينار الليبي</small></article></div>
+        <div class="panel section-card"><div><h2>ملخص العمل</h2><p class="muted">تُعرض البيانات التي تسمح بها صلاحيات حسابك في قاعدة البيانات. لا تُنشأ قاعدة مالية منفصلة للويب.</p></div><button class="button button-secondary" id="refresh-dashboard">تحديث البيانات</button></div>
+      </section>
+      <section id="panel-students" class="tab-panel hidden"><div class="panel"><div class="section-heading"><div><h2>الطلاب</h2><p class="muted">قائمة الطلاب المسموح بعرضها لحسابك.</p></div><button id="export-students" class="button button-secondary">تصدير CSV</button></div><div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الصف</th><th>الهاتف</th></tr></thead><tbody id="students-table"><tr><td colspan="3">لم تُحمّل البيانات بعد.</td></tr></tbody></table></div></div></section>
+      <section id="panel-staff" class="tab-panel hidden"><div class="panel"><h2>المعلمون</h2><p class="muted">بيانات المعلمين ضمن نطاق صلاحيات المدرسة.</p><div class="table-wrap"><table><thead><tr><th>الاسم</th><th>التخصص</th><th>الهاتف</th><th>الراتب</th></tr></thead><tbody id="teachers-table"><tr><td colspan="4">لم تُحمّل البيانات بعد.</td></tr></tbody></table></div></div></section>
+      <section id="panel-finance" class="tab-panel hidden"><div class="metric-grid"><article class="metric"><span>الدفعات</span><strong id="finance-payments">—</strong></article><article class="metric"><span>المصروفات</span><strong id="finance-expenses">—</strong></article><article class="metric"><span>الرواتب والسلف</span><strong id="finance-payroll">—</strong></article></div><div class="panel warning-panel"><strong>سلامة الحسابات</strong><p>الأرقام ملخصات للعرض فقط. تسجيل الدفعات أو تعديل الرسوم والخصومات والديون يجب أن يمر عبر عمليات قاعدة البيانات المعتمدة في التطبيق، لا عبر حسابات منفصلة داخل المتصفح.</p></div></section>
+      <section id="panel-backup" class="tab-panel hidden"><div class="backup-grid"><article class="panel"><span class="icon-box">↓</span><h2>إنشاء نسخة احتياطية</h2><p class="muted">تصدير نسخة JSON خاصة بالمدرسة المسجّلة، والتحقق من رقم الإصدار وهوية المدرسة قبل تنزيلها.</p><button id="create-backup" class="button button-primary full">إنشاء وتنزيل النسخة</button><p id="backup-status" class="message" role="status"></p></article><article class="panel"><span class="icon-box">↺</span><h2>استعادة نسخة</h2><p class="muted">تُراجع هوية المدرسة وبنية الملف أولًا. الاستعادة عملية حساسة وقد تغيّر بيانات المدرسة.</p><label for="backup-file">ملف النسخة الاحتياطية JSON</label><input id="backup-file" type="file" accept=".json,application/json"><div id="backup-preview" class="backup-preview hidden"></div><label for="restore-confirm">اكتب استعادة للتأكيد</label><input id="restore-confirm" autocomplete="off" placeholder="استعادة"><button id="restore-backup" class="button button-danger full" disabled>التحقق ثم الاستعادة</button><p class="muted small">لا تُنفّذ الاستعادة حتى يطابق الملف المدرسة الحالية ويجتاز التحقق. احتفظ بنسخة منفصلة قبل الاستعادة.</p><p id="restore-status" class="message" role="status"></p></article></div></section>
+      <footer class="footer">لامين · Adreemk <span>يُطبّق الخادم صلاحيات الوصول؛ إخفاء العناصر وحده ليس حماية.</span></footer>
+    </section>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
