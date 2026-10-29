@@ -50,6 +50,7 @@ const schoolKey = () => {
 };
 let activeStorageKey = "";
 let reminders = [];
+let editingReminderId = null;
 const status = (message, error = false) => {
   const el = $("reminder-status");
   if (el) { el.textContent = message; el.classList.toggle("error", error); }
@@ -98,7 +99,14 @@ $("reminder-form")?.addEventListener("submit", event => {
   const title = $("reminder-title").value.trim();
   const due = $("reminder-due").value;
   if (!title || !due || Number.isNaN(new Date(due).getTime())) { status("أدخل عنوانًا وموعدًا صحيحين.", true); return; }
-  reminders.push({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), title, due: new Date(due).toISOString(), priority: $("reminder-priority").value, notes: $("reminder-notes").value.trim(), done: false, notified: false, createdAt: new Date().toISOString() });
+  const updated = { title, due: new Date(due).toISOString(), priority: $("reminder-priority").value, notes: $("reminder-notes").value.trim() };
+  if (editingReminderId) {
+    const existing = reminders.find(r => r.id === editingReminderId);
+    if (existing) Object.assign(existing, updated, { notified: false });
+    editingReminderId = null;
+  } else {
+    reminders.push({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), ...updated, done: false, notified: false, createdAt: new Date().toISOString() });
+  }
   if (saveReminders()) { event.currentTarget.reset(); status("تم حفظ التذكير في هذا المتصفح."); }
 });
 $("reminder-filter")?.addEventListener("change", renderReminders);
@@ -117,10 +125,9 @@ $("reminder-list")?.addEventListener("click", event => {
       ? new Date(new Date(item.due).getTime() - new Date(item.due).getTimezoneOffset() * 60000).toISOString().slice(0,16) : "";
     $("reminder-priority").value = item.priority || "normal";
     $("reminder-notes").value = item.notes || "";
-    reminders = reminders.filter(r => r.id !== id);
-    saveReminders();
+    editingReminderId = id;
     $("reminder-title").focus();
-    status("عدّل الحقول ثم احفظ التذكير من جديد.");
+    status("عدّل الحقول ثم احفظ التغييرات؛ لن يُحذف التذكير قبل الحفظ.");
   }
 });
 $("reminder-notifications")?.addEventListener("click", async () => {
