@@ -2,6 +2,15 @@ name: Build signed Lamin release APK
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Source version to sign"
+        required: true
+        default: "backup/lamin-reference-before-icon-change-20261029"
+        type: string
+  push:
+    branches:
+      - development/lamin-after-obour-2026-10-28
 
 permissions:
   contents: read
@@ -27,6 +36,8 @@ jobs:
           test -n "$KEY_PASSWORD" || { echo "::error::Missing LAMIN_KEY_PASSWORD"; exit 1; }
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || 'backup/lamin-reference-before-icon-change-20261029' }}
 
       - uses: actions/setup-java@v4
         with:
