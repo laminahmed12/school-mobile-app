@@ -33,3 +33,7 @@ jobs:
           grep -q 'restore_backup' web/app.js
           grep -q 'school_filter' web/app.js
           grep -q 'auth-login' web/app.js
+          grep -q 'attendance' web/index.html
+          grep -q 'student_fee_assessments' web/app.js
+          grep -q 'audit_log' web/app.js
+          grep -q 'panel-settings' web/index.html
