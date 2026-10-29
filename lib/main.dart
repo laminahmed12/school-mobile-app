@@ -70,66 +70,123 @@ class LaminApp extends StatelessWidget {
     title: 'لامين',
     theme: ThemeData(
       useMaterial3: true,
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: brandGreen,
-            brightness: Brightness.light,
-          ).copyWith(
-            primary: brandGreen,
-            secondary: brandGold,
-            surface: Colors.white,
-            onPrimary: Colors.white,
-          ),
-      scaffoldBackgroundColor: brandCanvas,
+      fontFamily: 'NotoSansArabic',
+      colorScheme: const ColorScheme(
+        brightness: Brightness.light,
+        primary: Color(0xFF0B3D32),
+        onPrimary: Color(0xFFFFF8E8),
+        secondary: Color(0xFFD7B45C),
+        onSecondary: Color(0xFF172B25),
+        error: Color(0xFFB5473C),
+        onError: Colors.white,
+        surface: Color(0xFFFFFCF5),
+        onSurface: Color(0xFF20312C),
+      ),
+      scaffoldBackgroundColor: const Color(0xFFF7F4EB),
       appBarTheme: const AppBarTheme(
-        backgroundColor: brandCanvas,
-        foregroundColor: brandInk,
+        backgroundColor: Color(0xFFF7F4EB),
+        foregroundColor: Color(0xFF173B31),
         centerTitle: false,
         elevation: 0,
+        scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: Color(0xFF173B31),
+          fontSize: 21,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
-        elevation: 1.5,
-        shadowColor: brandInk.withValues(alpha: 0.10),
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        color: const Color(0xFFFFFCF5),
+        elevation: 1,
+        shadowColor: const Color(0xFF173B31).withValues(alpha: 0.08),
+        margin: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: Color(0xFFE8E0CE), width: 0.7),
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFFE7F0EA),
-        indicatorColor: const Color(0xFFCBE8DA),
+        backgroundColor: const Color(0xFFE8EEE6),
+        indicatorColor: const Color(0xFFD0E3D6),
+        elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
+            color: states.contains(WidgetState.selected)
+                ? const Color(0xFF0B3D32)
+                : const Color(0xFF59675F),
             fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
+                ? FontWeight.w800
                 : FontWeight.w500,
+            fontSize: 12,
+          ),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? const Color(0xFF0B3D32)
+                : const Color(0xFF59675F),
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        fillColor: const Color(0xFFFFFEFA),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: Color(0xFFE3DCCB)),
+        ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFD7E1DA)),
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: Color(0xFFE3DCCB)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: brandGreen, width: 1.8),
+          borderRadius: BorderRadius.circular(17),
+          borderSide: const BorderSide(color: Color(0xFF0B3D32), width: 1.8),
         ),
+        labelStyle: const TextStyle(color: Color(0xFF66746B)),
+        floatingLabelStyle: const TextStyle(color: Color(0xFF0B3D32)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: brandGreen,
-          foregroundColor: Colors.white,
+          backgroundColor: const Color(0xFF0B3D32),
+          foregroundColor: const Color(0xFFFFF8E8),
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(17),
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF0B3D32),
+          side: const BorderSide(color: Color(0xFF87988D)),
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(17),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFFE6DFD0),
+        thickness: 0.8,
+        space: 1,
+      ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        backgroundColor: Color(0xFF20312C),
+        contentTextStyle: TextStyle(color: Color(0xFFFFFCF5)),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: const Color(0xFFFFFCF5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     ),
     home: AuthGate(prefs: prefs),
