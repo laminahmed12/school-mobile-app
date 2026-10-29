@@ -8,9 +8,6 @@ on:
         required: true
         default: "backup/lamin-reference-before-icon-change-20261029"
         type: string
-  push:
-    branches:
-      - development/lamin-after-obour-2026-10-28
 
 permissions:
   contents: read
