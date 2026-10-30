@@ -35,6 +35,13 @@ jobs:
         run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
       - name: Build Android debug candidate
         run: flutter build apk --debug --no-tree-shake-icons
+      - name: Upload Android debug candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-offline-fee-candidate-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
       - name: Commit formatter output when needed
         run: |
           if ! git diff --quiet -- lib/main.dart lib/repository.dart; then
