@@ -4,9 +4,11 @@ on:
     branches:
       - experiment/lamin-db-schema-baseline-20261015
       - review/lamin-db-schema-baseline-20261015
+      - fix/lamin-portal-crud-offline-20261030
   pull_request:
     branches:
       - main
+      - feature/lamin-desktop-portal-2026-10-29
   workflow_dispatch:
 permissions:
   contents: read
