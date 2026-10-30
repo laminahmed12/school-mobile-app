@@ -96,6 +96,7 @@ function renderManagedTables() {
   $("students-table").innerHTML = studentRows || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
   const teacherRows = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" type="button" data-teacher-edit="${escapeHtml(t.id)}">تعديل</button></td></tr>`).join("");
   $("teachers-table").innerHTML = teacherRows || '<tr><td colspan="5">لا توجد سجلات متاحة.</td></tr>';
+  const paymentSelect=$("payment-assessment"); if(paymentSelect) paymentSelect.innerHTML = '<option value="">اختر الطالب وبند الرسوم</option>' + state.assessments.map(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));return `<option value="${escapeHtml(a.id)}">${escapeHtml(student?.name || "طالب")} · ${escapeHtml(a.academic_year_label || "")} · ${escapeHtml(a.term || "")} · ${money(a.total_fee)}</option>`;}).join("");
   $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات مسجلة.</td></tr>';
   $("student-new").classList.toggle("hidden", !canManageSchool());
   $("teacher-new").classList.toggle("hidden", !canManageSchool());
@@ -318,7 +319,7 @@ async function refreshDashboard() {
       db.from("teachers").select("id,name,subject,phone,salary").order("name").limit(1000),
       db.from("attendance").select("student_id,attendance_date,status,minutes_late").order("attendance_date",{ascending:false}).limit(1000),
       db.from("student_results").select("student_id,term,exam_name,score,max_score,created_at").order("created_at",{ascending:false}).limit(1000),
-      db.from("student_fee_assessments").select("id,student_id,academic_year_label,term,total_fee,discount,note").limit(2000),
+      db.from("student_fee_assessments").select("id,student_id,academic_year_id,academic_year_label,term,total_fee,discount,note").limit(2000),
       db.from("audit_log").select("created_at,username,action,entity,details").order("created_at",{ascending:false}).limit(500),
       db.from("expenses").select("title,category,amount,created_at").order("created_at",{ascending:false}).limit(1000),
       db.from("payroll_transactions").select("transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
@@ -590,6 +591,27 @@ async function syncOfflineQueue() {
   setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية.");
 }
 
+
+$("payment-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageFinance()) return;
+  const assessmentId=$("payment-assessment").value;
+  const assessment=state.assessments.find(a=>String(a.id)===String(assessmentId));
+  const amount=Number($("payment-amount").value);
+  if(!assessment || !Number.isFinite(amount) || amount<=0) { showMessage("payment-status","اختر بند رسوم وأدخل مبلغاً صحيحاً.",true); return; }
+  const payload={student_id:assessment.student_id,academic_year_id:assessment.academic_year_id,fee_assessment_id:assessment.id,term:assessment.term || "غير محدد",payment_date:new Date().toISOString().slice(0,10),amount,note:$("payment-note").value.trim(),school_id:state.school.id};
+  try {
+    if(state.offline || !navigator.onLine) {
+      const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+      queueOfflineChange({action:"insert",table:"payments",local_id:localId,payload});
+      state.payments=state.payments||[]; state.payments.push({...payload,id:localId,_pending:true});
+      showMessage("payment-status","حُفظت الدفعة محلياً وستُزامن عند عودة الإنترنت.");
+      $("payment-form").reset(); return;
+    }
+    const {error}=await db.from("payments").insert(payload);
+    if(error) throw error;
+    $("payment-form").reset(); await refreshDashboard(); showMessage("payment-status","تم تسجيل الدفعة وتحديث الرصيد.");
+  } catch(error) { showMessage("payment-status",error.message || "تعذر تسجيل الدفعة.",true); }
+});
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
 $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
 $("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
