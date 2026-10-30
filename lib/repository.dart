@@ -419,43 +419,57 @@ class SchoolRepository {
   }
 
   Future<int> count(String table) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = _tenantCacheKey(schoolId, 'count_$table');
     try {
-      return (await db.from(table).select('id') as List).length;
+      final value = (await db.from(table).select('id')
+          .timeout(const Duration(seconds: 6)) as List).length;
+      await prefs.setInt(cacheKey, value);
+      return value;
     } catch (_) {
-      return 0;
+      return prefs.getInt(cacheKey) ?? 0;
     }
   }
 
   Future<double> paymentsTotal() async {
-    final userId = await _userId();
-    final schoolId = userId == null ? null : prefs.getString('school_id_cache_${userId}');
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = 'lamin_payments_total_${schoolId}';
     try {
-      final rows = await db.from('payments').select('amount').timeout(const Duration(seconds: 6)) as List;
-      final total = rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
-      if (schoolId != null) await prefs.setDouble('lamin_payments_total_${schoolId}', total);
+      final rows = await db.from('payments').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final total = rows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+      );
+      await prefs.setDouble(cacheKey, total);
       return total;
     } catch (_) {
-      return schoolId == null ? 0 : (prefs.getDouble('lamin_payments_total_${schoolId}') ?? 0);
+      return prefs.getDouble(cacheKey) ?? 0;
     }
   }
 
   Future<double> expensesTotal() async {
-    final user = db.auth.currentUser;
-    final schoolId = user == null ? null : prefs.getString('school_id_cache_${user.id}');
-    double total = 0;
-    bool loaded = false;
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = 'lamin_expenses_total_${schoolId}';
     try {
-      final rows = await db.from('expenses').select('amount').timeout(const Duration(seconds: 6)) as List;
-      total += rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
-      loaded = true;
-    } catch (_) {}
-    try {
-      final rows = await db.from('payroll_transactions').select('amount').timeout(const Duration(seconds: 6)) as List;
-      total += rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
-      loaded = true;
-    } catch (_) {}
-    if (loaded && schoolId != null) await prefs.setDouble('lamin_expenses_total_${schoolId}', total);
-    return loaded ? total : (schoolId == null ? 0 : (prefs.getDouble('lamin_expenses_total_${schoolId}') ?? 0));
+      final expenseRows = await db.from('expenses').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final payrollRows = await db.from('payroll_transactions').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final expenseTotal = expenseRows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+      );
+      final payrollTotal = payrollRows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+      );
+      final total = expenseTotal + payrollTotal;
+      await prefs.setDouble(cacheKey, total);
+      return total;
+    } catch (_) {
+      return prefs.getDouble(cacheKey) ?? 0;
+    }
   }
 
   Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
@@ -857,17 +871,32 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>?> schoolBranding() async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return null;
+    final cacheKey = _tenantCacheKey(schoolId, 'school_branding');
     try {
-      final p = await profile();
-      if (p?.schoolId == null) return null;
       final row = await db
           .from('school_branding')
           .select('school_id,logo_data,logo_mime_type,updated_at')
-          .eq('school_id', p!.schoolId!)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+          .eq('school_id', schoolId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      if (row == null) {
+        await prefs.remove(cacheKey);
+        return null;
+      }
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(cacheKey, jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return null;
+      try {
+        return Map<String, dynamic>.from(jsonDecode(raw));
+      } catch (_) {
+        await prefs.remove(cacheKey);
+        return null;
+      }
     }
   }
 
@@ -889,12 +918,17 @@ class SchoolRepository {
     if (mimeType != 'image/png' && mimeType != 'image/jpeg') {
       throw Exception('اختر صورة PNG أو JPG.');
     }
-    await db.from('school_branding').upsert({
+    final payload = {
       'school_id': schoolId,
       'logo_data': logoBase64,
       'logo_mime_type': mimeType,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    };
+    await db.from('school_branding').upsert(payload);
+    await prefs.setString(
+      _tenantCacheKey(schoolId, 'school_branding'),
+      jsonEncode(payload),
+    );
   }
 
   Future<void> removeSchoolLogo() async {
@@ -907,6 +941,7 @@ class SchoolRepository {
       throw Exception('حذف شعار المدرسة متاح لمدير المدرسة فقط.');
     }
     await db.from('school_branding').delete().eq('school_id', schoolId);
+    await prefs.remove(_tenantCacheKey(schoolId, 'school_branding'));
   }
 
   Future<void> deleteSchoolUser(String userId) async {
