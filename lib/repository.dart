@@ -85,8 +85,16 @@ class SchoolRepository {
     await _writeOfflineOperations(schoolId,rows);
   }
   Future<bool> _serverAvailable() async {
-    try { await db.from('schools').select('id').limit(1).timeout(const Duration(seconds:3)); return true; }
-    catch (_) { return false; }
+    final user = db.auth.currentUser;
+    if (user == null) return false;
+    try {
+      final row = await db.from('profiles').select('user_id')
+          .eq('user_id', user.id).maybeSingle()
+          .timeout(const Duration(seconds: 3));
+      return row != null;
+    } catch (_) {
+      return false;
+    }
   }
   Future<List<Map<String,dynamic>>> _cachedStudentMaps(String schoolId) async {
     final raw=prefs.getString('students_cache_$schoolId');
