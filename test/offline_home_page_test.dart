@@ -31,9 +31,7 @@ void main() {
     });
     final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(
-      MaterialApp(home: OfflineHomePage(prefs: prefs)),
-    );
+    await tester.pumpWidget(MaterialApp(home: OfflineHomePage(prefs: prefs)));
 
     expect(find.text('وضع العمل المحلي'), findsOneWidget);
     expect(find.text('دون اتصال'), findsOneWidget);
