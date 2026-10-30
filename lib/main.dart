@@ -4,6 +4,7 @@ import 'app_error.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'biometric_service.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -203,7 +204,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   final security = DeviceSecurityService();
   bool locked = false;
   bool checking = true;
-  bool mustChangePassword = false;\n  bool offlineAccess = false;
+  bool mustChangePassword = false;
+  bool offlineAccess = false;\n  bool offlineAccess = false;
 
   @override
   void initState() {
@@ -248,10 +250,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (rememberedId != null && rememberedId.isNotEmpty) {
         cached = await repo.cachedProfile();
         canOpenOffline = cached != null &&
-            cached!.userId == rememberedId &&
             cached!.active == true &&
             (cached!.role == 'owner' || cached!.mustChangePassword != true) &&
-            (cached!.licensed == true ||
+            ((await repo.cachedSchool())?['licensed'] == true ||
               (schoolTrialEnd(await repo.cachedSchool())?.isAfter(DateTime.now().toUtc()) ?? false));
       }
     }
@@ -844,6 +845,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
+      await const FlutterSecureStorage().delete(key: 'lamin.offline.user.id');
       await db.auth
           .signOut(scope: SignOutScope.local)
           .timeout(const Duration(seconds: 12));
