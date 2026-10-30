@@ -35,7 +35,7 @@ if (reports) {
     <div class="section-heading"><div><h2>التذكيرات والتنبيهات</h2><p class="muted">أنشئ تذكيرًا بموعد تحصيل أو متابعة أو مهمة إدارية. تحفظ التذكيرات في هذا المتصفح لهذا الحساب/المدرسة.</p></div><button class="button button-secondary" id="reminder-notifications" type="button">تفعيل إشعارات التذكير</button></div>
     <form class="reminder-form" id="reminder-form">
       <div><label for="reminder-title">عنوان التذكير</label><input id="reminder-title" required maxlength="120" placeholder="مثال: متابعة دفعة متأخرة"></div>
-      <div><label for="reminder-due">الموعد</label><input id="reminder-due" type="text" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="DD/MM/YYYY HH:MM" pattern="\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}" aria-describedby="reminder-date-help" required><small id="reminder-date-help" class="muted">اكتب اليوم/الشهر/السنة ثم الساعة والدقيقة، مثال: 30/10/2026 14:30</small></div>
+      <div><label for="reminder-due">الموعد</label><input id="reminder-due" type="text" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="DD/MM/YYYY HH:MM" pattern="\d{2}/\d{2}/\d{4} \d{2}:\d{2}" aria-describedby="reminder-date-help" required><small id="reminder-date-help" class="muted">اكتب اليوم/الشهر/السنة ثم الساعة والدقيقة، مثال: 30/10/2026 14:30</small></div>
       <div><label for="reminder-priority">الأولوية</label><select id="reminder-priority"><option value="normal">عادية</option><option value="high">مهمة</option><option value="urgent">عاجلة</option></select></div>
       <div class="wide"><label for="reminder-notes">ملاحظات (اختياري)</label><textarea id="reminder-notes" rows="2" maxlength="1000" placeholder="تفاصيل تساعدك على تذكر المطلوب"></textarea></div>
       <div class="wide reminder-actions"><button class="button button-primary" type="submit">حفظ التذكير</button><span id="reminder-status" class="message" role="status"></span></div>
@@ -100,7 +100,7 @@ $("reminder-form")?.addEventListener("submit", event => {
   event.preventDefault();
   const title = $("reminder-title").value.trim();
   const dueText = $("reminder-due").value.trim();
-  const match=dueText.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})\\s+(\\d{2}):(\\d{2})$/);
+  const match=dueText.match(/^(\d{2})\/(\d{2})\/(\d{4})\\s+(\d{2}):(\d{2})$/);
   if(!title||!match){status("أدخل الموعد بصيغة يوم/شهر/سنة ساعة:دقيقة.",true);return;}
   const [,day,month,year,hour,minute]=match;const localDate=new Date(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute));
   if(localDate.getFullYear()!==Number(year)||localDate.getMonth()!==Number(month)-1||localDate.getDate()!==Number(day)||localDate.getHours()!==Number(hour)||localDate.getMinutes()!==Number(minute)){status("التاريخ أو الوقت غير صحيح.",true);return;}
