@@ -11,9 +11,6 @@ class SchoolRepository {
   Future<String?> _userId() async =>
       db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
 
-  Future<String?> _userId() async =>
-      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
-
   String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
   String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
   String _tenantCacheKey(String schoolId, String table) => 'lamin_data_cache_v1_${schoolId}_$table';
