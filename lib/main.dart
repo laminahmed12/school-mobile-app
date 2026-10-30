@@ -496,16 +496,16 @@ class OfflineHomePage extends StatelessWidget {
 
     Future<void> reconnect() async {
       if (db.auth.currentSession == null) {
-        final status = await Connectivity().checkConnectivity();
+        final connected = await repository.hasServerConnection();
         if (!context.mounted) return;
-        if (status.any((item) => item != ConnectivityResult.none)) {
+        if (connected) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(builder: (_) => LoginPage(prefs: prefs)),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('لا يزال الاتصال بالإنترنت غير متاح.'),
+              content: Text('لا يزال الاتصال بالخادم غير متاح.'),
             ),
           );
         }
@@ -1135,7 +1135,12 @@ class _LoginPageState extends State<LoginPage> {
       }
       if (!mounted) return;
       if (r.ok) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => AuthGate(prefs: widget.prefs),
+          ),
+          (route) => false,
+        );
         return;
       }
       setState(
