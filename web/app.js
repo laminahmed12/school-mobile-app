@@ -10,6 +10,9 @@ const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 const $ = (id) => document.getElementById(id);
 const state = { profile: null, school: null, students: [], teachers: [], staff: [], classes: [], attendance: [], results: [], assessments: [], audit: [], expenses: [], payroll: [], backup: null, backupFileName: "" };
 const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", currency: "LYD", maximumFractionDigits: 2 }).format(Number(value || 0));
+const formatDateTime = (value) => { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", { dateStyle:"medium", ...(String(value).includes("T")?{timeStyle:"short"}:{}) }).format(date); };
+const formatDate = (value) => { if (!value) return "—"; const date = new Date(String(value).length===10 ? value+"T12:00:00" : value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", {dateStyle:"medium"}).format(date); };
+const readableDetails = (details) => { const labels={student_id:"معرّف الطالب",school_id:"معرّف المدرسة",attendance_date:"تاريخ الحضور",minutes_late:"دقائق التأخير",status:"الحالة",created_by:"أنشأه",id:"المعرّف",phone:"الهاتف",name:"الاسم",class_name:"الصف",amount:"المبلغ",term:"الفصل",academic_year_id:"السنة الدراسية"}; if(!details||typeof details!=="object")return escapeHtml(details??"—"); return Object.entries(details).map(([key,value])=>"<div class=\"audit-detail\"><strong>"+escapeHtml(labels[key]||key.replaceAll("_"," "))+":</strong> <span>"+escapeHtml(typeof value==="object"?JSON.stringify(value):value)+"</span></div>").join("")||"—"; };
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const safeRows = (rows) => Array.isArray(rows) ? rows : [];
@@ -56,16 +59,17 @@ function queueOfflineChange(item) {
   writeOfflineQueue(rows);
 }
 function renderManagedTables() {
-  $("students-table").innerHTML = state.students.filter(s=>s.active!==false).map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
+  const studentSearch=($("student-search")?.value||"").trim().toLocaleLowerCase("ar"); const studentClassFilter=($("student-class-filter")?.value||"").trim().toLocaleLowerCase("ar");
+  $("students-table").innerHTML = state.students.filter(s=>s.active!==false && (!studentSearch||String(s.name||"").toLocaleLowerCase("ar").includes(studentSearch)) && (!studentClassFilter||String(s.class_name||"").toLocaleLowerCase("ar").includes(studentClassFilter))).map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
   $("classes-table").innerHTML = (state.classes||[]).map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${escapeHtml(x.section)}</td><td><button class="button button-secondary" type="button" data-class-edit="${escapeHtml(x.id)}">تعديل</button></td></tr>`).join("") || '<tr><td colspan="3">لا توجد صفوف مسجلة.</td></tr>';
   if($("class-new")) $("class-new").classList.toggle("hidden",!["admin","owner"].includes(state.profile?.role));
   $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" data-teacher-edit="${escapeHtml(t.id)}" type="button">تعديل</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات.</td></tr>';
   $("staff-table").innerHTML = (state.staff || []).filter(x=>x.active!==false).map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(s.phone)}</td><td>${escapeHtml(money(s.salary))}</td><td><button class="button button-secondary" type="button" data-staff-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-staff-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات موظفين.</td></tr>';
-  $("payroll-table").innerHTML = (state.payroll || []).map(p=>{const rows=p.payee_type==="teacher"?state.teachers:state.staff;const person=(rows||[]).find(x=>String(x.id)===String(p.payee_id));return `<tr><td>${escapeHtml(person?.name || "مستفيد")}</td><td>${p.transaction_type==="advance"?"سلفة":"راتب"}</td><td>${escapeHtml(money(p.amount))}</td><td>${escapeHtml(p.payment_date)}</td><td>${escapeHtml(p.note)}</td></tr>`;}).join("") || '<tr><td colspan="5">لا توجد عمليات رواتب.</td></tr>';
+  $("payroll-table").innerHTML = (state.payroll || []).map(p=>{const rows=p.payee_type==="teacher"?state.teachers:state.staff;const person=(rows||[]).find(x=>String(x.id)===String(p.payee_id));return `<tr><td>${escapeHtml(person?.name || "مستفيد")}</td><td>${p.transaction_type==="advance"?"سلفة":"راتب"}</td><td>${escapeHtml(money(p.amount))}</td><td>${escapeHtml(formatDate(p.payment_date))}</td><td>${escapeHtml(p.note)}</td></tr>`;}).join("") || '<tr><td colspan="5">لا توجد عمليات رواتب.</td></tr>';
   const studentOptions=state.students.filter(s=>s.active!==false && !String(s.id).startsWith("offline-")).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
   for(const id of ["attendance-student","result-student"]) { const select=$(id); if(select) select.innerHTML=studentOptions; }
   const paymentSelect=$("payment-assessment"); if(paymentSelect) paymentSelect.innerHTML='<option value="">اختر الطالب وبند الرسوم</option>'+state.assessments.map(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));return `<option value="${escapeHtml(a.id)}">${escapeHtml(student?.name||"طالب")} · ${escapeHtml(a.academic_year_label||"")} · ${escapeHtml(a.term||"")} · ${money(a.total_fee)}</option>`;}).join("");
-  $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات.</td></tr>';
+  $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(formatDateTime(e.created_at))}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات.</td></tr>';
   if ($("student-new")) $("student-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
   if ($("teacher-new")) $("teacher-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
   if ($("expense-new")) $("expense-new").classList.toggle("hidden", !["admin","owner","accountant"].includes(state.profile?.role));
@@ -133,12 +137,12 @@ function restoreOfflinePortal() {
     for (const [id,value] of Object.entries(metrics)) if ($(id)) $(id).textContent = value;
     const studentNames = new Map(state.students.map(s => [s.id,s.name]));
     renderManagedTables();
-    $("attendance-table").innerHTML = state.attendance.map(a => `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.attendance_date)}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
+    $("attendance-table").innerHTML = state.attendance.map(a => `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(formatDate(a.attendance_date))}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
     $("results-table").innerHTML = state.results.map(r => `<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج محفوظة.</td></tr>';
     const paidByAssessment = new Map();
     for (const p of state.payments || []) if (p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id, (paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     $("fees-table").innerHTML = state.assessments.map(a => { const fee=Number(a.total_fee||0), discount=Number(a.discount||0), paid=paidByAssessment.get(a.id)||0, balance=Math.max(0,fee-discount-paid); return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`; }).join("") || '<tr><td colspan="8">لا توجد رسوم محفوظة.</td></tr>';
-    $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
+    $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
     const queueBadge = $("offline-queue-count"); if (queueBadge) queueBadge.textContent = readOfflineQueue().length ? "تغييرات معلّقة: " + readOfflineQueue().length : "لا توجد تغييرات معلّقة";
     showMessage("app-message", "عرض نسخة محفوظة بتاريخ " + new Date(cached.savedAt).toLocaleString("ar-LY") + ". يمكنك إجراء التغييرات المسموح بها؛ ستتم مزامنتها عند عودة الإنترنت.");
     return true;
@@ -250,7 +254,7 @@ async function refreshDashboard() {
     const studentNames = new Map(state.students.map(s=>[s.id,s.name]));
     $("students-table").innerHTML = state.students.map((s) => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td></tr>`).join("") || '<tr><td colspan="3">لا توجد سجلات متاحة.</td></tr>';
     $("teachers-table").innerHTML = state.teachers.map((t) => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
-    $("attendance-table").innerHTML = state.attendance.map(a=>`<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.attendance_date)}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة أو لا تسمح الصلاحيات بعرضها.</td></tr>';
+    $("attendance-table").innerHTML = state.attendance.map(a=>`<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(formatDate(a.attendance_date))}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة أو لا تسمح الصلاحيات بعرضها.</td></tr>';
     $("results-table").innerHTML = state.results.map(r=>`<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج متاحة.</td></tr>';
     const paidByAssessment = new Map();
     const paymentsResult = await db.from("payments").select("fee_assessment_id,amount").limit(5000);
@@ -259,7 +263,7 @@ async function refreshDashboard() {
     let totalFees=0,totalDiscount=0,totalPaid=0;
     $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role) ? `<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button></td>` : ""}</tr>`;}).join("") || '<tr><td colspan="8">لا توجد تقديرات رسوم متاحة.</td></tr>';
     $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
-    $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
+    $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
     renderManagedTables();
     setOfflineMode(false);
     saveOfflineSnapshot();
@@ -287,10 +291,10 @@ async function createBackup() {
     if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("استجابة النسخ الاحتياطي غير صالحة.");
     const schoolFilter = data.school_filter ?? data.school_id;
     if (String(schoolFilter ?? "") !== String(state.school.id)) throw new Error("رفض التنزيل لأن النسخة لا تؤكد تطابق المدرسة.");
-    const envelope = { format: "lamin-school-backup", version: 2, school_id: state.school.id, school_code: state.school.code, school_name: state.school.name, created_at: new Date().toISOString(), data };
+    const envelope = { ...data, school_code:state.school.code, school_name:state.school.name, exported_at:new Date().toISOString() };
     const text = JSON.stringify(envelope, null, 2);
     const parsed = JSON.parse(text);
-    if (parsed.format !== "lamin-school-backup" || parsed.version !== 2 || parsed.school_id !== state.school.id || parsed.data.school_filter !== state.school.id) throw new Error("فشل التحقق النهائي من ملف النسخة.");
+    if (parsed.format !== "lamin-school-backup-v2" || String(parsed.school_filter) !== String(state.school.id)) throw new Error("فشل التحقق النهائي من ملف النسخة.");
     const url = URL.createObjectURL(new Blob([text], { type: "application/json;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `lamin_${new Date().toISOString().slice(0,10)}_${String(state.school.code || "school").replace(/[^\w-]/g,"_")}.json`; a.click(); URL.revokeObjectURL(url);
     showMessage("backup-status", "تم إنشاء الملف والتحقق من هوية المدرسة وبنية النسخة قبل التنزيل.");
@@ -300,32 +304,33 @@ async function createBackup() {
   } finally { button.disabled = false; }
 }
 async function inspectBackup(file) {
-  state.backup = null; state.backupFileName = ""; $("restore-backup").disabled = true; $("restore-confirm").value = ""; $("backup-preview").classList.add("hidden");
+  state.backup = null; state.backupFileName = ""; $("restore-backup").disabled = true; $("restore-confirm").checked = false; $("backup-preview").classList.add("hidden");
   if (!file) return;
   try {
     if (file.size > 100 * 1024 * 1024) throw new Error("حجم الملف يتجاوز الحد الآمن البالغ 100 ميغابايت.");
     const envelope = JSON.parse(await file.text());
-    if (!envelope || envelope.format !== "lamin-school-backup" || envelope.version !== 2 || !envelope.data || typeof envelope.data !== "object") throw new Error("تنسيق النسخة غير مدعوم.");
-    if (String(envelope.school_id) !== String(state.school.id) || String(envelope.data.school_filter) !== String(state.school.id)) throw new Error("هذه النسخة لا تخص المدرسة المسجّلة حاليًا.");
+    if (!envelope || envelope.format !== "lamin-school-backup-v2" || typeof envelope !== "object") throw new Error("تنسيق النسخة غير مدعوم.");
+    if (String(envelope.school_filter) !== String(state.school.id)) throw new Error("هذه النسخة لا تخص المدرسة المسجّلة حاليًا.");
+    for(const key of ["academic_years","classes","students","teachers","staff","student_fee_assessments","payments","attendance","student_results","expenses","payroll_transactions"]) if(envelope[key]!==undefined&&!Array.isArray(envelope[key])) throw new Error("بنية النسخة غير سليمة في قسم: "+key);
     state.backup = envelope; state.backupFileName = file.name;
     const preview = $("backup-preview"); preview.classList.remove("hidden");
-    preview.innerHTML = `<strong>تم اجتياز الفحص الأولي</strong><br>الملف: ${escapeHtml(file.name)}<br>المدرسة: ${escapeHtml(envelope.school_name)}<br>تاريخ النسخة: ${escapeHtml(envelope.created_at)}<br>الإصدار: ${envelope.version}<br><span class="muted">هذه مراجعة بنيوية وليست اختبار استعادة كاملًا.</span>`;
-    showMessage("restore-status", "الملف مطابق لهوية المدرسة. راجع التفاصيل واكتب استعادة للمتابعة.");
+    preview.innerHTML = `<strong>النسخة صالحة مبدئياً</strong><div>الملف: ${escapeHtml(file.name)}</div><div>المدرسة: ${escapeHtml(envelope.school_name||state.school.name)}</div><div>تاريخ النسخة: ${escapeHtml(formatDateTime(envelope.taken_at||envelope.exported_at))}</div><div>الإصدار: 2</div><div>عدد الطلاب: ${(envelope.students||[]).length}</div><div>عدد الرسوم: ${(envelope.student_fee_assessments||[]).length}</div><div>عدد الدفعات: ${(envelope.payments||[]).length}</div><span class="muted">الاستعادة تدمج السجلات الناقصة ولا تستبدل السجلات الحالية.</span>`;
+    showMessage("restore-status", "تم التحقق من الملف وهوية المدرسة. يمكنك تنفيذ الاستعادة.");
     updateRestoreButton();
   } catch (error) { showMessage("restore-status", error?.message || "تعذر قراءة الملف.", true); }
 }
 function updateRestoreButton() {
-  $("restore-backup").disabled = !(state.backup && $("restore-confirm").value.trim() === "استعادة");
+  $("restore-backup").disabled = !(state.backup && $("restore-confirm").checked);
 }
 async function restoreBackup() {
-  if (!state.backup || $("restore-confirm").value.trim() !== "استعادة") return;
+  if (!state.backup || !$("restore-confirm").checked) return;
   if (state.profile?.role !== "admin") { showMessage("restore-status", "الاستعادة متاحة لمدير المدرسة فقط وفق صلاحيات الخادم.", true); return; }
   const btn = $("restore-backup"); btn.disabled = true;
   showMessage("restore-status", "جارٍ إرسال النسخة إلى إجراء الاستعادة المحمي على الخادم…");
   try {
     // The server-side RPC remains authoritative for authorization, schema checks,
     // school scope, audit logging and transactional safety.
-    const { data, error } = await db.rpc("restore_backup", { p_backup: state.backup.data });
+    const { data, error } = await db.rpc("restore_backup", { p_backup: state.backup });
     if (error) throw error;
     if (!data || typeof data !== "object") throw new Error("لم يُرجع الخادم تأكيدًا صالحًا للاستعادة.");
     showMessage("restore-status", "اكتملت استجابة الخادم. أعد تحميل اللوحة للتحقق من البيانات.");
@@ -341,7 +346,7 @@ document.querySelectorAll(".tab").forEach((button) => button.addEventListener("c
 $("refresh-dashboard").addEventListener("click", () => { if (!navigator.onLine) { showMessage("app-message", OFFLINE_MODE_MESSAGE, true); return; } refreshDashboard(); });
 $("create-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("backup-status", OFFLINE_MODE_MESSAGE, true); return; } createBackup(); });
 $("backup-file").addEventListener("change", (e) => inspectBackup(e.target.files?.[0]));
-$("restore-confirm").addEventListener("input", updateRestoreButton);
+$("restore-confirm").addEventListener("change", updateRestoreButton);
 $("restore-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("restore-status", OFFLINE_MODE_MESSAGE, true); return; } restoreBackup(); });
 $("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
 $("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]));
@@ -442,12 +447,12 @@ $("student-form").addEventListener("submit", async event => {
   try {
     if(state.offline || !navigator.onLine) {
       if(id) { queueOfflineChange({action:"update",table:"students",record_id:id,payload}); const row=state.students.find(x=>String(x.id)===id); if(row) Object.assign(row,payload,{_pending:true}); }
-      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"rpc_student",table:"students",local_id:localId,params:{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone,p_term_fee:termFee,p_term:"الفصل الأول"}}); state.students.unshift(full); }
+      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"rpc_student",table:"students",local_id:localId,params:{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone || "",p_term_fee:termFee,p_term:"الفصل الأول"}}); state.students.unshift(full); }
       renderManagedTables(); $("student-form").classList.add("hidden"); showMessage("app-message","حُفظ الطالب محلياً. ستتم مزامنة التغيير عند عودة الإنترنت."); return;
     }
     const result=id
       ? await db.from("students").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle()
-      : await db.rpc("create_student_with_fee",{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone,p_term_fee:termFee,p_term:"الفصل الأول"});
+      : await db.rpc("create_student_with_fee",{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone || "",p_term_fee:termFee,p_term:"الفصل الأول"});
     if(result.error) throw result.error; if(id && !result.data?.id) throw new Error("لم تؤكد قاعدة البيانات تحديث الطالب."); if(!id && !result.data) throw new Error("لم يؤكد الخادم إنشاء الطالب والرسوم.");
     $("student-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message",id?"تم تحديث بيانات الطالب.":"تمت إضافة الطالب.");
   } catch(error) { showMessage("student-status",error.message || "تعذر حفظ الطالب.",true); }
@@ -462,7 +467,7 @@ $("teacher-form").addEventListener("submit", async event => {
   event.preventDefault(); if(!canManageSchool()) return;
   const id=$("teacher-id").value;
   const salary=$("teacher-salary").value.trim();
-  const payload={name:$("teacher-name").value.trim(),subject:$("teacher-subject").value.trim(),phone:$("teacher-phone").value.trim(),salary:salary===""?null:Number(salary)};
+  const payload={name:$("teacher-name").value.trim(),subject:$("teacher-subject").value.trim(),phone:$("teacher-phone").value.trim() || "",salary:salary===""?null:Number(salary)};
   if(!payload.name || (payload.salary!==null && (!Number.isFinite(payload.salary)||payload.salary<0))) { showMessage("teacher-status","تحقق من الاسم والراتب.",true); return; }
   try {
     if(state.offline || !navigator.onLine) {
@@ -580,7 +585,7 @@ $("staff-table").addEventListener("click",async event=>{
 });
 $("staff-form").addEventListener("submit",async event=>{
   event.preventDefault();if(!canManageSchool())return;
-  const id=$("staff-id").value;const payload={name:$("staff-name").value.trim(),role:$("staff-role").value.trim(),phone:$("staff-phone").value.trim(),salary:Number($("staff-salary").value)};
+  const id=$("staff-id").value;const payload={name:$("staff-name").value.trim(),role:$("staff-role").value.trim(),phone:$("staff-phone").value.trim() || "",salary:Number($("staff-salary").value)};
   if(!payload.name||!payload.role||!Number.isFinite(payload.salary)||payload.salary<0){showMessage("staff-status","تحقق من الاسم والوظيفة والراتب.",true);return;}
   try{if(state.offline||!navigator.onLine){if(id){queueOfflineChange({action:"update",table:"staff",record_id:id,payload});const row=state.staff.find(x=>String(x.id)===id);if(row)Object.assign(row,payload,{_pending:true});}
     else{const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));queueOfflineChange({action:"insert",table:"staff",local_id:localId,payload:{...payload,school_id:state.school.id,active:true}});state.staff.unshift({...payload,id:localId,active:true,_pending:true});}
