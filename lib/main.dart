@@ -249,11 +249,13 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       final rememberedId = await const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
       if (rememberedId != null && rememberedId.isNotEmpty) {
         cached = await repo.cachedProfile();
+        final cachedSchool = await repo.cachedSchool();
         canOpenOffline = cached != null &&
             cached!.active == true &&
+            cachedSchool?['active'] != false &&
             (cached!.role == 'owner' || cached!.mustChangePassword != true) &&
-            ((await repo.cachedSchool())?['licensed'] == true ||
-              (schoolTrialEnd(await repo.cachedSchool())?.isAfter(DateTime.now().toUtc()) ?? false));
+            (cachedSchool?['licensed'] == true ||
+              (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ?? false));
       }
     }
     final activeSession = session != null || canOpenOffline;
