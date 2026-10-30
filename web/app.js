@@ -565,9 +565,27 @@ $("expense-form").addEventListener("submit", async event => {
     $("expense-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message","تم تسجيل المصروف.");
   } catch(error) { showMessage("expense-status",error.message || "تعذر حفظ المصروف.",true); }
 });
+async function findExistingQueuedStudent(op) {
+  const params=op.params||{},name=String(params.p_name||"").trim().toLocaleLowerCase("ar"),phone=String(params.p_phone||"").replace(/[^0-9]/g,"");
+  if(!name)return null;
+  const {data,error}=await db.from("students").select("id,name,phone,current_academic_year_id").eq("school_id",state.school.id).eq("phone",phone).limit(100);
+  if(error)throw error;
+  const existing=(data||[]).find(row=>String(row.name||"").trim().toLocaleLowerCase("ar")===name);
+  if(!existing)return null;
+  const fee=Number(params.p_term_fee||0);
+  if(fee>0){
+    let query=db.from("student_fee_assessments").select("id,total_fee,term").eq("school_id",state.school.id).eq("student_id",existing.id).eq("term",String(params.p_term||"الفصل الأول"));
+    query=existing.current_academic_year_id?query.eq("academic_year_id",existing.current_academic_year_id):query.is("academic_year_id",null);
+    const {data:fees,error:feeError}=await query.limit(20);
+    if(feeError)throw feeError;
+    if(!(fees||[]).some(row=>Math.abs(Number(row.total_fee||0)-fee)<0.005))return {conflict:true,student:existing};
+  }
+  return {student:existing};
+}
 async function syncOfflineQueue() {
-  if(!navigator.onLine || !state.school || !state.profile) return;
-  const queue=readOfflineQueue(); if(!queue.length) { setOfflineMode(false); return; }
+  if(state.syncing || !navigator.onLine || !state.school || !state.profile) return;
+  state.syncing=true;
+  const queue=readOfflineQueue(); if(!queue.length) { setOfflineMode(false); state.syncing=false; return; }
   const remaining=[...queue];
   showMessage("app-message","جارٍ مزامنة التغييرات المحفوظة دون إنترنت…");
   while(remaining.length) {
@@ -578,10 +596,18 @@ async function syncOfflineQueue() {
     else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
     else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
     else throw new Error("تعذر تحديد نوع التغيير المحلي.");
-    if(result.error) { writeOfflineQueue(remaining); showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true); return; }
+    if(result.error && op.action==="rpc_student" && (result.error.code==="23505" || /students_dup_uq|duplicate key/i.test(result.error.message||""))) {
+      try {
+        const match=await findExistingQueuedStudent(op);
+        if(match?.student && !match.conflict){remaining.shift();writeOfflineQueue(remaining);continue;}
+        if(match?.conflict){writeOfflineQueue(remaining);showMessage("app-message","تعذرت مزامنة طالب موجود مسبقاً: رسوم الفصل المسجلة لا تطابق الرسوم المعلقة. احتفظنا بالتغيير للمراجعة ولم نغيّر الرسوم.",true);state.syncing=false;return;}
+      } catch(reconcileError){writeOfflineQueue(remaining);showMessage("app-message","تعذر التحقق من الطالب الموجود. احتفظنا بالتغيير محلياً دون حذفه.",true);state.syncing=false;return;}
+      writeOfflineQueue(remaining);showMessage("app-message","يوجد طالب بالاسم ورقم الهاتف نفسيهما في قاعدة البيانات. احتفظنا بالتغيير محلياً ولم ننشئ سجلاً مكرراً.",true);state.syncing=false;return;
+    }
+    if(result.error) { writeOfflineQueue(remaining); showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true); state.syncing=false; return; }
     remaining.shift(); writeOfflineQueue(remaining);
   }
-  setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية.");
+  setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية."); state.syncing=false;
 }
 
 
