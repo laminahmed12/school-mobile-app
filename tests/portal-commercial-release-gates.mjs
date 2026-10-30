@@ -30,6 +30,7 @@ assert.match(app, /if\(result\.error\).*?writeOfflineQueue\(remaining\)/s);
 
 // Queue restore must render pending local payments without generating a second operation.
 assert.match(app, /if \(op\.action === "rpc_payment"\)/);
+assert.match(app, /allowedActions=new Set\(\["insert","update","archive","rpc_student","rpc_payment","upsert"\]\)/);
 assert.match(app, /!state\.payments\.some\(p=>p\.id===op\.local_id\)/);
 
 // Offline login stores a PBKDF2 verifier, not the raw password.
