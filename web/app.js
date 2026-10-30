@@ -109,7 +109,7 @@ function restoreOfflinePortal() {
     if (!cached) return false;
     state.profile = cached.profile; state.school = cached.school;
     Object.assign(state, cached.data); state.offline = true;
-    for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if(op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
+    for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "rpc_student") rows.unshift({ id: op.local_id, name: op.params.p_name, class_name: op.params.p_class_name, phone: op.params.p_phone, active: true, _pending: true }); if (op.action === "upsert") { const row=rows.find(x=>x.student_id===op.payload.student_id&&x.attendance_date===op.payload.attendance_date); if(row) Object.assign(row,op.payload,{_pending:true}); else rows.unshift({...op.payload,_pending:true}); } if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if (op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
     $("school-name").textContent = state.school.name || "مدرستك";
     $("setting-school-name").textContent = state.school.name || "—";
     $("setting-school-code").textContent = state.school.code || "—";
