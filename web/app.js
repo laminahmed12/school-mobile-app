@@ -313,8 +313,24 @@ function renderFeeSearchResults(){
   const paid=new Map();for(const p of state.payments||[])if(p.fee_assessment_id)paid.set(p.fee_assessment_id,(paid.get(p.fee_assessment_id)||0)+Number(p.amount||0));
   $("fees-table").innerHTML=rows.map(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));const fee=Number(a.total_fee||0),discount=Number(a.discount||0),amount=paid.get(a.id)||0,balance=Math.max(0,fee-discount-amount);return `<tr><td>${escapeHtml(student?.name||"طالب")}</td><td>${escapeHtml(a.academic_year_label||"—")}</td><td>${escapeHtml(a.term||"—")}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(amount))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role)?`<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button>`:""}</tr>`;}).join("")||'<tr><td colspan="8">لا توجد نتائج مطابقة لمعايير البحث.</td></tr>';
 }
+function downloadBackupFile(payload, suffix) {
+  const text=JSON.stringify(payload,null,2);
+  const url=URL.createObjectURL(new Blob([text],{type:"application/json;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download=`lamin_${new Date().toISOString().slice(0,10)}_${String(state.school.code||"school").replace(/[^\\w-]/g,"_")}_${suffix}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function createLocalBackup() {
+  const key=OFFLINE_SNAPSHOT_PREFIX+state.school.id;
+  const cached=JSON.parse(localStorage.getItem(key)||"null");
+  const snapshot=cached||{profile:{username:state.profile.username,role:state.profile.role,active:state.profile.active,school_id:state.school.id},school:state.school,data:{students:state.students,teachers:state.teachers,staff:state.staff||[],classes:state.classes||[],attendance:state.attendance,results:state.results,assessments:state.assessments,audit:state.audit,expenses:state.expenses,payroll:state.payroll,payments:state.payments||[]},metrics:{},savedAt:new Date().toISOString()};
+  const payload={format:"lamin-offline-backup-v1",school_id:state.school.id,school_code:state.school.code,school_name:state.school.name,exported_at:new Date().toISOString(),snapshot,queue:readOfflineQueue()};
+  if(!snapshot?.data||!Array.isArray(payload.queue))throw new Error("تعذر تجهيز النسخة المحلية بسبب عدم اكتمال البيانات المحفوظة.");
+  downloadBackupFile(payload,"offline");
+  showMessage("backup-status","تم تنزيل نسخة محلية تشمل آخر بيانات محفوظة و"+payload.queue.length+" تغييرات معلّقة. هذه نسخة محلية وليست نسخة خادم؛ ستبقى المزامنة مرتبطة بحساب المدرسة.");
+}
 async function createBackup() {
-  const button = $("create-backup"); button.disabled = true; showMessage("backup-status", "جارٍ إنشاء النسخة والتحقق منها…");
+  const button = $("create-backup"); button.disabled = true;
+  if(state.offline||!navigator.onLine){try{createLocalBackup();}catch(error){showMessage("backup-status",error.message||"تعذر إنشاء النسخة المحلية.",true);}finally{button.disabled=false;}return;}
+  showMessage("backup-status", "جارٍ إنشاء النسخة والتحقق منها…");
   try {
     const role = state.profile?.role;
     const result = role === "owner"
@@ -344,6 +360,16 @@ async function inspectBackup(file) {
     if (file.size > 100 * 1024 * 1024) throw new Error("حجم الملف يتجاوز الحد الآمن البالغ 100 ميغابايت.");
     const envelope = JSON.parse(await file.text());
     if (!envelope || typeof envelope !== "object") throw new Error("تنسيق النسخة غير مدعوم.");
+    if(envelope.format==="lamin-offline-backup-v1"){
+      if(String(envelope.school_id)!==String(state.school.id)||String(envelope.school_code||"")!==String(state.school.code||""))throw new Error("هذه النسخة المحلية لا تخص المدرسة الحالية.");
+      if(!envelope.snapshot?.profile||!envelope.snapshot?.school||!envelope.snapshot?.data||!Array.isArray(envelope.queue))throw new Error("ملف النسخة المحلية غير مكتمل أو تالف.");
+      const allowedTables=new Set(["students","teachers","staff","classes","attendance","student_results","assessments","student_fee_assessments","payments","expenses","payroll_transactions"]);
+      const allowedActions=new Set(["insert","update","archive","rpc_student","upsert"]);
+      if(envelope.queue.some(op=>!allowedTables.has(op.table)||!allowedActions.has(op.action)))throw new Error("تحتوي النسخة على عمليات محلية غير معتمدة.");
+      state.backup={__localOfflineBackup:true,envelope};state.backupFileName=file.name;
+      const preview=$("backup-preview");preview.classList.remove("hidden");preview.innerHTML=`<strong>نسخة محلية صالحة مبدئياً</strong><div>الملف: ${escapeHtml(file.name)}</div><div>المدرسة: ${escapeHtml(envelope.school_name||state.school.name)}</div><div>تاريخ النسخة: ${escapeHtml(formatDateTime(envelope.exported_at))}</div><div>الطلاب المحفوظون: ${(envelope.snapshot.data.students||[]).length}</div><div>التغييرات المعلّقة: ${envelope.queue.length}</div><span class="muted">ستُستعاد محلياً على هذا الجهاز، ولن تُستبدل بيانات الخادم بهذه النسخة.</span>`;
+      showMessage("restore-status","تم التحقق من النسخة المحلية وهوية المدرسة. يمكنك استعادتها محلياً.");updateRestoreButton();return;
+    }
     const payload = envelope.format === "lamin-school-backup" && envelope.version === 2 ? envelope.data : envelope;
     const schoolId = envelope.format === "lamin-school-backup" ? envelope.school_id : payload?.school_filter;
     if (String(schoolId) !== String(state.school.id) || String(payload?.school_filter) !== String(state.school.id) || payload?.format !== "lamin-school-backup-v2") throw new Error("هذه النسخة لا تخص المدرسة الحالية أو تنسيقها غير مدعوم.");
@@ -361,6 +387,10 @@ function updateRestoreButton() {
 async function restoreBackup() {
   if (!state.backup || !$("restore-confirm").checked) return;
   if (state.profile?.role !== "admin") { showMessage("restore-status", "الاستعادة متاحة لمدير المدرسة فقط وفق صلاحيات الخادم.", true); return; }
+  if(state.backup.__localOfflineBackup){
+    const envelope=state.backup.envelope;
+    try{localStorage.setItem(OFFLINE_SNAPSHOT_PREFIX+state.school.id,JSON.stringify(envelope.snapshot));writeOfflineQueue(envelope.queue);state.profile={...state.profile};state.school=envelope.snapshot.school;Object.assign(state,envelope.snapshot.data);state.offline=!navigator.onLine;renderManagedTables();switchView(true);setOfflineMode(!navigator.onLine);showMessage("restore-status","تمت استعادة البيانات محلياً. لم تتغير قاعدة بيانات المدرسة؛ وستُزامن العمليات المعلّقة عند عودة الاتصال.");$("backup-preview").classList.add("hidden");state.backup=null;return;}catch(error){showMessage("restore-status",error.message||"تعذرت الاستعادة المحلية.",true);return;}
+  }
   const btn = $("restore-backup"); btn.disabled = true;
   showMessage("restore-status", "جارٍ إرسال النسخة إلى إجراء الاستعادة المحمي على الخادم…");
   try {
@@ -381,10 +411,10 @@ $("login-form").addEventListener("submit", (e) => login(e).catch((err) => { cons
 $("logout").addEventListener("click", async () => { await db.auth.signOut(); state.profile = state.school = null; switchView(false); $("session-label").textContent = ""; });
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchPanel(button.dataset.panel)));
 $("refresh-dashboard").addEventListener("click", () => { if (!navigator.onLine) { showMessage("app-message", OFFLINE_MODE_MESSAGE, true); return; } refreshDashboard(); });
-$("create-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("backup-status", OFFLINE_MODE_MESSAGE, true); return; } createBackup(); });
+$("create-backup").addEventListener("click", () => createBackup());
 $("backup-file").addEventListener("change", (e) => inspectBackup(e.target.files?.[0]));
 $("restore-confirm").addEventListener("change", updateRestoreButton);
-$("restore-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("restore-status", OFFLINE_MODE_MESSAGE, true); return; } restoreBackup(); });
+$("restore-backup").addEventListener("click", () => { if(state.backup?.__localOfflineBackup){restoreBackup();return;} if (state.offline || !navigator.onLine) { showMessage("restore-status", "استعادة نسخة الخادم تتطلب اتصالاً بالإنترنت. يمكن استعادة النسخ المحلية دون اتصال.", true); return; } restoreBackup(); });
 $("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
 $("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",formatDate(a.attendance_date),a.status,a.minutes_late])]));
 const feeForm = $("fee-edit-form");
