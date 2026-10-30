@@ -12,7 +12,7 @@ const state = { profile: null, school: null, students: [], teachers: [], staff: 
 const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", currency: "LYD", maximumFractionDigits: 2 }).format(Number(value || 0));
 const formatDateTime = (value) => { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", { dateStyle:"medium", ...(String(value).includes("T")?{timeStyle:"short"}:{}) }).format(date); };
 const formatDate = (value) => { if (!value) return "—"; const date = new Date(String(value).length===10 ? value+"T12:00:00" : value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", {dateStyle:"medium"}).format(date); };
-const readableDetails = (details) => { const labels={student_id:"معرّف الطالب",school_id:"معرّف المدرسة",attendance_date:"تاريخ الحضور",minutes_late:"دقائق التأخير",status:"الحالة",created_by:"أنشأه",id:"المعرّف",phone:"الهاتف",name:"الاسم",class_name:"الصف",amount:"المبلغ",term:"الفصل",academic_year_id:"السنة الدراسية"}; if(!details||typeof details!=="object")return escapeHtml(details??"—"); return Object.entries(details).map(([key,value])=>"<div class=\"audit-detail\"><strong>"+escapeHtml(labels[key]||key.replaceAll("_"," "))+":</strong> <span>"+escapeHtml(typeof value==="object"?JSON.stringify(value):value)+"</span></div>").join("")||"—"; };
+const readableDetails = (details) => { const labels={attendance_date:"تاريخ الحضور",minutes_late:"دقائق التأخير",status:"الحالة",phone:"الهاتف",name:"الاسم",class_name:"الصف",amount:"المبلغ",term:"الفصل",academic_year_id:"السنة الدراسية",exam_name:"الاختبار",score:"الدرجة",max_score:"الدرجة القصوى",total_fee:"الرسوم",discount:"الخصم"}; if(!details||typeof details!=="object")return escapeHtml(details??"—"); return Object.entries(details).filter(([key])=>!["id","school_id","created_by","student_id","user_id"].includes(key)).map(([key,value])=>{const shown=key==="status"?({absent:"غائب",present:"حاضر",late:"متأخر",excused:"معذور"}[value]||value):value;return "<div class=\"audit-detail\"><strong>"+escapeHtml(labels[key]||key.replaceAll("_"," "))+":</strong> <span>"+escapeHtml(typeof shown==="object"?JSON.stringify(shown):shown)+"</span></div>";}).join("")||"لا توجد تفاصيل إضافية."; };
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const safeRows = (rows) => Array.isArray(rows) ? rows : [];
@@ -143,7 +143,7 @@ function restoreOfflinePortal() {
     const paidByAssessment = new Map();
     for (const p of state.payments || []) if (p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id, (paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     $("fees-table").innerHTML = state.assessments.map(a => { const fee=Number(a.total_fee||0), discount=Number(a.discount||0), paid=paidByAssessment.get(a.id)||0, balance=Math.max(0,fee-discount-paid); return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`; }).join("") || '<tr><td colspan="8">لا توجد رسوم محفوظة.</td></tr>';
-    $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
+    $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(({insert:"إضافة سجل",INSERT:"إضافة سجل",update:"تعديل سجل",UPDATE:"تعديل سجل",delete:"حذف سجل",DELETE:"حذف سجل"}[a.action]||a.action))}</td><td>${escapeHtml(({student_fee_assessments:"رسوم الطلاب",attendance:"الحضور",teachers:"المعلمون",students:"الطلاب",expenses:"المصروفات",payments:"الدفعات",staff:"الموظفون",classes:"الصفوف",payroll_transactions:"الرواتب والسلف"}[a.entity]||a.entity))}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
     const queueBadge = $("offline-queue-count"); if (queueBadge) queueBadge.textContent = readOfflineQueue().length ? "تغييرات معلّقة: " + readOfflineQueue().length : "لا توجد تغييرات معلّقة";
     showMessage("app-message", "عرض نسخة محفوظة بتاريخ " + new Date(cached.savedAt).toLocaleString("ar-LY") + ". يمكنك إجراء التغييرات المسموح بها؛ ستتم مزامنتها عند عودة الإنترنت.");
     return true;
@@ -264,7 +264,7 @@ async function refreshDashboard() {
     let totalFees=0,totalDiscount=0,totalPaid=0;
     $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role) ? `<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button></td>` : ""}</tr>`;}).join("") || '<tr><td colspan="8">لا توجد تقديرات رسوم متاحة.</td></tr>';
     $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
-    $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
+    $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(({insert:"إضافة سجل",INSERT:"إضافة سجل",update:"تعديل سجل",UPDATE:"تعديل سجل",delete:"حذف سجل",DELETE:"حذف سجل"}[a.action]||a.action))}</td><td>${escapeHtml(({student_fee_assessments:"رسوم الطلاب",attendance:"الحضور",teachers:"المعلمون",students:"الطلاب",expenses:"المصروفات",payments:"الدفعات",staff:"الموظفون",classes:"الصفوف",payroll_transactions:"الرواتب والسلف"}[a.entity]||a.entity))}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
     renderManagedTables();
     populateFeeSearchOptions(); renderFeeSearchResults();
     setOfflineMode(false);
@@ -316,12 +316,14 @@ async function inspectBackup(file) {
   try {
     if (file.size > 100 * 1024 * 1024) throw new Error("حجم الملف يتجاوز الحد الآمن البالغ 100 ميغابايت.");
     const envelope = JSON.parse(await file.text());
-    if (!envelope || envelope.format !== "lamin-school-backup-v2" || typeof envelope !== "object") throw new Error("تنسيق النسخة غير مدعوم.");
-    if (String(envelope.school_filter) !== String(state.school.id)) throw new Error("هذه النسخة لا تخص المدرسة المسجّلة حاليًا.");
-    for(const key of ["academic_years","classes","students","teachers","staff","student_fee_assessments","payments","attendance","student_results","expenses","payroll_transactions"]) if(envelope[key]!==undefined&&!Array.isArray(envelope[key])) throw new Error("بنية النسخة غير سليمة في قسم: "+key);
-    state.backup = envelope; state.backupFileName = file.name;
+    if (!envelope || typeof envelope !== "object") throw new Error("تنسيق النسخة غير مدعوم.");
+    const payload = envelope.format === "lamin-school-backup" && envelope.version === 2 ? envelope.data : envelope;
+    const schoolId = envelope.format === "lamin-school-backup" ? envelope.school_id : payload?.school_filter;
+    if (String(schoolId) !== String(state.school.id) || String(payload?.school_filter) !== String(state.school.id) || payload?.format !== "lamin-school-backup-v2") throw new Error("هذه النسخة لا تخص المدرسة الحالية أو تنسيقها غير مدعوم.");
+    for(const key of ["academic_years","classes","students","teachers","staff","student_fee_assessments","payments","attendance","student_results","expenses","payroll_transactions"]) if(payload[key]!==undefined&&!Array.isArray(payload[key])) throw new Error("بنية النسخة غير سليمة في قسم: "+key);
+    state.backup = payload; state.backupFileName = file.name;
     const preview = $("backup-preview"); preview.classList.remove("hidden");
-    preview.innerHTML = `<strong>النسخة صالحة مبدئياً</strong><div>الملف: ${escapeHtml(file.name)}</div><div>المدرسة: ${escapeHtml(envelope.school_name||state.school.name)}</div><div>تاريخ النسخة: ${escapeHtml(formatDateTime(envelope.taken_at||envelope.exported_at))}</div><div>الإصدار: 2</div><div>عدد الطلاب: ${(envelope.students||[]).length}</div><div>عدد الرسوم: ${(envelope.student_fee_assessments||[]).length}</div><div>عدد الدفعات: ${(envelope.payments||[]).length}</div><span class="muted">الاستعادة تدمج السجلات الناقصة ولا تستبدل السجلات الحالية.</span>`;
+    preview.innerHTML = `<strong>النسخة صالحة مبدئياً</strong><div>الملف: ${escapeHtml(file.name)}</div><div>المدرسة: ${escapeHtml(payload.school_name||envelope.school_name||state.school.name)}</div><div>تاريخ النسخة: ${escapeHtml(formatDateTime(payload.taken_at||envelope.created_at||payload.exported_at))}</div><div>الإصدار: 2</div><div>عدد الطلاب: ${(payload.students||[]).length}</div><div>عدد الرسوم: ${(payload.student_fee_assessments||[]).length}</div><div>عدد الدفعات: ${(payload.payments||[]).length}</div><span class="muted">الاستعادة تدمج السجلات الناقصة ولا تستبدل السجلات الحالية.</span>`;
     showMessage("restore-status", "تم التحقق من الملف وهوية المدرسة. يمكنك تنفيذ الاستعادة.");
     updateRestoreButton();
   } catch (error) { showMessage("restore-status", error?.message || "تعذر قراءة الملف.", true); }
@@ -339,8 +341,9 @@ async function restoreBackup() {
     // school scope, audit logging and transactional safety.
     const { data, error } = await db.rpc("restore_backup", { p_backup: state.backup });
     if (error) throw error;
-    if (!data || typeof data !== "object") throw new Error("لم يُرجع الخادم تأكيدًا صالحًا للاستعادة.");
-    showMessage("restore-status", "اكتملت استجابة الخادم. أعد تحميل اللوحة للتحقق من البيانات.");
+    if (!data || typeof data !== "object" || data.ok !== true) throw new Error("لم يؤكد الخادم اكتمال الاستعادة.");
+    const restored=data.restored||{}; const summary=Object.entries(restored).map(([key,count])=>key+": "+count).join(" · ");
+    showMessage("restore-status", "تمت الاستعادة بنجاح. السجلات المضافة: "+(summary||"تم الدمج دون تفاصيل إضافية")+".");
     await refreshDashboard();
   } catch (error) {
     console.error("Lamin restore failed", error);
