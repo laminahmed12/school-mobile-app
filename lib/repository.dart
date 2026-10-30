@@ -7,36 +7,67 @@ class SchoolRepository {
   final SharedPreferences prefs;
   SchoolRepository(this.prefs);
 
+  String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
+  String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
+  String _tenantCacheKey(String schoolId, String table) => 'lamin_data_cache_v1_${schoolId}_$table';
+
+  Future<List<Map<String, dynamic>>> _cachedRows(String schoolId, String key) async {
+    final raw = prefs.getString(_tenantCacheKey(schoolId, key));
+    if (raw == null) return [];
+    try {
+      return (jsonDecode(raw) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      await prefs.remove(_tenantCacheKey(schoolId, key));
+      return [];
+    }
+  }
+
+  Future<void> _saveRows(String schoolId, String key, List rows) async {
+    await prefs.setString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
+  }
+
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
     if (u == null) return null;
-    final row = await db
-        .from('profiles')
-        .select()
-        .eq('user_id', u.id)
-        .maybeSingle();
-    if (row == null) return null;
-    final profile = SchoolProfile.fromMap(row);
-    final schoolId = profile.schoolId;
-    if (schoolId != null && schoolId.isNotEmpty) {
-      // Cache tenant scope per authenticated user for offline reads only.
-      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    try {
+      final row = await db.from('profiles').select().eq('user_id', u.id)
+          .maybeSingle().timeout(const Duration(seconds: 6));
+      if (row == null) return null;
+      final profile = SchoolProfile.fromMap(row);
+      await prefs.setString(_profileCacheKey(u.id), jsonEncode(Map<String, dynamic>.from(row)));
+      final schoolId = profile.schoolId;
+      if (schoolId != null && schoolId.isNotEmpty) {
+        await prefs.setString('school_id_cache_${u.id}', schoolId);
+      }
+      return profile;
+    } catch (_) {
+      final raw = prefs.getString(_profileCacheKey(u.id));
+      if (raw == null) return null;
+      try {
+        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw)));
+      } catch (_) {
+        return null;
+      }
     }
-    return profile;
   }
 
   Future<Map<String, dynamic>?> school() async {
+    final p = await profile();
+    if (p?.schoolId == null) return null;
+    final id = p!.schoolId!;
     try {
-      final p = await profile();
-      if (p?.schoolId == null) return null;
-      final row = await db
-          .from('schools')
-          .select()
-          .eq('id', p!.schoolId!)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+      final row = await db.from('schools').select().eq('id', id)
+          .maybeSingle().timeout(const Duration(seconds: 6));
+      if (row == null) return null;
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(_schoolCacheKey(id), jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(_schoolCacheKey(id));
+      if (raw == null) return null;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
     }
   }
 
