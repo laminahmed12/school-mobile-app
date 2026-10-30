@@ -33,6 +33,8 @@ jobs:
         run: flutter test --no-pub
       - name: Prepare Android platform
         run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+      - name: Apply Arabic Lamin app label
+        run: sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
       - name: Build Android debug candidate
         run: flutter build apk --debug --no-tree-shake-icons
       - name: Upload Android debug candidate
