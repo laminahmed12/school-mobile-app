@@ -44,7 +44,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'طالب تجريبي');
     await tester.pump();
 
-    expect(find.text('طالب تجريبي'), findsOneWidget);
+    expect(find.text('طالب تجريبي'), findsNWidgets(2));
     expect(find.text('الصف الأول'), findsOneWidget);
   });
 }
