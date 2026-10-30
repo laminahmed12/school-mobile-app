@@ -15,11 +15,6 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ 
 const safeRows = (rows) => Array.isArray(rows) ? rows : [];
 const OFFLINE_SNAPSHOT_PREFIX = "lamin-portal-snapshot-v2:";
 const OFFLINE_QUEUE_PREFIX = "lamin-portal-queue-v1:";
-const OFFLINE_MODE_MESSAGE = "وضع عدم الاتصال: التغييرات المسموح بها تحفظ محلياً وتنتظر المزامنة.";
-function setOfflineMode(enabled) { state.offline = Boolean(enabled); document.body.classList.toggle("offline-mode", state.offline); }
-
-const OFFLINE_SNAPSHOT_PREFIX = "lamin-portal-snapshot-v2:";
-const OFFLINE_QUEUE_PREFIX = "lamin-portal-queue-v1:";
 const OFFLINE_MODE_MESSAGE = "أنت تعمل دون اتصال. التغييرات المسموح بها تُحفظ محلياً وتنتظر المزامنة عند عودة الإنترنت.";
 const canManageSchool = () => ["admin","owner"].includes(state.profile?.role);
 const canManageFinance = () => ["admin","owner","accountant"].includes(state.profile?.role);
