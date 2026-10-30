@@ -16,7 +16,15 @@ class LaminAuthResult {
 }
 
 class LaminAuthService {
-  static const _schoolKey = 'lamin.school.code';\n  static const _offlineUserKey = 'lamin.offline.user.id';\n  Future<String?> offlineUserId() => _storage.read(key: _offlineUserKey);\n  Future<void> rememberOfflineUser(String userId) => _storage.write(key: _offlineUserKey, value: userId);\n  Future<void> clearOfflineUser() => _storage.delete(key: _offlineUserKey);
+  static const _schoolKey = 'lamin.school.code';
+  static const _offlineUserKey = 'lamin.offline.user.id';
+  Future<String?> offlineUserId() => _storage.read(key: _offlineUserKey);
+  Future<void> rememberOfflineUser(String userId) => _storage.write(key: _offlineUserKey, value: userId);
+  Future<void> clearOfflineUser() => _storage.delete(key: _offlineUserKey);
+  static const _offlineUserKey = 'lamin.offline.user.id';
+  Future<String?> offlineUserId() => _storage.read(key: _offlineUserKey);
+  Future<void> rememberOfflineUser(String userId) => _storage.write(key: _offlineUserKey, value: userId);
+  Future<void> clearOfflineUser() => _storage.delete(key: _offlineUserKey);
   static const _storage = FlutterSecureStorage();
   Future<String?> savedSchoolCode() => _storage.read(key: _schoolKey);
   Future<void> saveSchoolCode(String code) =>
@@ -52,6 +60,8 @@ class LaminAuthService {
         );
       await db.auth.setSession(refresh);
       await saveSchoolCode(school);
+      final userId = db.auth.currentUser?.id;
+      if (userId != null) await rememberOfflineUser(userId);
       return const LaminAuthResult(ok: true, message: 'تم تسجيل الدخول.');
     } on FunctionException catch (e) {
       final d = e.details;
