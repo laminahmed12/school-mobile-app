@@ -58,10 +58,16 @@ function queueOfflineChange(item) {
 function renderManagedTables() {
   $("students-table").innerHTML = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
   $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" data-teacher-edit="${escapeHtml(t.id)}" type="button">تعديل</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات.</td></tr>';
+  $("staff-table").innerHTML = (state.staff || []).filter(x=>x.active!==false).map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(s.phone)}</td><td>${escapeHtml(money(s.salary))}</td><td>نشط</td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات موظفين.</td></tr>';
+  $("payroll-table").innerHTML = (state.payroll || []).map(p=>{const rows=p.payee_type==="teacher"?state.teachers:state.staff;const person=(rows||[]).find(x=>String(x.id)===String(p.payee_id));return `<tr><td>${escapeHtml(person?.name || "مستفيد")}</td><td>${p.transaction_type==="advance"?"سلفة":"راتب"}</td><td>${escapeHtml(money(p.amount))}</td><td>${escapeHtml(p.payment_date)}</td><td>${escapeHtml(p.note)}</td></tr>`;}).join("") || '<tr><td colspan="5">لا توجد عمليات رواتب.</td></tr>';
   $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات.</td></tr>';
   if ($("student-new")) $("student-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
   if ($("teacher-new")) $("teacher-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
   if ($("expense-new")) $("expense-new").classList.toggle("hidden", !["admin","owner","accountant"].includes(state.profile?.role));
+  if ($("staff-new")) $("staff-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
+  const payeeType=$("payroll-payee-type")?.value || "teacher";
+  const payeeRows=payeeType==="teacher"?state.teachers:state.staff;
+  if ($("payroll-payee")) $("payroll-payee").innerHTML=(payeeRows||[]).filter(x=>x.active!==false).map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join("");
 }
 
 function switchView(authed) {
