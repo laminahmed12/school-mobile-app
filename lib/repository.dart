@@ -35,6 +35,31 @@ class SchoolRepository {
     await prefs.setString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
   }
 
+  Future<String?> _schoolId() async {
+    final userId = await _userId();
+    if (userId == null) return null;
+    return prefs.getString('school_id_cache_$userId') ??
+        (await cachedProfile())?.schoolId;
+  }
+
+  Future<List<Map<String, dynamic>>> _readRows(
+    String key,
+    Future<dynamic> Function() request,
+  ) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return [];
+    try {
+      final result = await request().timeout(const Duration(seconds: 7));
+      final rows = (result as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      await _saveRows(schoolId, key, rows);
+      return rows;
+    } catch (_) {
+      return _cachedRows(schoolId, key);
+    }
+  }
+
   Future<SchoolProfile?> cachedProfile() async {
     final userId = await _userId();
     if (userId == null) return null;
@@ -238,29 +263,13 @@ class SchoolRepository {
     return result;
   }
 
-  Future<List<Map<String, dynamic>>> academicYears() async {
-    try {
-      return (await db
-                  .from('academic_years')
-                  .select()
-                  .order('created_at', ascending: false)
-              as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
+  Future<List<Map<String, dynamic>>> academicYears() => _readRows(
+    'academic_years',
+    () => db.from('academic_years').select().order('created_at', ascending: false),
+  );
 
-  Future<List<Map<String, dynamic>>> classes() async {
-    try {
-      return (await db.from('classes').select().order('name') as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
+  Future<List<Map<String, dynamic>>> classes() =>
+      _readRows('classes', () => db.from('classes').select().order('name'));
 
   Future<void> addAcademicYear(String name) async {
     await db.from('academic_years').insert({
@@ -358,30 +367,15 @@ class SchoolRepository {
     }
   }
 
-  Future<List<SubjectItem>> subjects() async {
-    try {
-      final rows = await db.from('subjects').select().order('name');
-      return (rows as List)
-          .map((e) => SubjectItem.fromMap(Map<String, dynamic>.from(e)))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
+  Future<List<SubjectItem>> subjects() async =>
+      (await _readRows('subjects', () => db.from('subjects').select().order('name')))
+          .map(SubjectItem.fromMap).toList();
 
   Future<List<AttendanceRecord>> attendance(DateTime day) async {
     final d = day.toIso8601String().substring(0, 10);
-    try {
-      final rows = await db
-          .from('attendance')
-          .select()
-          .eq('attendance_date', d);
-      return (rows as List)
-          .map((e) => AttendanceRecord.fromMap(Map<String, dynamic>.from(e)))
-          .toList();
-    } catch (_) {
-      return [];
-    }
+    return (await _readRows('attendance_$d', () =>
+      db.from('attendance').select().eq('attendance_date', d)))
+        .map(AttendanceRecord.fromMap).toList();
   }
 
   Future<void> saveAttendance({
@@ -398,16 +392,10 @@ class SchoolRepository {
     });
   }
 
-  Future<List<ResultItem>> results(String studentId) async {
-    final rows = await db
-        .from('student_results')
-        .select()
-        .eq('student_id', studentId)
-        .order('created_at', ascending: false);
-    return (rows as List)
-        .map((e) => ResultItem.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-  }
+  Future<List<ResultItem>> results(String studentId) async =>
+      (await _readRows('results_$studentId', () => db.from('student_results')
+        .select().eq('student_id', studentId).order('created_at', ascending: false)))
+        .map(ResultItem.fromMap).toList();
 
   Future<void> addResult({
     required String studentId,
