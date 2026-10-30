@@ -26,13 +26,13 @@ jobs:
           cache: true
       - run: flutter pub get
       - name: Format changed Dart files
-        run: dart format lib/main.dart lib/repository.dart test/offline_home_page_test.dart
+        run: dart format lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart
       - name: Commit formatter output before validation
         run: |
-          if ! git diff --quiet -- lib/main.dart lib/repository.dart test/offline_home_page_test.dart; then
+          if ! git diff --quiet -- lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add lib/main.dart lib/repository.dart test/offline_home_page_test.dart
+            git add lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart
             git commit -m "style: format offline access changes"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
