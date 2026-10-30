@@ -58,7 +58,7 @@ function queueOfflineChange(item) {
 function renderManagedTables() {
   $("students-table").innerHTML = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
   $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" data-teacher-edit="${escapeHtml(t.id)}" type="button">تعديل</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات.</td></tr>';
-  $("staff-table").innerHTML = (state.staff || []).filter(x=>x.active!==false).map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(s.phone)}</td><td>${escapeHtml(money(s.salary))}</td><td>نشط</td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات موظفين.</td></tr>';
+  $("staff-table").innerHTML = (state.staff || []).filter(x=>x.active!==false).map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(s.phone)}</td><td>${escapeHtml(money(s.salary))}</td><td><button class="button button-secondary" type="button" data-staff-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-staff-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات موظفين.</td></tr>';
   $("payroll-table").innerHTML = (state.payroll || []).map(p=>{const rows=p.payee_type==="teacher"?state.teachers:state.staff;const person=(rows||[]).find(x=>String(x.id)===String(p.payee_id));return `<tr><td>${escapeHtml(person?.name || "مستفيد")}</td><td>${p.transaction_type==="advance"?"سلفة":"راتب"}</td><td>${escapeHtml(money(p.amount))}</td><td>${escapeHtml(p.payment_date)}</td><td>${escapeHtml(p.note)}</td></tr>`;}).join("") || '<tr><td colspan="5">لا توجد عمليات رواتب.</td></tr>';
   $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات.</td></tr>';
   if ($("student-new")) $("student-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
@@ -536,6 +536,39 @@ $("result-form").addEventListener("submit", async event => {
       await refreshDashboard(); showMessage("result-status","تم حفظ النتيجة.");
     }
   } catch(error) { showMessage("result-status",error.message || "تعذر حفظ النتيجة.",true); }
+});
+
+
+$("staff-new").addEventListener("click",()=>{ $("staff-form").reset(); $("staff-id").value=""; $("staff-form").classList.remove("hidden"); });
+$("staff-cancel").addEventListener("click",()=> $("staff-form").classList.add("hidden"));
+$("staff-table").addEventListener("click",async event=>{
+  const edit=event.target.closest("[data-staff-edit]"), archive=event.target.closest("[data-staff-archive]");
+  if(edit){const row=state.staff.find(x=>String(x.id)===edit.dataset.staffEdit);if(row){$("staff-id").value=row.id;$("staff-name").value=row.name||"";$("staff-role").value=row.role||"";$("staff-phone").value=row.phone||"";$("staff-salary").value=row.salary??0;$("staff-form").classList.remove("hidden");}}
+  if(archive){const row=state.staff.find(x=>String(x.id)===archive.dataset.staffArchive);if(!row||!confirm("أرشفة الموظف مع الاحتفاظ بسجل الرواتب؟"))return;
+    try{if(state.offline||!navigator.onLine){queueOfflineChange({action:"update",table:"staff",record_id:row.id,payload:{active:false}});row.active=false;renderManagedTables();showMessage("app-message","حُفظت أرشفة الموظف محلياً.");}
+    else{const {data,error}=await db.from("staff").update({active:false}).eq("id",row.id).eq("school_id",state.school.id).select("id").maybeSingle();if(error)throw error;if(!data?.id)throw new Error("لم تؤكد قاعدة البيانات الأرشفة.");await refreshDashboard();}}
+    catch(error){showMessage("staff-status",error.message||"تعذرت أرشفة الموظف.",true);}}
+});
+$("staff-form").addEventListener("submit",async event=>{
+  event.preventDefault();if(!canManageSchool())return;
+  const id=$("staff-id").value;const payload={name:$("staff-name").value.trim(),role:$("staff-role").value.trim(),phone:$("staff-phone").value.trim(),salary:Number($("staff-salary").value)};
+  if(!payload.name||!payload.role||!Number.isFinite(payload.salary)||payload.salary<0){showMessage("staff-status","تحقق من الاسم والوظيفة والراتب.",true);return;}
+  try{if(state.offline||!navigator.onLine){if(id){queueOfflineChange({action:"update",table:"staff",record_id:id,payload});const row=state.staff.find(x=>String(x.id)===id);if(row)Object.assign(row,payload,{_pending:true});}
+    else{const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));queueOfflineChange({action:"insert",table:"staff",local_id:localId,payload:{...payload,school_id:state.school.id,active:true}});state.staff.unshift({...payload,id:localId,active:true,_pending:true});}
+    $("staff-form").classList.add("hidden");renderManagedTables();showMessage("app-message","حُفظت بيانات الموظف محلياً وستُزامن عند عودة الإنترنت.");return;}
+    const result=id?await db.from("staff").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle():await db.from("staff").insert({...payload,school_id:state.school.id,active:true}).select("id").single();
+    if(result.error)throw result.error;if(!result.data?.id)throw new Error("لم تؤكد قاعدة البيانات حفظ الموظف.");$("staff-form").classList.add("hidden");await refreshDashboard();}
+  catch(error){showMessage("staff-status",error.message||"تعذر حفظ الموظف.",true);}
+});
+$("payroll-payee-type").addEventListener("change",renderManagedTables);
+$("payroll-date").value=new Date().toISOString().slice(0,10);
+$("payroll-form").addEventListener("submit",async event=>{
+  event.preventDefault();if(!canManageFinance())return;
+  const payload={payee_type:$("payroll-payee-type").value,payee_id:$("payroll-payee").value,transaction_type:$("payroll-type").value,amount:Number($("payroll-amount").value),payment_date:$("payroll-date").value,note:$("payroll-note").value.trim(),school_id:state.school.id};
+  if(!payload.payee_id||!Number.isFinite(payload.amount)||payload.amount<=0||!payload.payment_date){showMessage("payroll-status","تحقق من المستفيد والمبلغ والتاريخ.",true);return;}
+  try{if(state.offline||!navigator.onLine){const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));queueOfflineChange({action:"insert",table:"payroll_transactions",local_id:localId,payload});state.payroll.unshift({...payload,id:localId,_pending:true});$("payroll-form").reset();$("payroll-date").value=new Date().toISOString().slice(0,10);renderManagedTables();showMessage("payroll-status","حُفظت العملية محلياً وستُزامن عند عودة الإنترنت.");return;}
+    const {error}=await db.from("payroll_transactions").insert(payload);if(error)throw error;$("payroll-form").reset();$("payroll-date").value=new Date().toISOString().slice(0,10);await refreshDashboard();showMessage("payroll-status","تم تسجيل العملية المالية.");}
+  catch(error){showMessage("payroll-status",error.message||"تعذر تسجيل العملية.",true);}
 });
 
 $("payment-form").addEventListener("submit", async event => {
