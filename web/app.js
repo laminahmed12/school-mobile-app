@@ -125,6 +125,40 @@ function showRecordForm(form, title, record = null) {
   form.classList.remove("hidden");
   form.scrollIntoView({ behavior: "smooth", block: "center" });
 }
+
+function saveOfflineSnapshot() {
+  if (!state.profile || !state.school || state.offline) return;
+  try {
+    const data = { students:state.students, teachers:state.teachers, attendance:state.attendance, results:state.results, assessments:state.assessments, audit:state.audit, expenses:state.expenses, payroll:state.payroll, payments:state.payments || [] };
+    const metrics = {};
+    ["count-students","count-teachers","count-classes","total-payments","total-expenses","finance-payments","finance-expenses","finance-payroll","fees-total","fees-paid","fees-balance"].forEach(id => { if ($(id)) metrics[id] = $(id).textContent; });
+    localStorage.setItem(OFFLINE_SNAPSHOT_PREFIX + state.school.id, JSON.stringify({ profile:{username:state.profile.username,role:state.profile.role,active:state.profile.active,school_id:state.school.id}, school:state.school, data, metrics, savedAt:new Date().toISOString() }));
+  } catch (error) { console.warn("Offline snapshot save failed", error); }
+}
+function offlineQueueKey() { return OFFLINE_QUEUE_PREFIX + String(state.school?.id || ""); }
+function readOfflineQueue() {
+  try { const rows = JSON.parse(localStorage.getItem(offlineQueueKey()) || "[]"); return Array.isArray(rows) ? rows : []; }
+  catch { return []; }
+}
+function writeOfflineQueue(rows) { localStorage.setItem(offlineQueueKey(), JSON.stringify(rows)); const el=$("offline-queue-count"); if(el) el.textContent = rows.length ? "تغييرات معلّقة: " + rows.length : "لا توجد تغييرات معلّقة"; }
+function queueOfflineChange(item) {
+  const rows = readOfflineQueue();
+  if (item.action === "update" && String(item.record_id).startsWith("offline-")) {
+    const pending = rows.find(x => x.action === "insert" && x.local_id === item.record_id);
+    if (pending) { pending.payload = { ...pending.payload, ...item.payload }; writeOfflineQueue(rows); return; }
+  }
+  rows.push({ queue_id: String(Date.now()) + Math.random(), ...item, created_at: new Date().toISOString() });
+  writeOfflineQueue(rows);
+}
+function renderManagedTables() {
+  $("students-table").innerHTML = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
+  $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" data-teacher-edit="${escapeHtml(t.id)}" type="button">تعديل</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات.</td></tr>';
+  $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات.</td></tr>';
+  if ($("student-new")) $("student-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
+  if ($("teacher-new")) $("teacher-new").classList.toggle("hidden", !["admin","owner"].includes(state.profile?.role));
+  if ($("expense-new")) $("expense-new").classList.toggle("hidden", !["admin","owner","accountant"].includes(state.profile?.role));
+}
+
 function switchView(authed) {
   $("login-view").classList.toggle("hidden", authed);
   $("app-view").classList.toggle("hidden", !authed);
