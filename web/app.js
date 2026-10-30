@@ -92,7 +92,7 @@ async function syncOfflineQueue() {
   showMessage("app-message", "اكتملت مزامنة جميع التغييرات المحفوظة محلياً.");
 }
 function renderManagedTables() {
-  const studentRows = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td class="row-actions"><button class="button button-secondary" type="button" data-student-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-student-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("");
+  const studentRows = state.students.filter(s => s.active !== false).map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td class="row-actions"><button class="button button-secondary" type="button" data-student-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-student-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("");
   $("students-table").innerHTML = studentRows || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
   const teacherRows = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" type="button" data-teacher-edit="${escapeHtml(t.id)}">تعديل</button></td></tr>`).join("");
   $("teachers-table").innerHTML = teacherRows || '<tr><td colspan="5">لا توجد سجلات متاحة.</td></tr>';
@@ -138,9 +138,15 @@ function readOfflineQueue() {
 function writeOfflineQueue(rows) { localStorage.setItem(offlineQueueKey(), JSON.stringify(rows)); const el=$("offline-queue-count"); if(el) el.textContent = rows.length ? "تغييرات معلّقة: " + rows.length : "لا توجد تغييرات معلّقة"; }
 function queueOfflineChange(item) {
   const rows = readOfflineQueue();
-  if (item.action === "update" && String(item.record_id).startsWith("offline-")) {
-    const pending = rows.find(x => x.action === "insert" && x.local_id === item.record_id);
-    if (pending) { pending.payload = { ...pending.payload, ...item.payload }; writeOfflineQueue(rows); return; }
+  if (String(item.record_id || "").startsWith("offline-")) {
+    const pending = rows.find(x => x.local_id === item.record_id);
+    if (item.action === "archive" && pending) { writeOfflineQueue(rows.filter(x => x.local_id !== item.record_id)); return; }
+    if (item.action === "update" && pending?.action === "insert") { pending.payload = { ...pending.payload, ...item.payload }; writeOfflineQueue(rows); return; }
+    if (item.action === "update" && pending?.action === "rpc_student") {
+      const map={name:"p_name",class_name:"p_class_name",phone:"p_phone"};
+      for (const [key,value] of Object.entries(item.payload)) if(map[key]) pending.params[map[key]]=value;
+      writeOfflineQueue(rows); return;
+    }
   }
   rows.push({ queue_id: String(Date.now()) + Math.random(), ...item, created_at: new Date().toISOString() });
   writeOfflineQueue(rows);
