@@ -61,6 +61,112 @@ class SchoolRepository {
     }
   }
 
+
+  String _newOfflineId(String prefix) {
+    final random = math.Random.secure();
+    final suffix = List.generate(3, (_) => random.nextInt(1 << 32).toRadixString(16)).join();
+    return 'offline-$prefix-${DateTime.now().microsecondsSinceEpoch}-$suffix';
+  }
+  String _offlineQueueKey(String schoolId) => 'lamin_offline_ops_v2_$schoolId';
+  Future<List<Map<String, dynamic>>> _readOfflineOperations(String schoolId) async {
+    final raw = prefs.getString(_offlineQueueKey(schoolId));
+    if (raw == null) return [];
+    try { return (jsonDecode(raw) as List).map((x) => Map<String,dynamic>.from(x as Map)).toList(); }
+    catch (_) { return []; }
+  }
+  Future<void> _writeOfflineOperations(String schoolId,List<Map<String,dynamic>> rows) async {
+    if(rows.isEmpty) await prefs.remove(_offlineQueueKey(schoolId));
+    else await prefs.setString(_offlineQueueKey(schoolId),jsonEncode(rows));
+  }
+  Future<void> _queueOfflineOperation(String schoolId,Map<String,dynamic> op,{String? dedupeType,String? dedupeKey}) async {
+    final rows=await _readOfflineOperations(schoolId);
+    if(dedupeType!=null&&dedupeKey!=null) rows.removeWhere((x)=>x['type']==dedupeType&&x['dedupe_key']==dedupeKey);
+    rows.add({'operation_id':_newOfflineId('op'),'created_at':DateTime.now().toUtc().toIso8601String(),...op,if(dedupeKey!=null)'dedupe_key':dedupeKey});
+    await _writeOfflineOperations(schoolId,rows);
+  }
+  Future<bool> _serverAvailable() async {
+    try { await db.from('schools').select('id').limit(1).timeout(const Duration(seconds:3)); return true; }
+    catch (_) { return false; }
+  }
+  Future<List<Map<String,dynamic>>> _cachedStudentMaps(String schoolId) async {
+    final raw=prefs.getString('students_cache_$schoolId');
+    if(raw==null)return [];
+    try{return (jsonDecode(raw) as List).map((x)=>Map<String,dynamic>.from(x as Map)).toList();}
+    catch(_){return [];}
+  }
+  Future<void> _cacheStudent(String schoolId,{required String id,required String name,required String className,required String phone}) async {
+    final rows=await _cachedStudentMaps(schoolId);
+    final index=rows.indexWhere((x)=>x['id']?.toString()==id);
+    final value={'id':id,'name':name.trim(),'class_name':className.trim(),'phone':phone.trim()};
+    if(index<0)rows.insert(0,value);else rows[index]={...rows[index],...value};
+    await prefs.setString('students_cache_$schoolId',jsonEncode(rows));
+  }
+  Future<void> updateStudent({required String studentId,required String name,required String className,required String phone}) async {
+    if(name.trim().length<2||className.trim().isEmpty)throw Exception('أدخل اسم الطالب والصف بصورة صحيحة.');
+    final schoolId=await _schoolId();
+    if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
+    final cleanPhone=phone.replaceAll(RegExp(r'[^0-9+]'),'');
+    final queue=await _readOfflineOperations(schoolId);
+    final pendingCreate=queue.indexWhere((x)=>x['type']=='create_student'&&x['local_id']==studentId);
+    if(studentId.startsWith('offline-')){
+      if(pendingCreate>=0){queue[pendingCreate]={...queue[pendingCreate],'name':name.trim(),'class_name':className.trim(),'phone':cleanPhone};await _writeOfflineOperations(schoolId,queue);}
+      else{await _queueOfflineOperation(schoolId,{'type':'update_student','student_id':studentId,'name':name.trim(),'class_name':className.trim(),'phone':cleanPhone},dedupeType:'update_student',dedupeKey:studentId);}
+      await _cacheStudent(schoolId,id:studentId,name:name,className:className,phone:cleanPhone);return;
+    }
+    if(!await _serverAvailable()){
+      await _queueOfflineOperation(schoolId,{'type':'update_student','student_id':studentId,'name':name.trim(),'class_name':className.trim(),'phone':cleanPhone},dedupeType:'update_student',dedupeKey:studentId);
+      await _cacheStudent(schoolId,id:studentId,name:name,className:className,phone:cleanPhone);return;
+    }
+    await db.from('students').update({'name':name.trim(),'class_name':className.trim(),'phone':cleanPhone}).eq('id',studentId);
+    await _cacheStudent(schoolId,id:studentId,name:name,className:className,phone:cleanPhone);
+  }
+  Future<int> syncPendingOfflineChanges() async {
+    if(db.auth.currentSession==null)return 0;
+    final p=await profile();final schoolId=p?.schoolId;
+    if(schoolId==null||schoolId.isEmpty||!await _serverAvailable())return 0;
+    final queue=await _readOfflineOperations(schoolId);if(queue.isEmpty)return 0;
+    final mapKey='lamin_offline_id_map_v1_$schoolId';Map<String,dynamic> idMap={};
+    try{final raw=prefs.getString(mapKey);if(raw!=null)idMap=Map<String,dynamic>.from(jsonDecode(raw));}catch(_){}
+    String resolve(dynamic value){final id=value?.toString()??'';return idMap[id]?.toString()??id;}
+    var synced=0;
+    while(queue.isNotEmpty){
+      final item=queue.first;
+      try{
+        final type=item['type']?.toString();
+        if(type=='create_student'){
+          final result=await db.rpc('create_student_with_fee',params:{'p_name':item['name'],'p_class_name':item['class_name'],'p_phone':item['phone']??'','p_term_fee':item['term_fee']??0,'p_term':item['term']??'الفصل الأول'}).timeout(const Duration(seconds:15));
+          final remote=result?.toString()??'';if(remote.isEmpty)throw Exception('لم يؤكد الخادم إنشاء الطالب.');
+          final local=item['local_id'].toString();idMap[local]=remote;await prefs.setString(mapKey,jsonEncode(idMap));
+          final students=await _cachedStudentMaps(schoolId);final ix=students.indexWhere((x)=>x['id']?.toString()==local);
+          if(ix>=0){students[ix]['id']=remote;await prefs.setString('students_cache_$schoolId',jsonEncode(students));}
+        }else if(type=='update_student'){
+          await db.from('students').update({'name':item['name'],'class_name':item['class_name'],'phone':item['phone']??''}).eq('id',resolve(item['student_id'])).timeout(const Duration(seconds:15));
+        }else if(type=='save_fee'){
+          final studentId=resolve(item['student_id']);final yearId=item['academic_year_id'];
+          final payload={'school_id':schoolId,'student_id':studentId,'academic_year_id':yearId,'academic_year_label':item['academic_year_label']??'غير محدد','term':item['term'],'total_fee':item['total_fee'],'discount':item['discount']??0,'note':item['note']??'','created_by':db.auth.currentUser?.id};
+          final base=db.from('student_fee_assessments').select('id').eq('school_id',schoolId).eq('student_id',studentId).eq('term',item['term']);
+          final existing=yearId==null?await base.isFilter('academic_year_id',null).eq('academic_year_label',item['academic_year_label']??'غير محدد').maybeSingle():await base.eq('academic_year_id',yearId).maybeSingle();
+          final saved=existing?['id']!=null
+              ?await db.from('student_fee_assessments').update(payload).eq('id',existing!['id']).select('id').single()
+              :await db.from('student_fee_assessments').insert(payload).select('id').single();
+          final localFee=item['local_id']?.toString();final remoteFee=saved['id']?.toString();
+          if(localFee!=null&&remoteFee!=null){idMap[localFee]=remoteFee;await prefs.setString(mapKey,jsonEncode(idMap));}
+          final rows=await _cachedRows(schoolId,'fees_$studentId');final ix=rows.indexWhere((x)=>x['term']==item['term']&&x['academic_year_id']?.toString()==yearId?.toString());
+          final cached={...payload,'id':remoteFee??localFee??''};if(ix>=0)rows[ix]=cached;else rows.add(cached);await _saveRows(schoolId,'fees_$studentId',rows);
+        }else if(type=='add_payment'){
+          final result=await db.rpc('record_student_payment',params:{'p_student_id':resolve(item['student_id']),'p_amount':item['amount'],'p_note':item['note']??'','p_term':item['term']??'غير محدد','p_fee_assessment_id':item['fee_assessment_id']==null?null:resolve(item['fee_assessment_id']),'p_idempotency_key':item['idempotency_key']}).timeout(const Duration(seconds:20));
+          if(result==null||result.toString().isEmpty)throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+          const secure=FlutterSecureStorage();final pendingKey='lamin.pending_payments.v1_$schoolId';
+          try{final raw=await secure.read(key:pendingKey);if(raw!=null){final pending=Map<String,dynamic>.from(jsonDecode(raw));pending.remove(item['fingerprint']);if(pending.isEmpty)await secure.delete(key:pendingKey);else await secure.write(key:pendingKey,value:jsonEncode(pending));}}catch(_){}
+        }else if(type=='attendance'){
+          await db.from('attendance').upsert({'student_id':resolve(item['student_id']),'attendance_date':item['attendance_date'],'status':item['status'],'minutes_late':item['minutes_late']??0}).timeout(const Duration(seconds:15));
+        }else{throw Exception('نوع عملية محلية غير معروف: $type');}
+        queue.removeAt(0);await _writeOfflineOperations(schoolId,queue);synced++;
+      }catch(error){debugPrint('Offline sync paused at ${item['type']}: $error');break;}
+    }
+    return synced;
+  }
+
   Future<SchoolProfile?> cachedProfile() async {
     final userId = await _userId();
     if (userId == null) return null;
@@ -410,18 +516,16 @@ class SchoolRepository {
         .map(AttendanceRecord.fromMap).toList();
   }
 
-  Future<void> saveAttendance({
-    required String studentId,
-    required DateTime day,
-    required String status,
-    int minutesLate = 0,
-  }) async {
-    await db.from('attendance').upsert({
-      'student_id': studentId,
-      'attendance_date': day.toIso8601String().substring(0, 10),
-      'status': status,
-      'minutes_late': minutesLate,
-    });
+  Future<void> saveAttendance({required String studentId,required DateTime day,required String status,int minutesLate=0}) async {
+    final schoolId=await _schoolId();if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
+    final date=day.toIso8601String().substring(0,10);
+    if(studentId.startsWith('offline-')||!await _serverAvailable()){
+      await _queueOfflineOperation(schoolId,{'type':'attendance','student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate},dedupeType:'attendance',dedupeKey:'$studentId:$date');
+      final rows=await _cachedRows(schoolId,'attendance_$date');rows.removeWhere((x)=>x['student_id']?.toString()==studentId);
+      rows.add({'id':_newOfflineId('attendance'),'student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate});
+      await _saveRows(schoolId,'attendance_$date',rows);return;
+    }
+    await db.from('attendance').upsert({'student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate});
   }
 
   Future<List<ResultItem>> results(String studentId) async =>
@@ -626,26 +730,17 @@ class SchoolRepository {
     });
   }
 
-  Future<String> addStudent({
-    required String name,
-    required String className,
-    required String phone,
-    double termFee = 0,
-    String term = 'الفصل الأول',
-  }) async {
-    final result = await db.rpc(
-      'create_student_with_fee',
-      params: {
-        'p_name': name.trim(),
-        'p_class_name': className.trim(),
-        'p_phone': phone.trim(),
-        'p_term_fee': termFee,
-        'p_term': term,
-      },
-    );
-    final id = result?.toString() ?? '';
-    if (id.isEmpty) throw Exception('لم يُرجع الخادم رقم الطالب الجديد.');
-    return id;
+  Future<String> addStudent({required String name,required String className,required String phone,double termFee=0,String term='الفصل الأول'}) async {
+    if(name.trim().length<2||className.trim().isEmpty||termFee<0)throw Exception('تحقق من اسم الطالب والصف والرسوم.');
+    final schoolId=await _schoolId();if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
+    if(!await _serverAvailable()){
+      final localId=_newOfflineId('student');
+      await _queueOfflineOperation(schoolId,{'type':'create_student','local_id':localId,'name':name.trim(),'class_name':className.trim(),'phone':phone.trim(),'term_fee':termFee,'term':term});
+      await _cacheStudent(schoolId,id:localId,name:name,className:className,phone:phone);return localId;
+    }
+    final result=await db.rpc('create_student_with_fee',params:{'p_name':name.trim(),'p_class_name':className.trim(),'p_phone':phone.trim(),'p_term_fee':termFee,'p_term':term});
+    final id=result?.toString()??'';if(id.isEmpty)throw Exception('لم يُرجع الخادم رقم الطالب الجديد.');
+    await _cacheStudent(schoolId,id:id,name:name,className:className,phone:phone);return id;
   }
 
   Future<void> addTeacher({
@@ -801,6 +896,18 @@ class SchoolRepository {
         (p?.role != 'admin' && p?.role != 'owner' && p?.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
+    if (!await _serverAvailable() || studentId.startsWith('offline-')) {
+      final dedupe='$studentId:$term:${academicYearId??academicYearLabel}';
+      final rows=await _cachedRows(schoolId,'fees_$studentId');
+      final ix=rows.indexWhere((x)=>x['term']==term&&x['academic_year_id']?.toString()==academicYearId?.toString()&&(academicYearId!=null||x['academic_year_label']?.toString()==academicYearLabel));
+      final localId=ix>=0?rows[ix]['id'].toString():_newOfflineId('fee');
+      await _queueOfflineOperation(schoolId,{'type':'save_fee','local_id':localId.startsWith('offline-')?localId:null,'student_id':studentId,'term':term,'total_fee':totalFee,'discount':discount,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'note':note.trim()},dedupeType:'save_fee',dedupeKey:dedupe);
+      final row={'id':localId,'student_id':studentId,'school_id':schoolId,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'term':term,'total_fee':totalFee,'discount':discount,'note':note.trim()};
+      if(ix>=0)rows[ix]=row;else rows.add(row);await _saveRows(schoolId,'fees_$studentId',rows);
+      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final summaryRaw=prefs.getString(summaryKey);
+      if(summaryRaw!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(summaryRaw));summary['assessments']=rows;summary['fees']=rows.fold<double>(0,(s,x)=>s+((x['total_fee'] as num?)?.toDouble()??0));summary['discount']=rows.fold<double>(0,(s,x)=>s+((x['discount'] as num?)?.toDouble()??0));summary['remaining']=(summary['fees'] as num).toDouble()-(summary['discount'] as num).toDouble()-((summary['paid'] as num?)?.toDouble()??0);await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+      return;
+    }
     final existingForYear = academicYearId == null
         ? await db
               .from('student_fee_assessments')
@@ -894,6 +1001,16 @@ class SchoolRepository {
       idempotencyKey = 'lamin-${DateTime.now().microsecondsSinceEpoch}-$randomPart';
       pending[fingerprint] = idempotencyKey;
       await secureStorage.write(key: pendingKey, value: jsonEncode(pending));
+    }
+
+    if (!await _serverAvailable() || studentId.startsWith('offline-')) {
+      final localId='offline-payment-$idempotencyKey';
+      await _queueOfflineOperation(schoolId,{'type':'add_payment','student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'idempotency_key':idempotencyKey,'fingerprint':fingerprint},dedupeType:'add_payment',dedupeKey:idempotencyKey);
+      final rows=await _cachedRows(schoolId,'payments_$studentId');
+      if(!rows.any((x)=>x['id']==localId)){rows.insert(0,{'id':localId,'student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'payment_date':DateTime.now().toIso8601String().substring(0,10),'created_at':DateTime.now().toUtc().toIso8601String(),'pending_sync':true});await _saveRows(schoolId,'payments_$studentId',rows);}
+      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final rawSummary=prefs.getString(summaryKey);
+      if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+      return;
     }
 
     final result = await db.rpc('record_student_payment', params: {
