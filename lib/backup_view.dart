@@ -35,7 +35,7 @@ class BackupView extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('حفظ نسخة خارج التطبيق'),
         content: const Text(
-          'سجّل الدخول باستخدام حساب Google Drive الخاص بهذه المدرسة، وليس حساب مدرسة أخرى. سيطلب التطبيق صلاحية الوصول إلى ملفات النسخ الاحتياطية التي ينشئها لامين، ثم يرفع الملف مباشرة إلى Drive هذا الحساب. لن يُستخدم حساب مركزي تابع إلى لامين.',
+          'ستفتح نافذة حفظ النظام. اختر Google Drive أو موقعًا آخر يدعمه الجهاز، ثم تحقق من وجود الملف في الموقع المختار. اختيار «التنزيلات» لا يرفع الملف إلى Drive.',
         ),
         actions: [
           TextButton(
@@ -44,97 +44,25 @@ class BackupView extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('المتابعة إلى Google Drive'),
+            child: const Text('اختيار الموقع'),
           ),
         ],
       ),
     );
     if (proceed != true || !context.mounted) return;
     try {
-      final result = await BackupService.backupAndSave(
-        repo,
-        confirmAccount: (accountEmail) async {
-          if (!context.mounted) return false;
-          final school = await repo.school();
-          final schoolName = school?['name']?.toString() ?? 'المدرسة الحالية';
-          if (!context.mounted) return false;
-          return await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('تأكيد حساب النسخ الاحتياطي'),
-                  content: Text(
-                    'المدرسة: $schoolName\n\n'
-                    'سيتم رفع النسخة إلى حساب Google Drive التالي:\n$accountEmail\n\n'
-                    'تأكد أن هذا هو الحساب المملوك لهذه المدرسة، وليس حساب مدرسة أخرى.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text(
-                        'إلغاء — يمكنك إعادة المحاولة لاختيار الحساب الصحيح',
-                      ),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('تأكيد ورفع النسخة'),
-                    ),
-                  ],
-                ),
-              ) ??
-              false;
-        },
-      );
-      if (result != null && context.mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            icon: const Icon(Icons.check_circle, color: Colors.green, size: 44),
-            title: const Text('تم حفظ النسخة الاحتياطية بنجاح'),
-            content: Text(
-              'أكد Google Drive حفظ ملف النسخة الاحتياطية.\n\nحساب التخزين: ${result.accountEmail}\nمعرّف الملف: ${result.fileId}',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('حسنًا'),
-              ),
-            ],
-          ),
+      final location = await BackupService.backupAndSave(repo);
+      if (!context.mounted) return;
+      if (location != null) {
+        _message(
+          context,
+          'اكتمل الحفظ في الموقع الذي اخترته. تحقق من وجود الملف قبل الاعتماد عليه.',
         );
-      } else if (context.mounted) {
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            icon: const Icon(Icons.info_outline, size: 42),
-            title: const Text('لم تكتمل عملية النسخ الاحتياطي'),
-            content: const Text(
-              'لم يتم تأكيد حفظ النسخة. قد تكون العملية أُلغيت أو لم يُؤكَّد اختيار الحساب. لم نعتبر النسخ ناجحًا.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('إغلاق'),
-              ),
-            ],
-          ),
-        );
+      } else {
+        _message(context, 'أُلغيت عملية حفظ النسخة الاحتياطية.');
       }
     } catch (e) {
-      if (!context.mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.error_outline, color: Colors.red, size: 44),
-          title: const Text('فشل حفظ النسخة الاحتياطية'),
-          content: SelectableText(e.toString().replaceFirst('Exception: ', '')),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('إغلاق'),
-            ),
-          ],
-        ),
-      );
+      _message(context, 'تعذر إنشاء ملف النسخة: $e', error: true);
     }
   }
 
