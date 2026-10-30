@@ -13,6 +13,114 @@ const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", cur
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const safeRows = (rows) => Array.isArray(rows) ? rows : [];
+
+const OFFLINE_SNAPSHOT_PREFIX = "lamin-portal-snapshot-v2:";
+const OFFLINE_QUEUE_PREFIX = "lamin-portal-queue-v1:";
+const OFFLINE_MODE_MESSAGE = "أنت تعمل دون اتصال. التغييرات المسموح بها تُحفظ محلياً وتنتظر المزامنة عند عودة الإنترنت.";
+const canManageSchool = () => ["admin","owner"].includes(state.profile?.role);
+const canManageFinance = () => ["admin","owner","accountant"].includes(state.profile?.role);
+const localQueueKey = () => OFFLINE_QUEUE_PREFIX + String(state.school?.id || "");
+function setOfflineMode(enabled) {
+  state.offline = Boolean(enabled);
+  document.body.classList.toggle("offline-mode", state.offline);
+  const banner = $("offline-banner");
+  if (banner) banner.classList.toggle("hidden", !state.offline);
+}
+function saveOfflineSnapshot() {
+  if (!state.profile || !state.school || state.offline) return;
+  try {
+    const data = {
+      students: state.students, teachers: state.teachers, attendance: state.attendance,
+      results: state.results, assessments: state.assessments, audit: state.audit,
+      expenses: state.expenses, payroll: state.payroll, payments: state.payments || []
+    };
+    const metrics = {};
+    ["count-students","count-teachers","count-classes","total-payments","total-expenses",
+      "finance-payments","finance-expenses","finance-payroll","fees-total","fees-paid","fees-balance"]
+      .forEach(id => { if ($(id)) metrics[id] = $(id).textContent; });
+    localStorage.setItem(OFFLINE_SNAPSHOT_PREFIX + state.school.id, JSON.stringify({
+      profile: { username: state.profile.username, role: state.profile.role, active: state.profile.active, school_id: state.school.id },
+      school: state.school, data, metrics, savedAt: new Date().toISOString()
+    }));
+  } catch (error) { console.warn("Lamin offline snapshot could not be saved", error); }
+}
+function readOfflineQueue() {
+  try { const q = JSON.parse(localStorage.getItem(localQueueKey()) || "[]"); return Array.isArray(q) ? q : []; }
+  catch { return []; }
+}
+function writeOfflineQueue(queue) {
+  localStorage.setItem(localQueueKey(), JSON.stringify(queue));
+  updateQueueBadge(queue.length);
+}
+function updateQueueBadge(count = readOfflineQueue().length) {
+  const el = $("offline-queue-count");
+  if (el) el.textContent = count ? `تغييرات معلّقة: ${count}` : "لا توجد تغييرات معلّقة";
+}
+function enqueueOfflineMutation(operation) {
+  const queue = readOfflineQueue();
+  queue.push({ queue_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(), ...operation, created_at: new Date().toISOString() });
+  writeOfflineQueue(queue);
+}
+async function syncOfflineQueue() {
+  if (!navigator.onLine || !state.school || !state.profile) return;
+  const queue = readOfflineQueue();
+  if (!queue.length) { setOfflineMode(false); updateQueueBadge(0); return; }
+  showMessage("app-message", `جارٍ مزامنة ${queue.length} تغيير محفوظ محلياً…`);
+  const remaining = [...queue];
+  while (remaining.length) {
+    const op = remaining[0];
+    let result;
+    if (op.action === "insert") {
+      const payload = { ...op.payload }; delete payload.id;
+      result = await db.from(op.table).insert(payload);
+    } else if (op.action === "update") {
+      result = await db.from(op.table).update(op.payload).eq("id", op.record_id).eq("school_id", state.school.id);
+    } else if (op.action === "archive") {
+      result = await db.from(op.table).update({ active: false }).eq("id", op.record_id).eq("school_id", state.school.id);
+    } else {
+      throw new Error("نوع تغيير محلي غير معروف.");
+    }
+    if (result.error) {
+      showMessage("app-message", "تعذرت مزامنة بعض التغييرات. بقيت محفوظة على هذا الجهاز: " + result.error.message, true);
+      writeOfflineQueue(remaining);
+      return;
+    }
+    remaining.shift();
+    writeOfflineQueue(remaining);
+  }
+  setOfflineMode(false);
+  await refreshDashboard();
+  showMessage("app-message", "اكتملت مزامنة جميع التغييرات المحفوظة محلياً.");
+}
+function renderManagedTables() {
+  const studentRows = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td class="row-actions"><button class="button button-secondary" type="button" data-student-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-student-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("");
+  $("students-table").innerHTML = studentRows || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
+  const teacherRows = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" type="button" data-teacher-edit="${escapeHtml(t.id)}">تعديل</button></td></tr>`).join("");
+  $("teachers-table").innerHTML = teacherRows || '<tr><td colspan="5">لا توجد سجلات متاحة.</td></tr>';
+  $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات مسجلة.</td></tr>';
+  $("student-new").classList.toggle("hidden", !canManageSchool());
+  $("teacher-new").classList.toggle("hidden", !canManageSchool());
+  $("expense-new").classList.toggle("hidden", !canManageFinance());
+}
+function showRecordForm(form, title, record = null) {
+  form.reset();
+  if (form.id === "student-form") {
+    $("student-id").value = record?.id || "";
+    $("student-name").value = record?.name || "";
+    $("student-class").value = record?.class_name || "";
+    $("student-phone").value = record?.phone || "";
+    $("student-form-title").textContent = record ? "تعديل بيانات الطالب" : "إضافة طالب";
+  } else if (form.id === "teacher-form") {
+    $("teacher-id").value = record?.id || "";
+    $("teacher-name").value = record?.name || "";
+    $("teacher-subject").value = record?.subject || "";
+    $("teacher-phone").value = record?.phone || "";
+    $("teacher-salary").value = record?.salary ?? "";
+    $("teacher-form-title").textContent = record ? "تعديل بيانات المعلم" : "إضافة معلم";
+  }
+  form.classList.remove("hidden");
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 function switchView(authed) {
   $("login-view").classList.toggle("hidden", authed);
   $("app-view").classList.toggle("hidden", !authed);
