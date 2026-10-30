@@ -57,6 +57,8 @@ function queueOfflineChange(item) {
 }
 function renderManagedTables() {
   $("students-table").innerHTML = state.students.filter(s=>s.active!==false).map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td><td><button class="button button-secondary" data-student-edit="${escapeHtml(s.id)}" type="button">تعديل</button><button class="button button-danger" data-student-archive="${escapeHtml(s.id)}" type="button">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات.</td></tr>';
+  $("classes-table").innerHTML = (state.classes||[]).map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${escapeHtml(x.section)}</td><td><button class="button button-secondary" type="button" data-class-edit="${escapeHtml(x.id)}">تعديل</button></td></tr>`).join("") || '<tr><td colspan="3">لا توجد صفوف مسجلة.</td></tr>';
+  if($("class-new")) $("class-new").classList.toggle("hidden",!["admin","owner"].includes(state.profile?.role));
   $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" data-teacher-edit="${escapeHtml(t.id)}" type="button">تعديل</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات.</td></tr>';
   $("staff-table").innerHTML = (state.staff || []).filter(x=>x.active!==false).map(s=>`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.role)}</td><td>${escapeHtml(s.phone)}</td><td>${escapeHtml(money(s.salary))}</td><td><button class="button button-secondary" type="button" data-staff-edit="${escapeHtml(s.id)}">تعديل</button><button class="button button-danger" type="button" data-staff-archive="${escapeHtml(s.id)}">أرشفة</button></td></tr>`).join("") || '<tr><td colspan="5">لا توجد سجلات موظفين.</td></tr>';
   $("payroll-table").innerHTML = (state.payroll || []).map(p=>{const rows=p.payee_type==="teacher"?state.teachers:state.staff;const person=(rows||[]).find(x=>String(x.id)===String(p.payee_id));return `<tr><td>${escapeHtml(person?.name || "مستفيد")}</td><td>${p.transaction_type==="advance"?"سلفة":"راتب"}</td><td>${escapeHtml(money(p.amount))}</td><td>${escapeHtml(p.payment_date)}</td><td>${escapeHtml(p.note)}</td></tr>`;}).join("") || '<tr><td colspan="5">لا توجد عمليات رواتب.</td></tr>';
@@ -542,6 +544,23 @@ $("result-form").addEventListener("submit", async event => {
   } catch(error) { showMessage("result-status",error.message || "تعذر حفظ النتيجة.",true); }
 });
 
+
+
+$("class-new").addEventListener("click",()=>{$("class-form").reset();$("class-id").value="";$("class-form").classList.remove("hidden");});
+$("class-cancel").addEventListener("click",()=> $("class-form").classList.add("hidden"));
+$("classes-table").addEventListener("click",event=>{const button=event.target.closest("[data-class-edit]");if(!button)return;const row=(state.classes||[]).find(x=>String(x.id)===button.dataset.classEdit);if(!row)return;$("class-id").value=row.id;$("class-name").value=row.name||"";$("class-section").value=row.section||"";$("class-form").classList.remove("hidden");});
+$("class-form").addEventListener("submit",async event=>{
+  event.preventDefault();if(!canManageSchool())return;
+  const id=$("class-id").value;const payload={name:$("class-name").value.trim(),section:$("class-section").value.trim()};
+  if(!payload.name){showMessage("class-status","اسم الصف مطلوب.",true);return;}
+  try{if(state.offline||!navigator.onLine){if(id){queueOfflineChange({action:"update",table:"classes",record_id:id,payload});const row=state.classes.find(x=>String(x.id)===id);if(row)Object.assign(row,payload,{_pending:true});}
+    else{const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));queueOfflineChange({action:"insert",table:"classes",local_id:localId,payload:{...payload,school_id:state.school.id}});state.classes.unshift({...payload,id:localId,_pending:true});}
+    $("class-form").classList.add("hidden");renderManagedTables();showMessage("app-message","حُفظ الصف محلياً وسيُزامن عند عودة الإنترنت.");return;}
+    let yearId=null;const activeYear=await db.from("academic_years").select("id").eq("active",true).order("created_at",{ascending:false}).limit(1).maybeSingle();if(!activeYear.error)yearId=activeYear.data?.id||null;
+    const data=id?await db.from("classes").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle():await db.from("classes").insert({...payload,school_id:state.school.id,...(yearId?{academic_year_id:yearId}:{})}).select("id").single();
+    if(data.error)throw data.error;if(!data.data?.id)throw new Error("لم تؤكد قاعدة البيانات حفظ الصف.");$("class-form").classList.add("hidden");await refreshDashboard();}
+  catch(error){showMessage("class-status",error.message||"تعذر حفظ الصف.",true);}
+});
 
 $("staff-new").addEventListener("click",()=>{ $("staff-form").reset(); $("staff-id").value=""; $("staff-form").classList.remove("hidden"); });
 $("staff-cancel").addEventListener("click",()=> $("staff-form").classList.add("hidden"));
