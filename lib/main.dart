@@ -87,6 +87,20 @@ void main() {
   runApp(const LaminBootstrapApp());
 }
 
+
+bool _hasCachedOfflineProfile(SharedPreferences prefs) {
+  final raw = prefs.getString('lamin_last_profile_cache');
+  if (raw == null) return false;
+  try {
+    final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    return cached['active'] != false &&
+        cached['must_change_password'] != true &&
+        (cached['school_id']?.toString().isNotEmpty ?? false);
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Render the app immediately, then initialize Supabase and local preferences.
 /// Startup failures remain recoverable inside the app instead of terminating
 /// before Flutter can render its first frame.
@@ -103,6 +117,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
   Object? _initializationError;
   bool _loading = true;
   bool _initializing = false;
+  bool _offlineBootstrap = false;
 
   @override
   void initState() {
@@ -120,7 +135,12 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
       });
     }
 
+    SharedPreferences? prefs;
     try {
+      prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 8),
+      );
+      if (mounted) setState(() => _prefs = prefs);
       final initialization = _supabaseInitialization ??= Supabase.initialize(
         url: supabaseUrl,
         publishableKey: supabasePublishableKey,
@@ -135,9 +155,9 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
           }
         },
       );
-      await initialization.timeout(const Duration(seconds: 30));
-      final prefs = await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 15),
+      await initialization.timeout(const Duration(seconds: 8));
+      prefs ??= await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 8),
       );
       if (!mounted) return;
       setState(() {
@@ -151,6 +171,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
       if (mounted) {
         setState(() {
           _initializationError = error;
+          _offlineBootstrap = prefs != null && _hasCachedOfflineProfile(prefs!);
           _loading = false;
         });
       }
@@ -162,6 +183,14 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
   @override
   Widget build(BuildContext context) {
     final prefs = _prefs;
+    if (!_loading && _offlineBootstrap && prefs != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'لامين',
+        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: brandGreen)),
+        home: OfflineHomePage(prefs: prefs),
+      );
+    }
     if (!_loading && prefs != null) {
       return LaminApp(prefs: prefs);
     }
@@ -481,7 +510,7 @@ class OfflineHomePage extends StatelessWidget {
                   const Text('وضع العمل المحلي', style: TextStyle(color: Colors.white70)),
                   const SizedBox(height: 8),
                   Text(
-                    'مرحباً \${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
+                    'مرحباً ${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
                     style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 6),
@@ -498,7 +527,7 @@ class OfflineHomePage extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.people_outline),
               title: const Text('الطلاب المحفوظون على الجهاز'),
-              trailing: Text('\${students.length}'),
+              trailing: Text('${students.length}'),
             ),
           ),
           if (students.isEmpty)
