@@ -34,7 +34,7 @@ class SchoolRepository {
       }
       return profile;
     } catch (_) {
-      final cached = prefs.getString(cacheKey) ?? prefs.getString('lamin_last_profile_cache');
+      final cached = prefs.getString(cacheKey);
       if (cached == null) return null;
       try {
         return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(cached) as Map));
