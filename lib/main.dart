@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'app_error.dart';
@@ -855,10 +856,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     refresh();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((_) async {
+      if (!mounted) return;
+      if (await _hasInternetConnection() && mounted) await refresh();
+    });
   }
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
