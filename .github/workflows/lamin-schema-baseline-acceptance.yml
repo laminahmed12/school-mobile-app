@@ -95,6 +95,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030230000_allow_optional_student_phone.sql
       - name: Verify student phone can be left blank
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_optional_student_phone.sql
+      - name: Harden privileged user-management RPC search paths
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031100000_harden_user_admin_rpc_search_path.sql
+      - name: Verify privileged user-management RPC hardening
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_user_admin_rpc_hardening.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
