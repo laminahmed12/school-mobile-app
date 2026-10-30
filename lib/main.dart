@@ -500,13 +500,13 @@ class OfflineHomePage extends StatelessWidget {
         if (!context.mounted) return;
         if (status.any((item) => item != ConnectivityResult.none)) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => LoginPage(prefs: prefs),
-            ),
+            MaterialPageRoute<void>(builder: (_) => LoginPage(prefs: prefs)),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('لا يزال الاتصال بالإنترنت غير متاح.')),
+            const SnackBar(
+              content: Text('لا يزال الاتصال بالإنترنت غير متاح.'),
+            ),
           );
         }
         return;
