@@ -119,6 +119,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_consolidate_rls_policies_and_fk_indexes.sql
       - name: Verify RLS policy matrix and supporting indexes
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_rls_policy_consolidation.sql
+      - name: Add retry-safe offline student creation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031180000_offline_student_create_idempotency.sql
+      - name: Verify offline student creation idempotency
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_offline_student_idempotency.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
