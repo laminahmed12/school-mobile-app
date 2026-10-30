@@ -1,0 +1,46 @@
+name: Lamin offline access and fee edit validation
+
+on:
+  push:
+    branches:
+      - fix/lamin-offline-access-and-fee-edit
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Format changed Dart files
+        run: dart format lib/main.dart lib/repository.dart
+      - name: Static analysis
+        run: flutter analyze --no-pub --fatal-infos --fatal-warnings
+      - name: Automated tests
+        run: flutter test --no-pub
+      - name: Prepare Android platform
+        run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+      - name: Build Android debug candidate
+        run: flutter build apk --debug --no-tree-shake-icons
+      - name: Commit formatter output when needed
+        run: |
+          if ! git diff --quiet -- lib/main.dart lib/repository.dart; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add lib/main.dart lib/repository.dart
+            git commit -m "style: format offline access changes"
+            git push origin "HEAD:\${GITHUB_REF_NAME}"
+          fi
