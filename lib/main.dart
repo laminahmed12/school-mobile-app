@@ -32,7 +32,18 @@ const brandCanvas = Color(0xFFF3F6F3);
 /// Connectivity plugins report a network link, not internet reachability.
 Future<bool> _hasInternetConnection() async {
   try {
-    final uri = Uri.parse('${supabaseUrl.replaceFirst(RegExp(r'/+
+    final base = supabaseUrl.endsWith('/')
+        ? supabaseUrl.substring(0, supabaseUrl.length - 1)
+        : supabaseUrl;
+    final uri = Uri.parse('$base/auth/v1/health');
+    final response = await http
+        .get(uri, headers: {'apikey': supabasePublishableKey})
+        .timeout(const Duration(seconds: 3));
+    return response.statusCode < 500;
+  } catch (_) {
+    return false;
+  }
+}
 
 String? _schoolTrialStatus(Map<String, dynamic>? school) {
   if (school == null) return null;
