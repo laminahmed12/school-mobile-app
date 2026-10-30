@@ -130,6 +130,108 @@ class SchoolRepository {
     }
   }
 
+  Future<void> queueOfflineStudentUpdate({
+    required String schoolId,
+    required String studentId,
+    required String name,
+    required String className,
+    required String phone,
+  }) async {
+    final queueKey = 'lamin_offline_student_updates_$schoolId';
+    List<Map<String, dynamic>> queue = [];
+    final rawQueue = prefs.getString(queueKey);
+    if (rawQueue != null) {
+      try {
+        queue = (jsonDecode(rawQueue) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      } catch (_) {
+        queue = [];
+      }
+    }
+    queue.removeWhere((item) => item['student_id'] == studentId);
+    queue.add({
+      'student_id': studentId,
+      'name': name.trim(),
+      'class_name': className.trim(),
+      'phone': phone.trim(),
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    await prefs.setString(queueKey, jsonEncode(queue));
+
+    final cacheKey = 'students_cache_$schoolId';
+    final rawStudents = prefs.getString(cacheKey);
+    if (rawStudents != null) {
+      try {
+        final cached = (jsonDecode(rawStudents) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        final index = cached.indexWhere(
+          (item) => item['id']?.toString() == studentId,
+        );
+        if (index >= 0) {
+          cached[index] = {
+            ...cached[index],
+            'name': name.trim(),
+            'class_name': className.trim(),
+            'phone': phone.trim(),
+          };
+          await prefs.setString(cacheKey, jsonEncode(cached));
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<int> syncOfflineStudentUpdates() async {
+    if (db.auth.currentUser == null) return 0;
+    final currentProfile = await profile();
+    final schoolId = currentProfile?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final queueKey = 'lamin_offline_student_updates_$schoolId';
+    final rawQueue = prefs.getString(queueKey);
+    if (rawQueue == null) return 0;
+
+    List<Map<String, dynamic>> queue;
+    try {
+      queue = (jsonDecode(rawQueue) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      return 0;
+    }
+    final pending = <Map<String, dynamic>>[];
+    var synced = 0;
+    for (var index = 0; index < queue.length; index++) {
+      final item = queue[index];
+      try {
+        final row = await db
+            .from('students')
+            .update({
+              'name': item['name'],
+              'class_name': item['class_name'],
+              'phone': item['phone'],
+            })
+            .eq('id', item['student_id'].toString())
+            .select('id')
+            .maybeSingle();
+        if (row == null) {
+          pending.add(item);
+        } else {
+          synced++;
+        }
+      } catch (_) {
+        pending.addAll(queue.skip(index));
+        break;
+      }
+    }
+    if (pending.isEmpty) {
+      await prefs.remove(queueKey);
+    } else {
+      await prefs.setString(queueKey, jsonEncode(pending));
+    }
+    return synced;
+  }
+
   Future<Map<String, dynamic>?> parent(String studentId) async {
     try {
       final row = await db

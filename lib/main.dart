@@ -484,6 +484,80 @@ class OfflineHomePage extends StatelessWidget {
       students = [];
     }
 
+    final schoolId = profile?['school_id']?.toString() ?? '';
+    final repository = SchoolRepository(prefs);
+
+    Future<void> editCachedStudent(Student student) async {
+      final name = TextEditingController(text: student.name);
+      final className = TextEditingController(text: student.className);
+      final phone = TextEditingController(text: student.phone);
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('تعديل بيانات الطالب دون إنترنت'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'اسم الطالب'),
+                ),
+                TextField(
+                  controller: className,
+                  decoration: const InputDecoration(labelText: 'الصف / الفصل'),
+                ),
+                TextField(
+                  controller: phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'هاتف ولي الأمر'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حفظ على الجهاز'),
+            ),
+          ],
+        ),
+      );
+      if (saved != true ||
+          name.text.trim().length < 2 ||
+          className.text.trim().isEmpty ||
+          schoolId.isEmpty) {
+        return;
+      }
+      await repository.queueOfflineStudentUpdate(
+        schoolId: schoolId,
+        studentId: student.id,
+        name: name.text,
+        className: className.text,
+        phone: phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+      );
+      final index = students.indexWhere((item) => item.id == student.id);
+      if (index >= 0) {
+        students[index] = Student(
+          id: student.id,
+          name: name.text.trim(),
+          className: className.text.trim(),
+          phone: phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+        );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('حُفظ التعديل على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.'),
+          ),
+        );
+      }
+    }
+
     String query = '';
     return StatefulBuilder(
       builder: (context, setLocalState) {
@@ -574,6 +648,11 @@ class OfflineHomePage extends StatelessWidget {
                       ),
                       title: Text(student.name),
                       subtitle: Text(student.className),
+                      trailing: IconButton(
+                        tooltip: 'تعديل بيانات الطالب',
+                        onPressed: () => editCachedStudent(student),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
                     ),
                   ),
                 ),
@@ -862,6 +941,10 @@ class _LoginPageState extends State<LoginPage> {
         await _saveUsernameIfRemembered(username.text);
       }
       if (!mounted) return;
+      if (r.ok) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
       setState(
         () => error = r.ok
             ? null
@@ -969,6 +1052,22 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
+                if (_hasCachedOfflineProfile(widget.prefs))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: OutlinedButton.icon(
+                      onPressed: loading
+                          ? null
+                          : () => Navigator.of(context).pushReplacement(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    OfflineHomePage(prefs: widget.prefs),
+                              ),
+                            ),
+                      icon: const Icon(Icons.cloud_off),
+                      label: const Text('الدخول بالبيانات المحفوظة دون إنترنت'),
+                    ),
+                  ),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
@@ -1190,6 +1289,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
+      try {
+        await repo.syncOfflineStudentUpdates();
+      } catch (_) {}
       schoolInfo = await repo.school();
 
       // Load each section independently so a role-restricted table does not
