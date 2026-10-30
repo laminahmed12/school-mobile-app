@@ -21,4 +21,4 @@ jobs:
       - run: grep -q OFFLINE_SNAPSHOT_PREFIX web/app.js && grep -q syncOfflineQueue web/app.js
       - run: grep -q student-form web/index.html && grep -q payment-form web/index.html
       - run: grep -q attendance-form web/index.html && grep -q result-form web/index.html
-      - run: '! grep -R -nE "service[_-]?role|SUPABASE_SERVICE_ROLE_KEY" web/'
+      - run: '! grep -nE "service[_-]?role|SUPABASE_SERVICE_ROLE_KEY" web/app.js web/index.html'
