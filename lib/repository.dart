@@ -9,12 +9,16 @@ class SchoolRepository {
 
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
-    final cacheKey = u == null ? 'lamin_last_profile_cache' : 'profile_cache_${u.id}';
+    final cacheKey = u == null
+        ? 'lamin_last_profile_cache'
+        : 'profile_cache_${u.id}';
     try {
       if (u == null) {
         final cached = prefs.getString('lamin_last_profile_cache');
         if (cached == null) return null;
-        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+        return SchoolProfile.fromMap(
+          Map<String, dynamic>.from(jsonDecode(cached) as Map),
+        );
       }
       final row = await db
           .from('profiles')
@@ -37,7 +41,9 @@ class SchoolRepository {
       final cached = prefs.getString(cacheKey);
       if (cached == null) return null;
       try {
-        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+        return SchoolProfile.fromMap(
+          Map<String, dynamic>.from(jsonDecode(cached) as Map),
+        );
       } catch (_) {
         return null;
       }

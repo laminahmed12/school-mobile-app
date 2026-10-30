@@ -87,7 +87,6 @@ void main() {
   runApp(const LaminBootstrapApp());
 }
 
-
 bool _hasCachedOfflineProfile(SharedPreferences prefs) {
   final raw = prefs.getString('lamin_last_profile_cache');
   if (raw == null) return false;
@@ -184,7 +183,9 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'لامين',
-        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: brandGreen)),
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
+        ),
         home: OfflineBootstrapGate(prefs: prefs),
       );
     }
@@ -398,7 +399,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (raw != null) {
         try {
           final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-          canOpenOffline = cached['active'] != false &&
+          canOpenOffline =
+              cached['active'] != false &&
               cached['must_change_password'] != true &&
               (cached['school_id']?.toString().isNotEmpty ?? false);
         } catch (_) {}
@@ -423,7 +425,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         if (raw != null) {
           try {
             final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-            canOpenOffline = cached['active'] != false &&
+            canOpenOffline =
+                cached['active'] != false &&
                 cached['must_change_password'] != true &&
                 (cached['school_id']?.toString().isNotEmpty ?? false);
           } catch (_) {}
@@ -460,8 +463,6 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   );
 }
 
-
-
 class OfflineBootstrapGate extends StatefulWidget {
   final SharedPreferences prefs;
   const OfflineBootstrapGate({super.key, required this.prefs});
@@ -495,9 +496,7 @@ class _OfflineBootstrapGateState extends State<OfflineBootstrapGate> {
   @override
   Widget build(BuildContext context) {
     if (checking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (locked) {
       return DeviceLockPage(
@@ -528,7 +527,10 @@ class OfflineHomePage extends StatelessWidget {
         final rawStudents = prefs.getString('students_cache_$schoolId');
         if (rawStudents != null) {
           students = (jsonDecode(rawStudents) as List)
-              .map((item) => Student.fromMap(Map<String, dynamic>.from(item as Map)))
+              .map(
+                (item) =>
+                    Student.fromMap(Map<String, dynamic>.from(item as Map)),
+              )
               .toList();
         }
       }
@@ -562,11 +564,18 @@ class OfflineHomePage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('وضع العمل المحلي', style: TextStyle(color: Colors.white70)),
+                  const Text(
+                    'وضع العمل المحلي',
+                    style: TextStyle(color: Colors.white70),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'مرحباً ${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -588,13 +597,17 @@ class OfflineHomePage extends StatelessWidget {
           if (students.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
-              child: Text('لا توجد قائمة طلاب محفوظة محلياً بعد. اتصل بالإنترنت مرة واحدة لتحميل البيانات.'),
+              child: Text(
+                'لا توجد قائمة طلاب محفوظة محلياً بعد. اتصل بالإنترنت مرة واحدة لتحميل البيانات.',
+              ),
             )
           else
             ...students.map(
               (student) => Card(
                 child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.school_outlined)),
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.school_outlined),
+                  ),
                   title: Text(student.name),
                   subtitle: Text(student.className),
                 ),
@@ -2037,15 +2050,18 @@ class FinanceView extends StatelessWidget {
                                     trailing: canManageFees
                                         ? IconButton(
                                             tooltip: 'تعديل رسوم هذا الطالب',
-                                            icon: const Icon(Icons.edit_note_outlined),
+                                            icon: const Icon(
+                                              Icons.edit_note_outlined,
+                                            ),
                                             onPressed: () => Navigator.push(
                                               context,
                                               MaterialPageRoute(
-                                                builder: (_) => FeeManagementView(
-                                                  repo: repo,
-                                                  students: students,
-                                                  initialStudentId: s.id,
-                                                ),
+                                                builder: (_) =>
+                                                    FeeManagementView(
+                                                      repo: repo,
+                                                      students: students,
+                                                      initialStudentId: s.id,
+                                                    ),
                                               ),
                                             ),
                                           )
