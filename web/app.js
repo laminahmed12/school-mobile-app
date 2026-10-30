@@ -96,6 +96,8 @@ function renderManagedTables() {
   $("students-table").innerHTML = studentRows || '<tr><td colspan="4">لا توجد سجلات متاحة.</td></tr>';
   const teacherRows = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td><td><button class="button button-secondary" type="button" data-teacher-edit="${escapeHtml(t.id)}">تعديل</button></td></tr>`).join("");
   $("teachers-table").innerHTML = teacherRows || '<tr><td colspan="5">لا توجد سجلات متاحة.</td></tr>';
+  const studentOptions=state.students.filter(s=>s.active!==false).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
+  for(const id of ["attendance-student","result-student"]) { const select=$(id); if(select) select.innerHTML=studentOptions; }
   const paymentSelect=$("payment-assessment"); if(paymentSelect) paymentSelect.innerHTML = '<option value="">اختر الطالب وبند الرسوم</option>' + state.assessments.map(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));return `<option value="${escapeHtml(a.id)}">${escapeHtml(student?.name || "طالب")} · ${escapeHtml(a.academic_year_label || "")} · ${escapeHtml(a.term || "")} · ${money(a.total_fee)}</option>`;}).join("");
   $("expenses-table").innerHTML = state.expenses.map(e => `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(money(e.amount))}</td><td>${escapeHtml(e.created_at || "—")}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد مصروفات مسجلة.</td></tr>';
   $("student-new").classList.toggle("hidden", !canManageSchool());
@@ -582,6 +584,7 @@ async function syncOfflineQueue() {
     const op=remaining[0]; let result;
     if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
     else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
+    else if(op.action==="upsert") result=await db.from(op.table).upsert(op.payload);
     else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
     else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
     else throw new Error("تعذر تحديد نوع التغيير المحلي.");
@@ -591,6 +594,41 @@ async function syncOfflineQueue() {
   setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية.");
 }
 
+
+
+$("attendance-date").value = new Date().toISOString().slice(0,10);
+$("attendance-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageSchool()) return;
+  const payload={student_id:$("attendance-student").value,attendance_date:$("attendance-date").value,status:$("attendance-status").value,minutes_late:Number($("attendance-late").value||0),school_id:state.school.id};
+  if(!payload.student_id || !payload.attendance_date || !Number.isInteger(payload.minutes_late) || payload.minutes_late<0) { showMessage("attendance-status-message","تحقق من بيانات الحضور.",true); return; }
+  try {
+    if(state.offline || !navigator.onLine) {
+      queueOfflineChange({action:"upsert",table:"attendance",payload});
+      const old=state.attendance.find(a=>a.student_id===payload.student_id&&a.attendance_date===payload.attendance_date);
+      if(old) Object.assign(old,payload,{_pending:true}); else state.attendance.unshift({...payload,_pending:true});
+      showMessage("attendance-status-message","حُفظ الحضور محلياً وسيُزامن عند عودة الإنترنت.");
+    } else {
+      const {error}=await db.from("attendance").upsert(payload); if(error) throw error;
+      await refreshDashboard(); showMessage("attendance-status-message","تم حفظ الحضور.");
+    }
+  } catch(error) { showMessage("attendance-status-message",error.message || "تعذر حفظ الحضور.",true); }
+});
+$("result-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageSchool()) return;
+  const score=Number($("result-score").value), max=Number($("result-max").value);
+  const payload={student_id:$("result-student").value,term:$("result-term").value.trim(),exam_name:$("result-exam").value.trim(),score,max_score:max,school_id:state.school.id};
+  if(!payload.student_id || !payload.term || !payload.exam_name || !Number.isFinite(score) || !Number.isFinite(max) || max<=0 || score<0 || score>max) { showMessage("result-status","تحقق من الطالب والاختبار والدرجة.",true); return; }
+  try {
+    if(state.offline || !navigator.onLine) {
+      const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+      queueOfflineChange({action:"insert",table:"student_results",local_id:localId,payload});
+      state.results.unshift({...payload,id:localId,_pending:true}); showMessage("result-status","حُفظت النتيجة محلياً وستُزامن عند عودة الإنترنت.");
+    } else {
+      const {error}=await db.from("student_results").insert(payload); if(error) throw error;
+      await refreshDashboard(); showMessage("result-status","تم حفظ النتيجة.");
+    }
+  } catch(error) { showMessage("result-status",error.message || "تعذر حفظ النتيجة.",true); }
+});
 
 $("payment-form").addEventListener("submit", async event => {
   event.preventDefault(); if(!canManageFinance()) return;
