@@ -510,7 +510,9 @@ class OfflineHomePage extends StatelessWidget {
                 TextField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'هاتف ولي الأمر'),
+                  decoration: const InputDecoration(
+                    labelText: 'هاتف ولي الأمر',
+                  ),
                 ),
               ],
             ),
@@ -552,7 +554,9 @@ class OfflineHomePage extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('حُفظ التعديل على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.'),
+            content: Text(
+              'حُفظ التعديل على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.',
+            ),
           ),
         );
       }
