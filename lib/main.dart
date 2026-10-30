@@ -205,7 +205,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool locked = false;
   bool checking = true;
   bool mustChangePassword = false;
-  bool offlineAccess = false;\n  bool offlineAccess = false;
+  bool offlineAccess = false;
 
   @override
   void initState() {
