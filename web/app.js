@@ -99,6 +99,10 @@ function csvDownload(filename, rows) {
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
 const REMEMBER_LOGIN_KEY = "lamin-portal-remember-login-v1";
+const OFFLINE_CREDENTIAL_KEY = "lamin-portal-offline-credential-v1";
+async function deriveOfflineVerifier(password,salt){const material=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveBits"]);const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt:Uint8Array.from(atob(salt),c=>c.charCodeAt(0)),iterations:180000,hash:"SHA-256"},material,256);return btoa(String.fromCharCode(...new Uint8Array(bits)));}
+async function saveOfflineVerifier(password){if(!$("remember-login").checked){localStorage.removeItem(OFFLINE_CREDENTIAL_KEY);return;}const salt=crypto.getRandomValues(new Uint8Array(16));const saltText=btoa(String.fromCharCode(...salt));const verifier=await deriveOfflineVerifier(password,saltText);localStorage.setItem(OFFLINE_CREDENTIAL_KEY,JSON.stringify({school:$("school-code").value.trim().toLowerCase(),username:$("username").value.trim().toLowerCase(),salt:saltText,verifier,version:1}));}
+async function verifyOfflineCredential(school,username,password){try{const saved=JSON.parse(localStorage.getItem(OFFLINE_CREDENTIAL_KEY)||"null");if(!saved||saved.version!==1||saved.school!==school.trim().toLowerCase()||saved.username!==username.trim().toLowerCase())return false;const candidate=await deriveOfflineVerifier(password,saved.salt);return candidate===saved.verifier;}catch{return false;}}
 function restoreRememberedLogin() {
   try {
     const saved = JSON.parse(localStorage.getItem(REMEMBER_LOGIN_KEY) || "null");
@@ -116,17 +120,19 @@ function saveRememberedLogin() {
   } catch { showMessage("login-message", "تم تسجيل الدخول، لكن المتصفح لم يسمح بحفظ بيانات التذكّر.", true); }
 }
 $("remember-login")?.addEventListener("change", () => {
-  if (!$("remember-login").checked) { try { localStorage.removeItem(REMEMBER_LOGIN_KEY); } catch {} }
+  if (!$("remember-login").checked) { try { localStorage.removeItem(REMEMBER_LOGIN_KEY); localStorage.removeItem(OFFLINE_CREDENTIAL_KEY); } catch {} }
 });
 restoreRememberedLogin();
 
-function restoreOfflinePortal() {
+function restoreOfflinePortal(expectedSchool="",expectedUsername="") {
   try {
     const candidates = Object.keys(localStorage).filter(key => key.startsWith(OFFLINE_SNAPSHOT_PREFIX));
     if (!candidates.length) return false;
     const snapshots = candidates.map(key => ({ key, value: JSON.parse(localStorage.getItem(key) || "null") })).filter(x => x.value?.profile && x.value?.school && x.value?.data);
     const cached = snapshots.sort((a,b) => new Date(b.value.savedAt)-new Date(a.value.savedAt))[0]?.value;
     if (!cached) return false;
+    if(expectedSchool && String(cached.school.code||"").toLowerCase()!==expectedSchool.trim().toLowerCase()) return false;
+    if(expectedUsername && String(cached.profile.username||"").toLowerCase()!==expectedUsername.trim().toLowerCase()) return false;
     state.profile = cached.profile; state.school = cached.school;
     Object.assign(state, cached.data); state.offline = true;
     for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "rpc_student") rows.unshift({ id: op.local_id, name: op.params.p_name, class_name: op.params.p_class_name, phone: op.params.p_phone, active: true, _pending: true }); if (op.action === "upsert") { const row=rows.find(x=>x.student_id===op.payload.student_id&&x.attendance_date===op.payload.attendance_date); if(row) Object.assign(row,op.payload,{_pending:true}); else rows.unshift({...op.payload,_pending:true}); } if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if (op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
@@ -156,24 +162,28 @@ function restoreOfflinePortal() {
 }
 async function login(event) {
   event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const school=String(form.get("school")).trim(), username=String(form.get("username")).trim(), password=String(form.get("password"));
   if (!navigator.onLine) {
-    if (restoreOfflinePortal()) return;
-    showMessage("login-message", "لا يمكن تسجيل الدخول لأول مرة دون إنترنت. افتح البوابة واتصل بالإنترنت وسجّل الدخول مرة واحدة أولًا.", true);
+    if (await verifyOfflineCredential(school,username,password) && restoreOfflinePortal(school,username)) { $("password").value=""; showMessage("app-message","تم فتح النسخة المحلية بعد التحقق من بيانات الدخول المحفوظة على هذا الجهاز."); return; }
+    showMessage("login-message", "تعذر الدخول دون إنترنت. يلزم تسجيل دخول ناجح مع تفعيل «تذكرني» مرة واحدة قبل استخدام الدخول المحلي.", true);
     return;
   }
   showMessage("login-message", "جارٍ التحقق من بيانات الدخول…");
-  const form = new FormData(event.currentTarget);
   try {
-    const { data, error } = await db.functions.invoke("auth-login", { body: { school: String(form.get("school")).trim(), username: String(form.get("username")).trim(), password: String(form.get("password")) } });
+    const { data, error } = await db.functions.invoke("auth-login", { body: { school, username, password } });
     if (error) throw error;
     if (!data?.refresh_token) throw new Error("استجابة الدخول غير مكتملة.");
     const { error: sessionError } = await db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
     if (sessionError) throw sessionError;
     saveRememberedLogin();
+    await saveOfflineVerifier(password);
     $("password").value = "";
     await loadPortal();
   } catch (error) {
     console.error("Lamin portal login failed", error);
+    const sessionResult=await db.auth.getSession().catch(()=>({data:{session:null}}));
+    if(sessionResult.data?.session){try{await loadPortal();$("password").value="";showMessage("app-message","تم الدخول بالجلسة المحفوظة؛ تعذر الوصول لخدمة تسجيل الدخول مؤقتاً.");return;}catch(loadError){console.warn("Saved session could not load portal",loadError);}}
     showMessage("login-message", error?.message || "تعذر تسجيل الدخول. تحقق من البيانات وحاول مجددًا.", true);
   }
 }
@@ -677,7 +687,7 @@ window.addEventListener("offline", () => { if (state.profile) setOfflineMode(tru
   try {
     const { data } = await db.auth.getSession();
     if (data.session && navigator.onLine) await loadPortal();
-    else if (!navigator.onLine) restoreOfflinePortal();
+    else if (!navigator.onLine) { /* Offline access requires the explicit local credential check in the login form. */ }
   } catch (error) {
     console.error(error);
     if (!restoreOfflinePortal()) switchView(false);
