@@ -35,6 +35,18 @@ jobs:
         run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
       - name: Apply Arabic Lamin app label
         run: sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
+      - name: Configure Android host for local authentication
+        run: |
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\\    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>' android/app/src/main/AndroidManifest.xml
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
+          mkdir -p android/app/src/main/kotlin/com/adreemk/school/lamin_school
+          cat > android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt <<'EOF'
+          package com.adreemk.school.lamin_school
+          import io.flutter.embedding.android.FlutterFragmentActivity
+          class MainActivity : FlutterFragmentActivity()
+          EOF
       - name: Build Android debug candidate
         run: flutter build apk --debug --no-tree-shake-icons
       - name: Upload Android debug candidate
