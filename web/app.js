@@ -135,7 +135,7 @@ function restoreOfflinePortal(expectedSchool="",expectedUsername="") {
     if(expectedUsername && String(cached.profile.username||"").toLowerCase()!==expectedUsername.trim().toLowerCase()) return false;
     state.profile = cached.profile; state.school = cached.school;
     Object.assign(state, cached.data); state.offline = true;
-    for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "rpc_student") rows.unshift({ id: op.local_id, name: op.params.p_name, class_name: op.params.p_class_name, phone: op.params.p_phone, active: true, _pending: true }); if (op.action === "upsert") { const row=rows.find(x=>x.student_id===op.payload.student_id&&x.attendance_date===op.payload.attendance_date); if(row) Object.assign(row,op.payload,{_pending:true}); else rows.unshift({...op.payload,_pending:true}); } if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if (op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
+    for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "rpc_student") rows.unshift({ id: op.local_id, name: op.params.p_name, class_name: op.params.p_class_name, phone: op.params.p_phone, active: true, _pending: true }); if (op.action === "rpc_payment") { state.payments=state.payments||[]; if(!state.payments.some(p=>p.id===op.local_id)) state.payments.unshift({id:op.local_id,student_id:op.params.p_student_id,fee_assessment_id:op.params.p_fee_assessment_id,term:op.params.p_term,amount:op.params.p_amount,note:op.params.p_note,created_at:op.created_at,_pending:true}); } if (op.action === "upsert") { const row=rows.find(x=>x.student_id===op.payload.student_id&&x.attendance_date===op.payload.attendance_date); if(row) Object.assign(row,op.payload,{_pending:true}); else rows.unshift({...op.payload,_pending:true}); } if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if (op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
     $("school-name").textContent = state.school.name || "مدرستك";
     $("setting-school-name").textContent = state.school.name || "—";
     $("setting-school-code").textContent = state.school.code || "—";
@@ -595,6 +595,7 @@ async function syncOfflineQueue() {
       const op=remaining[0]; let result;
       if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
       else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
+      else if(op.action==="rpc_payment") result=await db.rpc("record_student_payment",op.params);
       else if(op.action==="upsert") result=await db.from(op.table).upsert(op.payload);
       else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
       else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
@@ -711,19 +712,26 @@ $("payment-form").addEventListener("submit", async event => {
   const assessment=state.assessments.find(a=>String(a.id)===String(assessmentId));
   const amount=Number($("payment-amount").value);
   if(!assessment || !Number.isFinite(amount) || amount<=0) { showMessage("payment-status","اختر بند رسوم وأدخل مبلغاً صحيحاً.",true); return; }
-  const payload={student_id:assessment.student_id,academic_year_id:assessment.academic_year_id,fee_assessment_id:assessment.id,term:assessment.term || "غير محدد",payment_date:new Date().toISOString().slice(0,10),amount,note:$("payment-note").value.trim(),school_id:state.school.id};
+  const idempotencyKey=crypto.randomUUID?crypto.randomUUID():("lamin-pay-"+Date.now()+"-"+Math.random().toString(36).slice(2));
+  const params={p_student_id:assessment.student_id,p_amount:amount,p_note:$("payment-note").value.trim(),p_term:assessment.term||"غير محدد",p_fee_assessment_id:assessment.id,p_idempotency_key:idempotencyKey};
+  const saveOffline=()=>{
+    const localId="offline-"+idempotencyKey;
+    queueOfflineChange({action:"rpc_payment",table:"payments",local_id:localId,params});
+    state.payments=state.payments||[];
+    if(!state.payments.some(p=>p.id===localId))state.payments.push({id:localId,student_id:assessment.student_id,fee_assessment_id:assessment.id,term:assessment.term||"غير محدد",amount,note:params.p_note,created_at:new Date().toISOString(),_pending:true});
+    showMessage("payment-status","حُفظت الدفعة محلياً. ستُسجل وتوزع على الرسوم تلقائياً عند عودة الاتصال.");
+    $("payment-form").reset();renderManagedTables();
+  };
   try {
-    if(state.offline || !navigator.onLine) {
-      const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
-      queueOfflineChange({action:"insert",table:"payments",local_id:localId,payload});
-      state.payments=state.payments||[]; state.payments.push({...payload,id:localId,_pending:true});
-      showMessage("payment-status","حُفظت الدفعة محلياً وستُزامن عند عودة الإنترنت.");
-      $("payment-form").reset(); return;
-    }
-    const {error}=await db.from("payments").insert(payload);
-    if(error) throw error;
-    $("payment-form").reset(); await refreshDashboard(); showMessage("payment-status","تم تسجيل الدفعة وتحديث الرصيد.");
-  } catch(error) { showMessage("payment-status",error.message || "تعذر تسجيل الدفعة.",true); }
+    if(state.offline || !navigator.onLine){saveOffline();return;}
+    const {data,error}=await db.rpc("record_student_payment",params);
+    if(error)throw error;
+    if(!data)throw new Error("لم يؤكد الخادم تسجيل الدفعة.");
+    $("payment-form").reset();await refreshDashboard();showMessage("payment-status","تم تسجيل الدفعة وتوزيعها على المستحقات وتحديث الرصيد.");
+  } catch(error) {
+    if(!navigator.onLine || error instanceof TypeError || error?.name==="FunctionsFetchError"){saveOffline();return;}
+    showMessage("payment-status",error.message || "تعذر تسجيل الدفعة. لم تُسجل كعملية ناجحة.",true);
+  }
 });
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
 $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
