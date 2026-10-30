@@ -50,6 +50,19 @@ class SchoolRepository {
     }
   }
 
+  Future<bool> hasServerConnection() async {
+    try {
+      await db
+          .from('schools')
+          .select('id')
+          .limit(1)
+          .timeout(const Duration(seconds: 4));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> school() async {
     try {
       final p = await profile();

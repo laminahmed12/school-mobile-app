@@ -494,6 +494,23 @@ class OfflineHomePage extends StatelessWidget {
     final schoolId = profile?['school_id']?.toString() ?? '';
     final repository = SchoolRepository(prefs);
 
+    Future<void> reconnect() async {
+      final connected = await repository.hasServerConnection();
+      if (!context.mounted) return;
+      if (!connected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يزال الاتصال بالخادم غير متاح.')),
+        );
+        return;
+      }
+      final Widget destination = db.auth.currentSession == null
+          ? LoginPage(prefs: prefs)
+          : HomePage(prefs: prefs);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => destination),
+      );
+    }
+
     Future<void> editCachedStudent(Student student) async {
       final name = TextEditingController(text: student.name);
       final className = TextEditingController(text: student.className);
@@ -712,9 +729,14 @@ class OfflineHomePage extends StatelessWidget {
           appBar: AppBar(
             automaticallyImplyLeading: false,
             title: const Text('لامين'),
-            actions: const [
-              Padding(
-                padding: EdgeInsetsDirectional.only(end: 16),
+            actions: [
+              IconButton(
+                tooltip: 'التحقق من عودة الاتصال',
+                onPressed: reconnect,
+                icon: const Icon(Icons.cloud_sync_outlined),
+              ),
+              const Padding(
+                padding: EdgeInsetsDirectional.only(end: 8),
                 child: Center(
                   child: Chip(
                     avatar: Icon(Icons.cloud_off, size: 16),
@@ -1441,6 +1463,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
+      var hasNetwork = false;
+      try {
+        final connectivity = await Connectivity().checkConnectivity();
+        hasNetwork = connectivity.any(
+          (item) => item != ConnectivityResult.none,
+        );
+      } catch (_) {}
+      if (hasNetwork) {
+        hasNetwork = await repo.hasServerConnection();
+      }
+      online = hasNetwork;
+      if (!hasNetwork && _hasCachedOfflineProfile(widget.prefs)) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => OfflineHomePage(prefs: widget.prefs),
+            ),
+          );
+        }
+        return;
+      }
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
       try {
@@ -1490,12 +1533,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         expenses = 0;
       }
 
-      try {
-        final status = await Connectivity().checkConnectivity();
-        online = !status.contains(ConnectivityResult.none);
-      } catch (_) {
-        online = false;
-      }
     } catch (_) {
       // Keep the app usable even if profile/bootstrap loading temporarily fails.
     }
