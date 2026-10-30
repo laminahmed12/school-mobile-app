@@ -496,97 +496,97 @@ class OfflineHomePage extends StatelessWidget {
                     student.phone.toLowerCase().contains(normalizedQuery);
               }).toList();
         return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('لامين'),
-        actions: const [
-          Padding(
-            padding: EdgeInsetsDirectional.only(end: 16),
-            child: Center(
-              child: Chip(
-                avatar: Icon(Icons.cloud_off, size: 16),
-                label: Text('دون اتصال'),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            color: brandGreen,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'وضع العمل المحلي',
-                    style: TextStyle(color: Colors.white70),
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: const Text('لامين'),
+            actions: const [
+              Padding(
+                padding: EdgeInsetsDirectional.only(end: 16),
+                child: Center(
+                  child: Chip(
+                    avatar: Icon(Icons.cloud_off, size: 16),
+                    label: Text('دون اتصال'),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'مرحباً ${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'تم فتح التطبيق باستخدام بيانات الدخول المحفوظة على هذا الجهاز. بعض البيانات قد لا تكون محدثة.',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            onChanged: (value) => setLocalState(() => query = value),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'ابحث عن طالب بالاسم أو الصف أو الهاتف',
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (normalizedQuery.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                'بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.',
-                textAlign: TextAlign.center,
-              ),
-            )
-          else if (visibleStudents.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('لا توجد نتائج مطابقة للبحث.'),
-            )
-          else
-            ...visibleStudents.map(
-              (student) => Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.school_outlined),
-                  ),
-                  title: Text(student.name),
-                  subtitle: Text(student.className),
                 ),
               ),
-            ),
-          const Padding(
-            padding: EdgeInsets.only(top: 16),
-            child: Text(
-              'هذا الوضع للعرض فقط. تسجيل الدفعات وتعديل الرسوم والحضور يحتاج اتصالاً حتى لا تضيع أو تتكرر العمليات المالية.',
-              textAlign: TextAlign.center,
-            ),
+            ],
           ),
-        ],
-      ),
-    );
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                color: brandGreen,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'وضع العمل المحلي',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'مرحباً ${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'تم فتح التطبيق باستخدام بيانات الدخول المحفوظة على هذا الجهاز. بعض البيانات قد لا تكون محدثة.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                onChanged: (value) => setLocalState(() => query = value),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'ابحث عن طالب بالاسم أو الصف أو الهاتف',
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (normalizedQuery.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else if (visibleStudents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('لا توجد نتائج مطابقة للبحث.'),
+                )
+              else
+                ...visibleStudents.map(
+                  (student) => Card(
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.school_outlined),
+                      ),
+                      title: Text(student.name),
+                      subtitle: Text(student.className),
+                    ),
+                  ),
+                ),
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text(
+                  'هذا الوضع للعرض فقط. تسجيل الدفعات وتعديل الرسوم والحضور يحتاج اتصالاً حتى لا تضيع أو تتكرر العمليات المالية.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
