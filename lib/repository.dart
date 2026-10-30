@@ -455,13 +455,10 @@ class SchoolRepository {
     return loaded ? total : (schoolId == null ? 0 : (prefs.getDouble('lamin_expenses_total_${schoolId}') ?? 0));
   }
 
-  Future<List<Map<String, dynamic>>> staffMembers() async {
-    final rows = await db
-        .from('staff')
-        .select('id,name,role,phone,salary,active,created_at')
-        .order('name');
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
-  }
+  Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
+    'staff',
+    () => db.from('staff').select('id,name,role,phone,salary,active,created_at').order('name'),
+  );
 
   Future<void> addStaffMember({
     required String name,
@@ -538,15 +535,12 @@ class SchoolRepository {
     await db.from('staff').update({'salary': salary}).eq('id', staffId);
   }
 
-  Future<List<Map<String, dynamic>>> payrollTransactions() async {
-    final rows = await db
-        .from('payroll_transactions')
-        .select(
-          'id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at',
-        )
-        .order('payment_date', ascending: false);
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
-  }
+  Future<List<Map<String, dynamic>>> payrollTransactions() => _readRows(
+    'payroll_transactions',
+    () => db.from('payroll_transactions')
+      .select('id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at')
+      .order('payment_date', ascending: false),
+  );
 
   Future<void> addPayrollTransaction({
     required String payeeType,
