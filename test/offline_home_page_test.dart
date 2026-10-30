@@ -36,12 +36,12 @@ void main() {
     expect(find.text('وضع العمل المحلي'), findsOneWidget);
     expect(find.text('دون اتصال'), findsOneWidget);
     expect(find.text('طالب تجريبي'), findsNothing);
-    expect(find.text('بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.'), findsOneWidget);
-
-    await tester.enterText(
-      find.byType(TextField),
-      'طالب تجريبي',
+    expect(
+      find.text('بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.'),
+      findsOneWidget,
     );
+
+    await tester.enterText(find.byType(TextField), 'طالب تجريبي');
     await tester.pump();
 
     expect(find.text('طالب تجريبي'), findsOneWidget);
