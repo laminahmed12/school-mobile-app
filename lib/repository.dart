@@ -428,13 +428,47 @@ class SchoolRepository {
     });
   }
 
+  Future<double> _sumColumnPaged(String table, String column) async {
+    const pageSize = 500;
+    var offset = 0;
+    var total = 0.0;
+    while (true) {
+      final rows = await db.from(table).select(column)
+          .order('id', ascending: true)
+          .range(offset, offset + pageSize - 1)
+          .timeout(const Duration(seconds: 7)) as List;
+      total += rows.fold<double>(
+        0,
+        (sum, row) => sum + ((row[column] as num?)?.toDouble() ?? 0),
+      );
+      if (rows.length < pageSize) break;
+      offset += pageSize;
+    }
+    return total;
+  }
+
+  Future<int> _countRowsPaged(String table) async {
+    const pageSize = 500;
+    var offset = 0;
+    var total = 0;
+    while (true) {
+      final rows = await db.from(table).select('id')
+          .order('id', ascending: true)
+          .range(offset, offset + pageSize - 1)
+          .timeout(const Duration(seconds: 7)) as List;
+      total += rows.length;
+      if (rows.length < pageSize) break;
+      offset += pageSize;
+    }
+    return total;
+  }
+
   Future<int> count(String table) async {
     final schoolId = await _schoolId();
     if (schoolId == null || schoolId.isEmpty) return 0;
     final cacheKey = _tenantCacheKey(schoolId, 'count_$table');
     try {
-      final value = (await db.from(table).select('id')
-          .timeout(const Duration(seconds: 6)) as List).length;
+      final value = await _countRowsPaged(table);
       await prefs.setInt(cacheKey, value);
       return value;
     } catch (_) {
@@ -447,11 +481,7 @@ class SchoolRepository {
     if (schoolId == null || schoolId.isEmpty) return 0;
     final cacheKey = 'lamin_payments_total_${schoolId}';
     try {
-      final rows = await db.from('payments').select('amount')
-          .timeout(const Duration(seconds: 6)) as List;
-      final total = rows.fold<double>(
-        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-      );
+      final total = await _sumColumnPaged('payments', 'amount');
       await prefs.setDouble(cacheKey, total);
       return total;
     } catch (_) {
@@ -464,16 +494,8 @@ class SchoolRepository {
     if (schoolId == null || schoolId.isEmpty) return 0;
     final cacheKey = 'lamin_expenses_total_${schoolId}';
     try {
-      final expenseRows = await db.from('expenses').select('amount')
-          .timeout(const Duration(seconds: 6)) as List;
-      final payrollRows = await db.from('payroll_transactions').select('amount')
-          .timeout(const Duration(seconds: 6)) as List;
-      final expenseTotal = expenseRows.fold<double>(
-        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-      );
-      final payrollTotal = payrollRows.fold<double>(
-        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-      );
+      final expenseTotal = await _sumColumnPaged('expenses', 'amount');
+      final payrollTotal = await _sumColumnPaged('payroll_transactions', 'amount');
       final total = expenseTotal + payrollTotal;
       await prefs.setDouble(cacheKey, total);
       return total;
