@@ -156,9 +156,6 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
         },
       );
       await initialization.timeout(const Duration(seconds: 8));
-      prefs ??= await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 8),
-      );
       if (!mounted) return;
       setState(() {
         _prefs = prefs;
@@ -171,7 +168,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
       if (mounted) {
         setState(() {
           _initializationError = error;
-          _offlineBootstrap = prefs != null && _hasCachedOfflineProfile(prefs!);
+          _offlineBootstrap = prefs != null && _hasCachedOfflineProfile(prefs);
           _loading = false;
         });
       }
