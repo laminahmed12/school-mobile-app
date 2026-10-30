@@ -25,7 +25,7 @@ import 'manager_requests.dart';
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
 const brandInk = Color(0xFF20312C);
-const brandCanvas = Color(0xFFF3F6F3);
+const brandCanvas = Color(0xFFF6F7F4);
 
 DateTime? _schoolTrialEnd(Map<String, dynamic>? school) {
   final raw = school?['trial_started_at']?.toString();
@@ -217,7 +217,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
                         borderRadius: BorderRadius.circular(26),
                       ),
                       child: const Icon(
-                        Icons.school,
+                        Icons.school_rounded,
                         color: Colors.white,
                         size: 48,
                       ),
@@ -278,66 +278,13 @@ class LaminApp extends StatelessWidget {
     title: 'لامين',
     theme: ThemeData(
       useMaterial3: true,
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: brandGreen,
-            brightness: Brightness.light,
-          ).copyWith(
-            primary: brandGreen,
-            secondary: brandGold,
-            surface: Colors.white,
-            onPrimary: Colors.white,
-          ),
+      fontFamily: 'Cairo',
+      colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
       scaffoldBackgroundColor: brandCanvas,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: brandCanvas,
-        foregroundColor: brandInk,
-        centerTitle: false,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.white,
-        elevation: 1.5,
-        shadowColor: brandInk.withValues(alpha: 0.10),
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFFE7F0EA),
-        indicatorColor: const Color(0xFFCBE8DA),
-        labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
-                : FontWeight.w500,
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFD7E1DA)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: brandGreen, width: 1.8),
-        ),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: brandGreen,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-      snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
       ),
     ),
     home: AuthGate(prefs: prefs),
@@ -914,7 +861,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Icon(
-                    Icons.school,
+                    Icons.school_rounded,
                     color: Colors.white,
                     size: 46,
                   ),
