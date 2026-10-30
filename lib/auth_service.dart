@@ -16,7 +16,7 @@ class LaminAuthResult {
 }
 
 class LaminAuthService {
-  static const _schoolKey = 'lamin.school.code';
+  static const _schoolKey = 'lamin.school.code';\n  static const _offlineUserKey = 'lamin.offline.user.id';\n  Future<String?> offlineUserId() => _storage.read(key: _offlineUserKey);\n  Future<void> rememberOfflineUser(String userId) => _storage.write(key: _offlineUserKey, value: userId);\n  Future<void> clearOfflineUser() => _storage.delete(key: _offlineUserKey);
   static const _storage = FlutterSecureStorage();
   Future<String?> savedSchoolCode() => _storage.read(key: _schoolKey);
   Future<void> saveSchoolCode(String code) =>
