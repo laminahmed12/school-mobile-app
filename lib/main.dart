@@ -185,7 +185,7 @@ class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
         debugShowCheckedModeBanner: false,
         title: 'لامين',
         theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: brandGreen)),
-        home: OfflineHomePage(prefs: prefs),
+        home: OfflineBootstrapGate(prefs: prefs),
       );
     }
     if (!_loading && prefs != null) {
@@ -460,6 +460,55 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   );
 }
 
+
+
+class OfflineBootstrapGate extends StatefulWidget {
+  final SharedPreferences prefs;
+  const OfflineBootstrapGate({super.key, required this.prefs});
+
+  @override
+  State<OfflineBootstrapGate> createState() => _OfflineBootstrapGateState();
+}
+
+class _OfflineBootstrapGateState extends State<OfflineBootstrapGate> {
+  bool checking = true;
+  bool locked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDeviceLock();
+  }
+
+  Future<void> _checkDeviceLock() async {
+    var enabled = false;
+    try {
+      enabled = await DeviceSecurityService().enabled;
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      locked = enabled;
+      checking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (checking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (locked) {
+      return DeviceLockPage(
+        onAuthenticated: () {
+          if (mounted) setState(() => locked = false);
+        },
+      );
+    }
+    return OfflineHomePage(prefs: widget.prefs);
+  }
+}
 
 class OfflineHomePage extends StatelessWidget {
   final SharedPreferences prefs;
