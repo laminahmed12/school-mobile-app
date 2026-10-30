@@ -275,11 +275,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
             false;
         final licensed = cachedSchool?['licensed'] == true;
         canOpenOffline = cached != null &&
-            cached!.active &&
-            cached!.schoolId != null &&
+            cached.active &&
+            cached.schoolId != null &&
             cachedSchool != null &&
             cachedSchool['active'] != false &&
-            (cached!.role == 'owner' || cached!.mustChangePassword != true) &&
+            (cached.role == 'owner' || cached.mustChangePassword != true) &&
             (licensed || validTrial);
       }
     }
