@@ -13,6 +13,10 @@ const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", cur
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const safeRows = (rows) => Array.isArray(rows) ? rows : [];
+const OFFLINE_SNAPSHOT_PREFIX = "lamin-portal-snapshot-v2:";
+const OFFLINE_QUEUE_PREFIX = "lamin-portal-queue-v1:";
+const OFFLINE_MODE_MESSAGE = "وضع عدم الاتصال: التغييرات المسموح بها تحفظ محلياً وتنتظر المزامنة.";
+function setOfflineMode(enabled) { state.offline = Boolean(enabled); document.body.classList.toggle("offline-mode", state.offline); }
 
 const OFFLINE_SNAPSHOT_PREFIX = "lamin-portal-snapshot-v2:";
 const OFFLINE_QUEUE_PREFIX = "lamin-portal-queue-v1:";
