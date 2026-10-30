@@ -9,3 +9,5 @@
 .audit-details{min-width:220px;max-width:420px;white-space:normal;overflow-wrap:anywhere;line-height:1.8}.audit-detail{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.07)}.audit-detail:last-child{border-bottom:0}.restore-ack{display:flex;align-items:flex-start;gap:10px;margin:16px 0;line-height:1.8}.restore-ack input{width:auto;min-width:18px;margin-top:5px}
 
 .archive-panel{border:1px solid var(--border-color,rgba(255,255,255,.14));border-radius:14px;padding:14px;margin-top:18px}.archive-panel>summary{cursor:pointer;color:var(--accent,#e3bd59);font-weight:700;padding:6px}.archive-panel[open]>summary{margin-bottom:12px}
+
+#reminder-due{direction:ltr!important;text-align:left!important;unicode-bidi:isolate;font-variant-numeric:tabular-nums;letter-spacing:.03em}#reminder-date-help{display:block;margin-top:6px;font-size:12px}
