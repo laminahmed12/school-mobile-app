@@ -495,6 +495,22 @@ class OfflineHomePage extends StatelessWidget {
     final repository = SchoolRepository(prefs);
 
     Future<void> reconnect() async {
+      if (db.auth.currentSession == null) {
+        final status = await Connectivity().checkConnectivity();
+        if (!context.mounted) return;
+        if (status.any((item) => item != ConnectivityResult.none)) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => LoginPage(prefs: prefs),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا يزال الاتصال بالإنترنت غير متاح.')),
+          );
+        }
+        return;
+      }
       final connected = await repository.hasServerConnection();
       if (!context.mounted) return;
       if (!connected) {
@@ -503,13 +519,12 @@ class OfflineHomePage extends StatelessWidget {
         );
         return;
       }
-      final Widget destination = db.auth.currentSession == null
-          ? LoginPage(prefs: prefs)
-          : HomePage(prefs: prefs);
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute<void>(builder: (_) => destination));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => HomePage(prefs: prefs)),
+      );
     }
+
+    StateSetter? updateOfflineState;
 
     Future<void> editCachedStudent(Student student) async {
       final name = TextEditingController(text: student.name);
@@ -575,6 +590,7 @@ class OfflineHomePage extends StatelessWidget {
           phone: phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
         );
       }
+      updateOfflineState?.call(() {});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -717,6 +733,7 @@ class OfflineHomePage extends StatelessWidget {
     String query = '';
     return StatefulBuilder(
       builder: (context, setLocalState) {
+        updateOfflineState = setLocalState;
         final normalizedQuery = query.trim().toLowerCase();
         final visibleStudents = normalizedQuery.isEmpty
             ? <Student>[]
