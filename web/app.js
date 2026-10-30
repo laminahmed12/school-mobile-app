@@ -266,6 +266,7 @@ async function loadPortal() {
   $("today-label").textContent = new Intl.DateTimeFormat("ar-LY", { dateStyle: "full" }).format(new Date());
   switchView(true); switchPanel("overview");
   await refreshDashboard();
+  if (readOfflineQueue().length) await syncOfflineQueue();
   showMessage("app-message", "");
 }
 async function getCount(table) {
@@ -606,7 +607,7 @@ $("export-pdf").addEventListener("click", () => {
   window.print();
 });
 db.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_OUT" || !session) switchView(false); });
-window.addEventListener("online", () => { if (state.offline) showMessage("app-message", "عاد الاتصال. حدّث البيانات للتحقق من أحدث السجلات."); });
+window.addEventListener("online", () => { if (state.profile) syncOfflineQueue().catch(error => showMessage("app-message", error.message || "تعذرت المزامنة.", true)); });
 window.addEventListener("offline", () => { if (state.profile) setOfflineMode(true); });
 (async () => {
   try {
