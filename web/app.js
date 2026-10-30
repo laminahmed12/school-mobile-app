@@ -585,31 +585,37 @@ async function findExistingQueuedStudent(op) {
 async function syncOfflineQueue() {
   if(state.syncing || !navigator.onLine || !state.school || !state.profile) return;
   state.syncing=true;
-  const queue=readOfflineQueue(); if(!queue.length) { setOfflineMode(false); state.syncing=false; return; }
-  const remaining=[...queue];
-  showMessage("app-message","جارٍ مزامنة التغييرات المحفوظة دون إنترنت…");
-  while(remaining.length) {
-    const op=remaining[0]; let result;
-    if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
-    else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
-    else if(op.action==="upsert") result=await db.from(op.table).upsert(op.payload);
-    else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
-    else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
-    else throw new Error("تعذر تحديد نوع التغيير المحلي.");
-    if(result.error && op.action==="rpc_student" && (result.error.code==="23505" || /students_dup_uq|duplicate key/i.test(result.error.message||""))) {
-      try {
-        const match=await findExistingQueuedStudent(op);
-        if(match?.student && !match.conflict){remaining.shift();writeOfflineQueue(remaining);continue;}
-        if(match?.conflict){writeOfflineQueue(remaining);showMessage("app-message","تعذرت مزامنة طالب موجود مسبقاً: رسوم الفصل المسجلة لا تطابق الرسوم المعلقة. احتفظنا بالتغيير للمراجعة ولم نغيّر الرسوم.",true);state.syncing=false;return;}
-      } catch(reconcileError){writeOfflineQueue(remaining);showMessage("app-message","تعذر التحقق من الطالب الموجود. احتفظنا بالتغيير محلياً دون حذفه.",true);state.syncing=false;return;}
-      writeOfflineQueue(remaining);showMessage("app-message","يوجد طالب بالاسم ورقم الهاتف نفسيهما في قاعدة البيانات. احتفظنا بالتغيير محلياً ولم ننشئ سجلاً مكرراً.",true);state.syncing=false;return;
+  let remaining=[];
+  try {
+    const queue=readOfflineQueue();
+    if(!queue.length){setOfflineMode(false);return;}
+    remaining=[...queue];
+    showMessage("app-message","جارٍ مزامنة التغييرات المحفوظة دون إنترنت…");
+    while(remaining.length) {
+      const op=remaining[0]; let result;
+      if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
+      else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
+      else if(op.action==="upsert") result=await db.from(op.table).upsert(op.payload);
+      else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
+      else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
+      else throw new Error("تعذر تحديد نوع التغيير المحلي.");
+      if(result.error && op.action==="rpc_student" && (result.error.code==="23505" || /students_dup_uq|duplicate key/i.test(result.error.message||""))) {
+        try {
+          const match=await findExistingQueuedStudent(op);
+          if(match?.student && !match.conflict){remaining.shift();writeOfflineQueue(remaining);continue;}
+          if(match?.conflict){writeOfflineQueue(remaining);showMessage("app-message","تعذرت مزامنة طالب موجود مسبقاً: رسوم الفصل المسجلة لا تطابق الرسوم المعلقة. احتفظنا بالتغيير للمراجعة ولم نغيّر الرسوم.",true);return;}
+        } catch(reconcileError){writeOfflineQueue(remaining);showMessage("app-message","تعذر التحقق من الطالب الموجود. احتفظنا بالتغيير محلياً دون حذفه.",true);return;}
+        writeOfflineQueue(remaining);showMessage("app-message","يوجد طالب بالاسم ورقم الهاتف نفسيهما في قاعدة البيانات. احتفظنا بالتغيير محلياً ولم ننشئ سجلاً مكرراً.",true);return;
+      }
+      if(result.error){writeOfflineQueue(remaining);showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true);return;}
+      remaining.shift();writeOfflineQueue(remaining);
     }
-    if(result.error) { writeOfflineQueue(remaining); showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true); state.syncing=false; return; }
-    remaining.shift(); writeOfflineQueue(remaining);
-  }
-  setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية."); state.syncing=false;
+    setOfflineMode(false);await refreshDashboard();showMessage("app-message","اكتملت مزامنة التغييرات المحلية.");
+  } catch(error) {
+    writeOfflineQueue(remaining.length?remaining:readOfflineQueue());
+    showMessage("app-message","تعذرت المزامنة مؤقتاً. احتفظنا بالتغييرات على هذا الجهاز: "+(error?.message||"خطأ في الاتصال."),true);
+  } finally { state.syncing=false; }
 }
-
 
 
 $("attendance-date").value = new Date().toISOString().slice(0,10);
