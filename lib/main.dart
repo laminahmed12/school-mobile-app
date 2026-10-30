@@ -396,7 +396,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       hasNetwork = false;
     }
     var canOpenOffline = false;
-    if (session == null && !hasNetwork) {
+    if (!hasNetwork) {
       final raw = widget.prefs.getString('lamin_last_profile_cache');
       if (raw != null) {
         try {
@@ -414,12 +414,24 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
             .from('profiles')
             .select('role,must_change_password,active')
             .eq('user_id', session.user.id)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 4));
         forcePassword =
             row?['active'] == true &&
             row?['role'] != 'owner' &&
             row?['must_change_password'] == true;
-      } catch (_) {}
+      } catch (_) {
+        hasNetwork = false;
+        final raw = widget.prefs.getString('lamin_last_profile_cache');
+        if (raw != null) {
+          try {
+            final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+            canOpenOffline = cached['active'] != false &&
+                cached['must_change_password'] != true &&
+                (cached['school_id']?.toString().isNotEmpty ?? false);
+          } catch (_) {}
+        }
+      }
     }
     if (!mounted) return;
     setState(() {
@@ -441,12 +453,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (checking) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      if (db.auth.currentSession == null) {
-        return offlineAvailable
-            ? OfflineHomePage(prefs: widget.prefs)
-            : LoginPage(prefs: widget.prefs);
-      }
       if (locked) return DeviceLockPage(onAuthenticated: _unlock);
+      if (offlineAvailable) return OfflineHomePage(prefs: widget.prefs);
+      if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
       return HomePage(prefs: widget.prefs);
@@ -1076,6 +1085,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> logout() async {
+    final userId = db.auth.currentUser?.id;
     try {
       await db.auth
           .signOut(scope: SignOutScope.local)
@@ -1084,6 +1094,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         throw Exception(
           'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
         );
+      }
+      await widget.prefs.remove('lamin_last_profile_cache');
+      if (userId != null) {
+        await widget.prefs.remove('profile_cache_$userId');
+        await widget.prefs.remove('school_id_cache_$userId');
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
