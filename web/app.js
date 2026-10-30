@@ -160,6 +160,17 @@ function restoreOfflinePortal(expectedSchool="",expectedUsername="") {
     return true;
   } catch (error) { console.error("Lamin offline restore failed", error); return false; }
 }
+async function requestAuthLogin(payload){
+  const first=await db.functions.invoke("auth-login",{body:payload});
+  if(!first.error)return first;
+  if(first.error.name!=="FunctionsFetchError" && !(first.error instanceof TypeError))return first;
+  try{
+    const response=await fetch(SUPABASE_URL+"/functions/v1/auth-login",{method:"POST",headers:{apikey:SUPABASE_PUBLISHABLE_KEY,Authorization:"Bearer "+SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});
+    const data=await response.json().catch(()=>null);
+    if(!response.ok)return {data,error:new Error(data?.error||("تعذر تسجيل الدخول (HTTP "+response.status+")."))};
+    return {data,error:null};
+  }catch(error){return {data:null,error};}
+}
 async function login(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -171,7 +182,7 @@ async function login(event) {
   }
   showMessage("login-message", "جارٍ التحقق من بيانات الدخول…");
   try {
-    const { data, error } = await db.functions.invoke("auth-login", { body: { school, username, password } });
+    const { data, error } = await requestAuthLogin({ school, username, password });
     if (error) throw error;
     if (!data?.refresh_token) throw new Error("استجابة الدخول غير مكتملة.");
     const { error: sessionError } = await db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
