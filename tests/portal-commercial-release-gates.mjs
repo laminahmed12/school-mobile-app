@@ -47,6 +47,6 @@ assert.match(app, /localStorage\.setItem\(OFFLINE_SNAPSHOT_PREFIX\+state\.school
 const studentsPanel = section(html, 'id="panel-students"', 'id="panel-');
 assert.ok(studentsPanel.indexOf('id="student-search"') < studentsPanel.indexOf('id="students-table"'));
 assert.match((await readFile(new URL("../web/reminders.js", import.meta.url), "utf8")), /DD\/MM\/YYYY HH:MM|DD\\\/MM/);
-assert.match(sw, /lamin-portal-shell-v\\d+/);
+assert.match(sw, new RegExp("lamin-portal-shell-v[0-9]+"));
 
 console.log("Commercial release static gates passed.");
