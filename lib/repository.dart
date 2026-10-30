@@ -607,57 +607,49 @@ class SchoolRepository {
   Future<List<Map<String, dynamic>>> studentFeeAssessments(
     String studentId,
   ) async {
-    final year = await db
-        .from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    final activeYearId = year?['id']?.toString();
-    final rows = await db
-        .from('student_fee_assessments')
-        .select(
-          'id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at',
-        )
-        .eq('student_id', studentId)
-        .order('created_at');
-    return (rows as List)
-        .map((e) => Map<String, dynamic>.from(e))
-        .where(
-          (e) =>
-              e['academic_year_id'] == null ||
-              (activeYearId != null &&
-                  e['academic_year_id'].toString() == activeYearId),
-        )
-        .toList();
+    final schoolId = await _schoolId();
+    if (schoolId == null) return [];
+    try {
+      final year = await db.from('academic_years').select('id')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      final activeYearId = year?['id']?.toString();
+      final rows = await db.from('student_fee_assessments').select(
+        'id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at',
+      ).eq('student_id', studentId).order('created_at')
+          .timeout(const Duration(seconds: 7));
+      final result = (rows as List).map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['academic_year_id'] == null ||
+              (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+          .toList();
+      await _saveRows(schoolId, 'fees_$studentId', result);
+      return result;
+    } catch (_) {
+      return _cachedRows(schoolId, 'fees_$studentId');
+    }
   }
 
   Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
-    final year = await db
-        .from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    final activeYearId = year?['id']?.toString();
-    final rows = await db
-        .from('payments')
-        .select(
-          'id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id',
-        )
-        .eq('student_id', studentId)
-        .order('payment_date', ascending: false);
-    return (rows as List)
-        .map((e) => Map<String, dynamic>.from(e))
-        .where(
-          (e) =>
-              e['academic_year_id'] == null ||
-              (activeYearId != null &&
-                  e['academic_year_id'].toString() == activeYearId),
-        )
-        .toList();
+    final schoolId = await _schoolId();
+    if (schoolId == null) return [];
+    try {
+      final year = await db.from('academic_years').select('id')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      final activeYearId = year?['id']?.toString();
+      final rows = await db.from('payments').select(
+        'id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id',
+      ).eq('student_id', studentId).order('payment_date', ascending: false)
+          .timeout(const Duration(seconds: 7));
+      final result = (rows as List).map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['academic_year_id'] == null ||
+              (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+          .toList();
+      await _saveRows(schoolId, 'payments_$studentId', result);
+      return result;
+    } catch (_) {
+      return _cachedRows(schoolId, 'payments_$studentId');
+    }
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
