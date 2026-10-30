@@ -420,7 +420,6 @@ const feeForm = $("fee-edit-form");
 $("fees-table").addEventListener("click", event => {
   const button = event.target.closest("[data-fee-edit]");
   if (!button) return;
-  if (state.offline || !navigator.onLine) { showMessage("fee-edit-status", "تعديل الرسوم يتطلب اتصالًا بالإنترنت.", true); return; }
   if (!["admin","owner","accountant"].includes(state.profile?.role)) { showMessage("app-message", "ليست لديك صلاحية تعديل الرسوم.", true); return; }
   const item = state.assessments.find(a => String(a.id) === button.dataset.feeEdit);
   if (!item) return;
@@ -436,13 +435,19 @@ $("fees-table").addEventListener("click", event => {
 $("fee-edit-cancel").addEventListener("click", () => feeForm.classList.add("hidden"));
 feeForm.addEventListener("submit", async event => {
   event.preventDefault();
-  if (state.offline || !navigator.onLine) { showMessage("fee-edit-status", "تعديل الرسوم يتطلب اتصالًا بالإنترنت.", true); return; }
   if (!["admin","owner","accountant"].includes(state.profile?.role)) { showMessage("fee-edit-status", "ليست لديك صلاحية تعديل الرسوم.", true); return; }
   const id = $("fee-edit-id").value;
   const totalFee = Number($("fee-edit-total").value);
   const discount = Number($("fee-edit-discount").value);
   if (!Number.isFinite(totalFee) || !Number.isFinite(discount) || totalFee < 0 || discount < 0 || discount > totalFee) {
     showMessage("fee-edit-status", "تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.", true); return;
+  }
+  if (state.offline || !navigator.onLine) {
+    const payload={total_fee:totalFee,discount,note:$("fee-edit-note").value.trim()};
+    queueOfflineChange({action:"update",table:"assessments",record_id:id,payload});
+    const item=state.assessments.find(a=>String(a.id)===String(id));
+    if(item) Object.assign(item,payload,{_pending:true});
+    feeForm.classList.add("hidden"); showMessage("app-message","حُفظ تعديل الرسوم محلياً وسيُزامن عند عودة الإنترنت."); return;
   }
   const saveButton = feeForm.querySelector('button[type="submit"]');
   saveButton.disabled = true;
@@ -570,7 +575,7 @@ async function syncOfflineQueue() {
     const op=remaining[0]; let result;
     if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
     else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
-    else if(op.action==="update") result=await db.from(op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
+    else if(op.action==="update") result=await db.from(op.table === "assessments" ? "student_fee_assessments" : op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
     else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
     else throw new Error("تعذر تحديد نوع التغيير المحلي.");
     if(result.error) { writeOfflineQueue(remaining); showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true); return; }
