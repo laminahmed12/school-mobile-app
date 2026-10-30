@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'app_error.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'biometric_service.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -26,6 +28,22 @@ const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
 const brandInk = Color(0xFF20312C);
 const brandCanvas = Color(0xFFF3F6F3);
+
+/// Connectivity plugins report a network link, not internet reachability.
+Future<bool> _hasInternetConnection() async {
+  try {
+    final base = supabaseUrl.endsWith('/')
+        ? supabaseUrl.substring(0, supabaseUrl.length - 1)
+        : supabaseUrl;
+    final uri = Uri.parse('$base/auth/v1/health');
+    final response = await http
+        .get(uri, headers: {'apikey': supabasePublishableKey})
+        .timeout(const Duration(seconds: 3));
+    return response.statusCode < 500;
+  } catch (_) {
+    return false;
+  }
+}
 
 String? _schoolTrialStatus(Map<String, dynamic>? school) {
   if (school == null) return null;
@@ -204,6 +222,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool locked = false;
   bool checking = true;
   bool mustChangePassword = false;
+  bool offlineAccess = false;
 
   @override
   void initState() {
@@ -232,25 +251,49 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
-    bool forcePassword = false;
+    final repo = SchoolRepository(widget.prefs);
+    final hasInternet = await _hasInternetConnection();
+    SchoolProfile? cached;
+    bool canOpenOffline = false;
+
     if (session != null) {
-      try {
-        final row = await db
-            .from('profiles')
-            .select('role,must_change_password,active')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-        forcePassword =
-            row?['active'] == true &&
-            row?['role'] != 'owner' &&
-            row?['must_change_password'] == true;
-      } catch (_) {}
+      cached = hasInternet
+          ? await repo.profile().timeout(
+              const Duration(seconds: 7),
+              onTimeout: () => repo.cachedProfile(),
+            )
+          : await repo.cachedProfile();
+    } else {
+      // Wi-Fi/mobile connectivity does not guarantee internet access.
+      final rememberedId = await const FlutterSecureStorage()
+          .read(key: 'lamin.offline.user.id');
+      if (rememberedId != null && rememberedId.isNotEmpty) {
+        cached = await repo.cachedProfile();
+        final cachedSchool = await repo.cachedSchool();
+        final validTrial = schoolTrialEnd(cachedSchool)
+                ?.isAfter(DateTime.now().toUtc()) ??
+            false;
+        final licensed = cachedSchool?['licensed'] == true;
+        canOpenOffline = cached != null &&
+            cached.active &&
+            cached.schoolId != null &&
+            cachedSchool != null &&
+            cachedSchool['active'] != false &&
+            (cached.role == 'owner' || cached.mustChangePassword != true) &&
+            (licensed || validTrial);
+      }
     }
+
+    final activeSession = session != null || canOpenOffline;
+    final forcePassword = cached?.active == true &&
+        cached?.role != 'owner' &&
+        cached?.mustChangePassword == true;
     if (!mounted) return;
     setState(() {
       checking = false;
-      locked = session != null && enabled;
-      mustChangePassword = forcePassword;
+      offlineAccess = canOpenOffline;
+      locked = activeSession && enabled;
+      mustChangePassword = forcePassword && session != null;
     });
   }
 
@@ -262,7 +305,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
+      if (db.auth.currentSession == null && !offlineAccess) return LoginPage(prefs: widget.prefs);
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
@@ -830,6 +873,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
+      await const FlutterSecureStorage().delete(key: 'lamin.offline.user.id');
       await db.auth
           .signOut(scope: SignOutScope.local)
           .timeout(const Duration(seconds: 12));
@@ -859,6 +903,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
+      try {
+        online = await _hasInternetConnection();
+      } catch (_) { online = false; }
+
+      if (!online) {
+        profile = await repo.cachedProfile();
+        schoolInfo = await repo.cachedSchool();
+        students = await repo.students();
+        final role = profile?.role ?? '';
+        if (role == 'supervisor') {
+          teachers = [];
+        } else {
+          teachers = await repo.teachers();
+        }
+        if (role == 'admin' || role == 'owner' || role == 'accountant') {
+          payments = await repo.paymentsTotal();
+          expenses = await repo.expensesTotal();
+        } else {
+          payments = 0;
+          expenses = 0;
+        }
+        if (mounted) setState(() => loading = false);
+        return;
+      }
+
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
       schoolInfo = await repo.school();
@@ -1019,7 +1088,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : pages[tab],
+          : Column(
+              children: [
+                if (!online)
+                  Material(
+                    color: const Color(0xFFFFF0CC),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.cloud_off, color: Color(0xFF795B16), size: 19),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة. لا تُحفظ التعديلات الجديدة حتى عودة الإنترنت.',
+                              style: TextStyle(color: Color(0xFF624A13), fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Expanded(child: pages[tab]),
+              ],
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
         onDestinationSelected: (v) => setState(() => tab = v),

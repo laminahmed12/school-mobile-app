@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'models.dart';
 import 'supabase_config.dart';
 
@@ -7,36 +8,115 @@ class SchoolRepository {
   final SharedPreferences prefs;
   SchoolRepository(this.prefs);
 
+  Future<String?> _userId() async {
+    final currentUserId = db.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) return currentUserId;
+    return const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+  }
+
+  String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
+  String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
+  String _tenantCacheKey(String schoolId, String table) => 'lamin_data_cache_v1_${schoolId}_$table';
+
+  Future<List<Map<String, dynamic>>> _cachedRows(String schoolId, String key) async {
+    final raw = prefs.getString(_tenantCacheKey(schoolId, key));
+    if (raw == null) return [];
+    try {
+      return (jsonDecode(raw) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      await prefs.remove(_tenantCacheKey(schoolId, key));
+      return [];
+    }
+  }
+
+  Future<void> _saveRows(String schoolId, String key, List rows) async {
+    await prefs.setString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
+  }
+
+  Future<String?> _schoolId() async {
+    final userId = await _userId();
+    if (userId == null) return null;
+    return prefs.getString('school_id_cache_$userId') ??
+        (await cachedProfile())?.schoolId;
+  }
+
+  Future<List<Map<String, dynamic>>> _readRows(
+    String key,
+    Future<dynamic> Function() request,
+  ) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return [];
+    try {
+      final result = await request().timeout(const Duration(seconds: 7));
+      final rows = (result as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      await _saveRows(schoolId, key, rows);
+      return rows;
+    } catch (_) {
+      return _cachedRows(schoolId, key);
+    }
+  }
+
+  Future<SchoolProfile?> cachedProfile() async {
+    final userId = await _userId();
+    if (userId == null) return null;
+    final raw = prefs.getString(_profileCacheKey(userId));
+    if (raw == null) return null;
+    try { return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw))); }
+    catch (_) { return null; }
+  }
+
+  Future<Map<String, dynamic>?> cachedSchool() async {
+    final p = await cachedProfile();
+    if (p?.schoolId == null) return null;
+    final raw = prefs.getString(_schoolCacheKey(p!.schoolId!));
+    if (raw == null) return null;
+    try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
+  }
+
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
-    if (u == null) return null;
-    final row = await db
-        .from('profiles')
-        .select()
-        .eq('user_id', u.id)
-        .maybeSingle();
-    if (row == null) return null;
-    final profile = SchoolProfile.fromMap(row);
-    final schoolId = profile.schoolId;
-    if (schoolId != null && schoolId.isNotEmpty) {
-      // Cache tenant scope per authenticated user for offline reads only.
-      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    if (u == null) return cachedProfile();
+    try {
+      final row = await db.from('profiles').select().eq('user_id', u.id)
+          .maybeSingle().timeout(const Duration(seconds: 6));
+      if (row == null) return null;
+      final profile = SchoolProfile.fromMap(row);
+      await prefs.setString(_profileCacheKey(u.id), jsonEncode(Map<String, dynamic>.from(row)));
+      final schoolId = profile.schoolId;
+      if (schoolId != null && schoolId.isNotEmpty) {
+        await prefs.setString('school_id_cache_${u.id}', schoolId);
+      }
+      return profile;
+    } catch (_) {
+      final raw = prefs.getString(_profileCacheKey(u.id));
+      if (raw == null) return null;
+      try {
+        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw)));
+      } catch (_) {
+        return null;
+      }
     }
-    return profile;
   }
 
   Future<Map<String, dynamic>?> school() async {
+    final p = await profile();
+    if (p?.schoolId == null) return null;
+    final id = p!.schoolId!;
     try {
-      final p = await profile();
-      if (p?.schoolId == null) return null;
-      final row = await db
-          .from('schools')
-          .select()
-          .eq('id', p!.schoolId!)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+      final row = await db.from('schools').select().eq('id', id)
+          .maybeSingle().timeout(const Duration(seconds: 6));
+      if (row == null) return null;
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(_schoolCacheKey(id), jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(_schoolCacheKey(id));
+      if (raw == null) return null;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
     }
   }
 
@@ -60,13 +140,13 @@ class SchoolRepository {
   Future<List<Student>> students() async {
     // Never read a shared unscoped cache: devices can be used by multiple
     // school accounts. Offline data is isolated by the authenticated tenant.
-    final user = db.auth.currentUser;
-    if (user == null) return [];
+    final userId = await _userId();
+    if (userId == null) return [];
     String? schoolId;
     try {
       schoolId = (await profile())?.schoolId;
     } catch (_) {
-      schoolId = prefs.getString('school_id_cache_${user.id}');
+      schoolId = prefs.getString('school_id_cache_${userId}');
     }
     if (schoolId == null || schoolId.isEmpty) return [];
     final cacheKey = 'students_cache_${schoolId}';
@@ -106,15 +186,30 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>?> parent(String studentId) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null) return null;
+    final key = _tenantCacheKey(schoolId, 'parent_$studentId');
     try {
       final row = await db
           .from('student_parents')
           .select()
           .eq('student_id', studentId)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      if (row == null) {
+        await prefs.remove(key);
+        return null;
+      }
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(key, jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(key);
+      if (raw == null) return null;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+        await prefs.remove(key);
+        return null;
+      }
     }
   }
 
@@ -134,78 +229,50 @@ class SchoolRepository {
 
   Future<Map<String, dynamic>> dailySummary(DateTime day) async {
     final d = day.toIso8601String().substring(0, 10);
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'daily_summary_$d');
     Map<String, dynamic> result = {};
     try {
-      final r = await db.rpc('school_daily_summary', params: {'p_date': d});
+      final r = await db.rpc('school_daily_summary', params: {'p_date': d})
+          .timeout(const Duration(seconds: 7));
       result = Map<String, dynamic>.from(r as Map);
-    } catch (_) {}
-    try {
-      final start = DateTime(
-        day.year,
-        day.month,
-        day.day,
-      ).toUtc().toIso8601String();
-      final end = DateTime(
-        day.year,
-        day.month,
-        day.day + 1,
-      ).toUtc().toIso8601String();
-      final expenseRows = await db
-          .from('expenses')
-          .select('amount')
-          .gte('created_at', start)
-          .lt('created_at', end);
-      final payrollRows = await db
-          .from('payroll_transactions')
-          .select('amount,transaction_type')
-          .eq('payment_date', d);
-      final expenseTotal = (expenseRows as List).fold<double>(
-        0,
-        (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-      );
+      final start = DateTime(day.year, day.month, day.day).toUtc().toIso8601String();
+      final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
+      final expenseRows = await db.from('expenses').select('amount')
+          .gte('created_at', start).lt('created_at', end)
+          .timeout(const Duration(seconds: 7));
+      final payrollRows = await db.from('payroll_transactions').select('amount,transaction_type')
+          .eq('payment_date', d).timeout(const Duration(seconds: 7));
+      final expenseTotal = (expenseRows as List).fold<double>(0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
       final payrollList = payrollRows as List;
-      final salaryTotal = payrollList
-          .where((row) => row['transaction_type'] == 'salary')
-          .fold<double>(
-            0,
-            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-          );
-      final advanceTotal = payrollList
-          .where((row) => row['transaction_type'] == 'advance')
-          .fold<double>(
-            0,
-            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-          );
+      final salaryTotal = payrollList.where((row) => row['transaction_type'] == 'salary')
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      final advanceTotal = payrollList.where((row) => row['transaction_type'] == 'advance')
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
       result['payroll_salaries'] = salaryTotal;
       result['payroll_advances'] = advanceTotal;
       result['expenses'] = expenseTotal + salaryTotal + advanceTotal;
-    } catch (_) {}
-    return result;
-  }
-
-  Future<List<Map<String, dynamic>>> academicYears() async {
-    try {
-      return (await db
-                  .from('academic_years')
-                  .select()
-                  .order('created_at', ascending: false)
-              as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(result));
+      return result;
     } catch (_) {
-      return [];
+      if (cacheKey == null) return result;
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return result;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+        await prefs.remove(cacheKey);
+        return result;
+      }
     }
   }
 
-  Future<List<Map<String, dynamic>>> classes() async {
-    try {
-      return (await db.from('classes').select().order('name') as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
+  Future<List<Map<String, dynamic>>> academicYears() => _readRows(
+    'academic_years',
+    () => db.from('academic_years').select().order('created_at', ascending: false),
+  );
+
+  Future<List<Map<String, dynamic>>> classes() =>
+      _readRows('classes', () => db.from('classes').select().order('name'));
 
   Future<void> addAcademicYear(String name) async {
     await db.from('academic_years').insert({
@@ -215,6 +282,10 @@ class SchoolRepository {
   }
 
   Future<String?> activeAcademicYearName() async {
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null
+        ? null
+        : _tenantCacheKey(schoolId, 'active_academic_year_name');
     try {
       final row = await db
           .from('academic_years')
@@ -222,10 +293,15 @@ class SchoolRepository {
           .eq('active', true)
           .order('created_at', ascending: false)
           .limit(1)
-          .maybeSingle();
-      return row?['name']?.toString();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      final name = row?['name']?.toString();
+      if (cacheKey != null && name != null) {
+        await prefs.setString(cacheKey, name);
+      }
+      return name;
     } catch (_) {
-      return null;
+      return cacheKey == null ? null : prefs.getString(cacheKey);
     }
   }
 
@@ -290,36 +366,28 @@ class SchoolRepository {
   }
 
   Future<List<Teacher>> teachers() async {
-    final rows = await db.from('teachers').select().order('name');
-    return (rows as List)
-        .map((e) => Teacher.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-  }
-
-  Future<List<SubjectItem>> subjects() async {
+    final userId = await _userId();
+    final schoolId = userId == null ? null : (prefs.getString('school_id_cache_${userId}') ?? (await cachedProfile())?.schoolId);
+    if (schoolId == null || schoolId.isEmpty) return [];
     try {
-      final rows = await db.from('subjects').select().order('name');
-      return (rows as List)
-          .map((e) => SubjectItem.fromMap(Map<String, dynamic>.from(e)))
-          .toList();
+      final rows = await db.from('teachers').select().order('name').timeout(const Duration(seconds: 6));
+      final raw = (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      await _saveRows(schoolId, 'teachers', raw);
+      return raw.map(Teacher.fromMap).toList();
     } catch (_) {
-      return [];
+      return (await _cachedRows(schoolId, 'teachers')).map(Teacher.fromMap).toList();
     }
   }
+
+  Future<List<SubjectItem>> subjects() async =>
+      (await _readRows('subjects', () => db.from('subjects').select().order('name')))
+          .map(SubjectItem.fromMap).toList();
 
   Future<List<AttendanceRecord>> attendance(DateTime day) async {
     final d = day.toIso8601String().substring(0, 10);
-    try {
-      final rows = await db
-          .from('attendance')
-          .select()
-          .eq('attendance_date', d);
-      return (rows as List)
-          .map((e) => AttendanceRecord.fromMap(Map<String, dynamic>.from(e)))
-          .toList();
-    } catch (_) {
-      return [];
-    }
+    return (await _readRows('attendance_$d', () =>
+      db.from('attendance').select().eq('attendance_date', d)))
+        .map(AttendanceRecord.fromMap).toList();
   }
 
   Future<void> saveAttendance({
@@ -336,16 +404,10 @@ class SchoolRepository {
     });
   }
 
-  Future<List<ResultItem>> results(String studentId) async {
-    final rows = await db
-        .from('student_results')
-        .select()
-        .eq('student_id', studentId)
-        .order('created_at', ascending: false);
-    return (rows as List)
-        .map((e) => ResultItem.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-  }
+  Future<List<ResultItem>> results(String studentId) async =>
+      (await _readRows('results_$studentId', () => db.from('student_results')
+        .select().eq('student_id', studentId).order('created_at', ascending: false)))
+        .map(ResultItem.fromMap).toList();
 
   Future<void> addResult({
     required String studentId,
@@ -366,44 +428,63 @@ class SchoolRepository {
   }
 
   Future<int> count(String table) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = _tenantCacheKey(schoolId, 'count_$table');
     try {
-      return (await db.from(table).select('id') as List).length;
+      final value = (await db.from(table).select('id')
+          .timeout(const Duration(seconds: 6)) as List).length;
+      await prefs.setInt(cacheKey, value);
+      return value;
     } catch (_) {
-      return 0;
+      return prefs.getInt(cacheKey) ?? 0;
     }
   }
 
   Future<double> paymentsTotal() async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = 'lamin_payments_total_${schoolId}';
     try {
-      return (await db.from('payments').select('amount') as List).fold<double>(
-        0,
-        (x, e) => x + (e['amount'] as num).toDouble(),
+      final rows = await db.from('payments').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final total = rows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
       );
+      await prefs.setDouble(cacheKey, total);
+      return total;
     } catch (_) {
-      return 0;
+      return prefs.getDouble(cacheKey) ?? 0;
     }
   }
 
   Future<double> expensesTotal() async {
-    double total = 0;
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final cacheKey = 'lamin_expenses_total_${schoolId}';
     try {
-      total += (await db.from('expenses').select('amount') as List)
-          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
-    } catch (_) {}
-    try {
-      total += (await db.from('payroll_transactions').select('amount') as List)
-          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
-    } catch (_) {}
-    return total;
+      final expenseRows = await db.from('expenses').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final payrollRows = await db.from('payroll_transactions').select('amount')
+          .timeout(const Duration(seconds: 6)) as List;
+      final expenseTotal = expenseRows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+      );
+      final payrollTotal = payrollRows.fold<double>(
+        0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+      );
+      final total = expenseTotal + payrollTotal;
+      await prefs.setDouble(cacheKey, total);
+      return total;
+    } catch (_) {
+      return prefs.getDouble(cacheKey) ?? 0;
+    }
   }
 
-  Future<List<Map<String, dynamic>>> staffMembers() async {
-    final rows = await db
-        .from('staff')
-        .select('id,name,role,phone,salary,active,created_at')
-        .order('name');
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
-  }
+  Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
+    'staff',
+    () => db.from('staff').select('id,name,role,phone,salary,active,created_at').order('name'),
+  );
 
   Future<void> addStaffMember({
     required String name,
@@ -439,11 +520,9 @@ class SchoolRepository {
         .from('teachers')
         .update({
           'name': name.trim(),
-          'subject': subject.trim(),
-          'phone': normalizedPhone,
+          'subject': subject.trim(),          'phone': normalizedPhone,
           'salary': salary,
-        })
-        .eq('id', teacherId);
+        })        .eq('id', teacherId);
   }
 
   Future<void> updateStaffMember({
@@ -480,15 +559,12 @@ class SchoolRepository {
     await db.from('staff').update({'salary': salary}).eq('id', staffId);
   }
 
-  Future<List<Map<String, dynamic>>> payrollTransactions() async {
-    final rows = await db
-        .from('payroll_transactions')
-        .select(
-          'id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at',
-        )
-        .order('payment_date', ascending: false);
-    return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
-  }
+  Future<List<Map<String, dynamic>>> payrollTransactions() => _readRows(
+    'payroll_transactions',
+    () => db.from('payroll_transactions')
+      .select('id,payee_type,payee_id,transaction_type,amount,payment_date,note,created_at')
+      .order('payment_date', ascending: false),
+  );
 
   Future<void> addPayrollTransaction({
     required String payeeType,
@@ -555,106 +631,112 @@ class SchoolRepository {
   Future<List<Map<String, dynamic>>> studentFeeAssessments(
     String studentId,
   ) async {
-    final year = await db
-        .from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    final activeYearId = year?['id']?.toString();
-    final rows = await db
-        .from('student_fee_assessments')
-        .select(
-          'id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at',
-        )
-        .eq('student_id', studentId)
-        .order('created_at');
-    return (rows as List)
-        .map((e) => Map<String, dynamic>.from(e))
-        .where(
-          (e) =>
-              e['academic_year_id'] == null ||
-              (activeYearId != null &&
-                  e['academic_year_id'].toString() == activeYearId),
-        )
-        .toList();
+    final schoolId = await _schoolId();
+    if (schoolId == null) return [];
+    try {
+      final year = await db.from('academic_years').select('id')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      final activeYearId = year?['id']?.toString();
+      final rows = await db.from('student_fee_assessments').select(
+        'id,student_id,school_id,academic_year_id,academic_year_label,term,total_fee,discount,due_date,note,created_at',
+      ).eq('student_id', studentId).order('created_at')
+          .timeout(const Duration(seconds: 7));
+      final result = (rows as List).map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['academic_year_id'] == null ||
+              (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+          .toList();
+      await _saveRows(schoolId, 'fees_$studentId', result);
+      return result;
+    } catch (_) {
+      return _cachedRows(schoolId, 'fees_$studentId');
+    }
   }
 
   Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
-    final year = await db
-        .from('academic_years')
-        .select('id')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    final activeYearId = year?['id']?.toString();
-    final rows = await db
-        .from('payments')
-        .select(
-          'id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id',
-        )
-        .eq('student_id', studentId)
-        .order('payment_date', ascending: false);
-    return (rows as List)
-        .map((e) => Map<String, dynamic>.from(e))
-        .where(
-          (e) =>
-              e['academic_year_id'] == null ||
-              (activeYearId != null &&
-                  e['academic_year_id'].toString() == activeYearId),
-        )
-        .toList();
+    final schoolId = await _schoolId();
+    if (schoolId == null) return [];
+    try {
+      final year = await db.from('academic_years').select('id')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      final activeYearId = year?['id']?.toString();
+      final rows = await db.from('payments').select(
+        'id,student_id,amount,note,created_at,payment_date,term,academic_year_id,fee_assessment_id',
+      ).eq('student_id', studentId).order('payment_date', ascending: false)
+          .timeout(const Duration(seconds: 7));
+      final result = (rows as List).map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['academic_year_id'] == null ||
+              (activeYearId != null && e['academic_year_id'].toString() == activeYearId))
+          .toList();
+      await _saveRows(schoolId, 'payments_$studentId', result);
+      return result;
+    } catch (_) {
+      return _cachedRows(schoolId, 'payments_$studentId');
+    }
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
-    final fees = await studentFeeAssessments(studentId);
-    final paymentRows = await studentPayments(studentId);
-    final year = await db
-        .from('academic_years')
-        .select('id,name')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    double totalFee = 0, discount = 0, paid = 0;
-    for (final row in fees) {
-      totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
-      discount += (row['discount'] as num?)?.toDouble() ?? 0;
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'financial_summary_$studentId');
+    try {
+      final fees = await studentFeeAssessments(studentId);
+      final paymentRows = await studentPayments(studentId);
+      final year = await db.from('academic_years').select('id,name')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      double totalFee = 0, discount = 0, paid = 0;
+      for (final row in fees) {
+        totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+        discount += (row['discount'] as num?)?.toDouble() ?? 0;
+      }
+      for (final row in paymentRows) {
+        paid += (row['amount'] as num?)?.toDouble() ?? 0;
+      }
+      double opening = 0;
+      if (year?['id'] != null) {
+        final rows = await db.from('student_opening_balances').select('amount')
+            .eq('student_id', studentId).eq('academic_year_id', year!['id'])
+            .timeout(const Duration(seconds: 6));
+        opening = (rows as List).fold<double>(0,
+            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      }
+      final due = totalFee - discount + opening;
+      final summary = {
+        'academic_year': year?['name']?.toString() ??
+            (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
+        'fees': totalFee, 'discount': discount, 'opening_balance': opening,
+        'paid': paid, 'remaining': due - paid,
+        'assessments': fees, 'payments': paymentRows,
+      };
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(summary));
+      return summary;
+    } catch (_) {
+      if (cacheKey != null) {
+        final raw = prefs.getString(cacheKey);
+        if (raw != null) {
+          try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+            await prefs.remove(cacheKey);
+          }
+        }
+      }
+      final fees = await studentFeeAssessments(studentId);
+      final paymentRows = await studentPayments(studentId);
+      double totalFee = 0, discount = 0, paid = 0;
+      for (final row in fees) {
+        totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+        discount += (row['discount'] as num?)?.toDouble() ?? 0;
+      }
+      for (final row in paymentRows) {
+        paid += (row['amount'] as num?)?.toDouble() ?? 0;
+      }
+      return {
+        'academic_year': fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد',
+        'fees': totalFee, 'discount': discount, 'opening_balance': 0,
+        'paid': paid, 'remaining': totalFee - discount - paid,
+        'assessments': fees, 'payments': paymentRows,
+      };
     }
-    for (final row in paymentRows) {
-      paid += (row['amount'] as num?)?.toDouble() ?? 0;
-    }
-    double opening = 0;
-    if (year?['id'] != null) {
-      try {
-        final rows = await db
-            .from('student_opening_balances')
-            .select('amount')
-            .eq('student_id', studentId)
-            .eq('academic_year_id', year!['id']);
-        opening = (rows as List).fold<double>(
-          0,
-          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-        );
-      } catch (_) {}
-    }
-    final due = totalFee - discount + opening;
-    return {
-      'academic_year':
-          year?['name']?.toString() ??
-          (fees.isNotEmpty
-              ? fees.first['academic_year_label']?.toString()
-              : 'غير محدد'),
-      'fees': totalFee,
-      'discount': discount,
-      'opening_balance': opening,
-      'paid': paid,
-      'remaining': due - paid,
-      'assessments': fees,
-      'payments': paymentRows,
-    };
   }
 
   Future<void> saveStudentFeeAssessment({
@@ -798,17 +880,32 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>?> schoolBranding() async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) return null;
+    final cacheKey = _tenantCacheKey(schoolId, 'school_branding');
     try {
-      final p = await profile();
-      if (p?.schoolId == null) return null;
       final row = await db
           .from('school_branding')
           .select('school_id,logo_data,logo_mime_type,updated_at')
-          .eq('school_id', p!.schoolId!)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+          .eq('school_id', schoolId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      if (row == null) {
+        await prefs.remove(cacheKey);
+        return null;
+      }
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(cacheKey, jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return null;
+      try {
+        return Map<String, dynamic>.from(jsonDecode(raw));
+      } catch (_) {
+        await prefs.remove(cacheKey);
+        return null;
+      }
     }
   }
 
@@ -830,12 +927,17 @@ class SchoolRepository {
     if (mimeType != 'image/png' && mimeType != 'image/jpeg') {
       throw Exception('اختر صورة PNG أو JPG.');
     }
-    await db.from('school_branding').upsert({
+    final payload = {
       'school_id': schoolId,
       'logo_data': logoBase64,
       'logo_mime_type': mimeType,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    };
+    await db.from('school_branding').upsert(payload);
+    await prefs.setString(
+      _tenantCacheKey(schoolId, 'school_branding'),
+      jsonEncode(payload),
+    );
   }
 
   Future<void> removeSchoolLogo() async {
@@ -848,6 +950,7 @@ class SchoolRepository {
       throw Exception('حذف شعار المدرسة متاح لمدير المدرسة فقط.');
     }
     await db.from('school_branding').delete().eq('school_id', schoolId);
+    await prefs.remove(_tenantCacheKey(schoolId, 'school_branding'));
   }
 
   Future<void> deleteSchoolUser(String userId) async {
@@ -919,6 +1022,13 @@ class SchoolRepository {
         .eq('school_id', (await profile())?.schoolId ?? '');
     return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
   }
+
+  Future<List<Map<String, dynamic>>> expenses() => _readRows(
+    'expenses',
+    () => db.from('expenses').select(
+      'id,title,amount,category,note,created_at',
+    ).order('created_at', ascending: false),
+  );
 
   Future<void> addExpense({
     required String title,
