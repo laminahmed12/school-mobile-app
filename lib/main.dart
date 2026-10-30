@@ -203,7 +203,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   final security = DeviceSecurityService();
   bool locked = false;
   bool checking = true;
-  bool mustChangePassword = false;
+  bool mustChangePassword = false;\n  bool offlineAccess = false;
 
   @override
   void initState() {
@@ -232,25 +232,39 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
-    bool forcePassword = false;
+    final repo = SchoolRepository(widget.prefs);
+    var hasNetwork = true;
+    try {
+      hasNetwork = !(await Connectivity().checkConnectivity()).contains(ConnectivityResult.none);
+    } catch (_) { hasNetwork = false; }
+    bool canOpenOffline = false;
+    SchoolProfile? cached;
     if (session != null) {
-      final repo = SchoolRepository(widget.prefs);
-      var hasNetwork = true;
-      try {
-        hasNetwork = !(await Connectivity().checkConnectivity()).contains(ConnectivityResult.none);
-      } catch (_) { hasNetwork = false; }
-      final cached = hasNetwork
+      cached = hasNetwork
           ? await repo.profile().timeout(const Duration(seconds: 7), onTimeout: () => repo.cachedProfile())
           : await repo.cachedProfile();
-      forcePassword = cached?.active == true &&
-          cached?.role != 'owner' &&
-          cached?.mustChangePassword == true;
+    } else if (!hasNetwork) {
+      final rememberedId = await const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+      if (rememberedId != null && rememberedId.isNotEmpty) {
+        cached = await repo.cachedProfile();
+        canOpenOffline = cached != null &&
+            cached!.userId == rememberedId &&
+            cached!.active == true &&
+            (cached!.role == 'owner' || cached!.mustChangePassword != true) &&
+            (cached!.licensed == true ||
+              (schoolTrialEnd(await repo.cachedSchool())?.isAfter(DateTime.now().toUtc()) ?? false));
+      }
     }
+    final activeSession = session != null || canOpenOffline;
+    final forcePassword = cached?.active == true &&
+        cached?.role != 'owner' &&
+        cached?.mustChangePassword == true;
     if (!mounted) return;
     setState(() {
       checking = false;
-      locked = session != null && enabled;
-      mustChangePassword = forcePassword;
+      offlineAccess = canOpenOffline;
+      locked = activeSession && enabled;
+      mustChangePassword = forcePassword && session != null;
     });
   }
 
@@ -262,7 +276,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
+      if (db.auth.currentSession == null && !offlineAccess) return LoginPage(prefs: widget.prefs);
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
