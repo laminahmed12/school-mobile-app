@@ -234,17 +234,17 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     final enabled = await security.enabled;
     bool forcePassword = false;
     if (session != null) {
+      final repo = SchoolRepository(widget.prefs);
+      var hasNetwork = true;
       try {
-        final row = await db
-            .from('profiles')
-            .select('role,must_change_password,active')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-        forcePassword =
-            row?['active'] == true &&
-            row?['role'] != 'owner' &&
-            row?['must_change_password'] == true;
-      } catch (_) {}
+        hasNetwork = !(await Connectivity().checkConnectivity()).contains(ConnectivityResult.none);
+      } catch (_) { hasNetwork = false; }
+      final cached = hasNetwork
+          ? await repo.profile().timeout(const Duration(seconds: 7), onTimeout: () => repo.cachedProfile())
+          : await repo.cachedProfile();
+      forcePassword = cached?.active == true &&
+          cached?.role != 'owner' &&
+          cached?.mustChangePassword == true;
     }
     if (!mounted) return;
     setState(() {
@@ -859,6 +859,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
+      try {
+        final status = await Connectivity().checkConnectivity();
+        online = !status.contains(ConnectivityResult.none);
+      } catch (_) { online = false; }
+
+      if (!online) {
+        profile = await repo.cachedProfile();
+        schoolInfo = await repo.cachedSchool();
+        students = await repo.students();
+        final role = profile?.role ?? '';
+        if (role == 'supervisor') {
+          teachers = [];
+        } else {
+          teachers = await repo.teachers();
+        }
+        if (role == 'admin' || role == 'owner' || role == 'accountant') {
+          payments = await repo.paymentsTotal();
+          expenses = await repo.expensesTotal();
+        } else {
+          payments = 0;
+          expenses = 0;
+        }
+        if (mounted) setState(() => loading = false);
+        return;
+      }
+
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
       schoolInfo = await repo.school();
