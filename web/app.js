@@ -107,7 +107,7 @@ function showRecordForm(form, title, record = null) {
     $("student-id").value = record?.id || "";
     $("student-name").value = record?.name || "";
     $("student-class").value = record?.class_name || "";
-    $("student-phone").value = record?.phone || "";
+    $("student-phone").value = record?.phone || ""; $("student-term-fee").value = "0";
     $("student-form-title").textContent = record ? "تعديل بيانات الطالب" : "إضافة طالب";
   } else if (form.id === "teacher-form") {
     $("teacher-id").value = record?.id || "";
@@ -503,17 +503,18 @@ $("student-form").addEventListener("submit", async event => {
   event.preventDefault(); if(!canManageSchool()) return;
   const id=$("student-id").value;
   const payload={name:$("student-name").value.trim(),class_name:$("student-class").value.trim(),phone:$("student-phone").value.trim()};
-  if(!payload.name) { showMessage("student-status","اسم الطالب مطلوب.",true); return; }
+  const termFee=Number($("student-term-fee").value || 0);
+  if(!payload.name || !Number.isFinite(termFee) || termFee<0) { showMessage("student-status","تحقق من اسم الطالب ورسوم الفصل.",true); return; }
   try {
     if(state.offline || !navigator.onLine) {
       if(id) { queueOfflineChange({action:"update",table:"students",record_id:id,payload}); const row=state.students.find(x=>String(x.id)===id); if(row) Object.assign(row,payload,{_pending:true}); }
-      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"insert",table:"students",local_id:localId,payload:{...payload,school_id:state.school.id,active:true}}); state.students.unshift(full); }
+      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"rpc_student",table:"students",local_id:localId,params:{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone,p_term_fee:termFee,p_term:"الفصل الأول"}}); state.students.unshift(full); }
       renderManagedTables(); $("student-form").classList.add("hidden"); showMessage("app-message","حُفظ الطالب محلياً. ستتم مزامنة التغيير عند عودة الإنترنت."); return;
     }
     const result=id
       ? await db.from("students").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle()
-      : await db.from("students").insert({...payload,school_id:state.school.id,active:true}).select("id").single();
-    if(result.error) throw result.error; if(!result.data?.id) throw new Error("لم تؤكد قاعدة البيانات حفظ الطالب.");
+      : await db.rpc("create_student_with_fee",{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone,p_term_fee:termFee,p_term:"الفصل الأول"});
+    if(result.error) throw result.error; if(id && !result.data?.id) throw new Error("لم تؤكد قاعدة البيانات تحديث الطالب."); if(!id && !result.data) throw new Error("لم يؤكد الخادم إنشاء الطالب والرسوم.");
     $("student-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message",id?"تم تحديث بيانات الطالب.":"تمت إضافة الطالب.");
   } catch(error) { showMessage("student-status",error.message || "تعذر حفظ الطالب.",true); }
 });
@@ -568,6 +569,7 @@ async function syncOfflineQueue() {
   while(remaining.length) {
     const op=remaining[0]; let result;
     if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
+    else if(op.action==="rpc_student") result=await db.rpc("create_student_with_fee",op.params);
     else if(op.action==="update") result=await db.from(op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
     else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
     else throw new Error("تعذر تحديد نوع التغيير المحلي.");
