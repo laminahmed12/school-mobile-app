@@ -99,6 +99,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031100000_harden_user_admin_rpc_search_path.sql
       - name: Verify privileged user-management RPC hardening
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_user_admin_rpc_hardening.sql
+      - name: Correct payment academic-year attribution
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_fix_payment_selected_academic_year.sql
+      - name: Verify historical fee payment year and idempotency
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_selected_year.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
