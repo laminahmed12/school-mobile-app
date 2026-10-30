@@ -234,7 +234,7 @@ async function sumColumn(table, column, filter = null) {
   let offset = 0;
   let total = 0;
   while (true) {
-    let query = db.from(table).select(column).range(offset, offset + pageSize - 1);
+    let query = db.from(table).select(column).order("id",{ascending:true}).range(offset, offset + pageSize - 1);
     if (filter) query = filter(query);
     const { data, error } = await query;
     if (error) throw error;
@@ -250,6 +250,7 @@ async function fetchAllRows(table,columns,orderBy=null,ascending=true,pageSize=5
   while(true){
     let query=db.from(table).select(columns).range(offset,offset+pageSize-1);
     if(orderBy)query=query.order(orderBy,{ascending});
+    query=query.order("id",{ascending:true});
     const {data,error}=await query;
     if(error)return {data:null,error};
     const page=safeRows(data);rows.push(...page);
