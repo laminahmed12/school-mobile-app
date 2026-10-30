@@ -321,10 +321,17 @@ class SchoolRepository {
   }
 
   Future<List<Teacher>> teachers() async {
-    final rows = await db.from('teachers').select().order('name');
-    return (rows as List)
-        .map((e) => Teacher.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
+    final user = db.auth.currentUser;
+    final schoolId = user == null ? null : (prefs.getString('school_id_cache_${user.id}') ?? (await profile())?.schoolId);
+    if (schoolId == null || schoolId.isEmpty) return [];
+    try {
+      final rows = await db.from('teachers').select().order('name').timeout(const Duration(seconds: 6));
+      final raw = (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      await _saveRows(schoolId, 'teachers', raw);
+      return raw.map(Teacher.fromMap).toList();
+    } catch (_) {
+      return (await _cachedRows(schoolId, 'teachers')).map(Teacher.fromMap).toList();
+    }
   }
 
   Future<List<SubjectItem>> subjects() async {
@@ -405,27 +412,35 @@ class SchoolRepository {
   }
 
   Future<double> paymentsTotal() async {
+    final user = db.auth.currentUser;
+    final schoolId = user == null ? null : prefs.getString('school_id_cache_${user.id}');
     try {
-      return (await db.from('payments').select('amount') as List).fold<double>(
-        0,
-        (x, e) => x + (e['amount'] as num).toDouble(),
-      );
+      final rows = await db.from('payments').select('amount').timeout(const Duration(seconds: 6)) as List;
+      final total = rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
+      if (schoolId != null) await prefs.setDouble('lamin_payments_total_${schoolId}', total);
+      return total;
     } catch (_) {
-      return 0;
+      return schoolId == null ? 0 : (prefs.getDouble('lamin_payments_total_${schoolId}') ?? 0);
     }
   }
 
   Future<double> expensesTotal() async {
+    final user = db.auth.currentUser;
+    final schoolId = user == null ? null : prefs.getString('school_id_cache_${user.id}');
     double total = 0;
+    bool loaded = false;
     try {
-      total += (await db.from('expenses').select('amount') as List)
-          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
+      final rows = await db.from('expenses').select('amount').timeout(const Duration(seconds: 6)) as List;
+      total += rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
+      loaded = true;
     } catch (_) {}
     try {
-      total += (await db.from('payroll_transactions').select('amount') as List)
-          .fold<double>(0, (x, e) => x + (e['amount'] as num).toDouble());
+      final rows = await db.from('payroll_transactions').select('amount').timeout(const Duration(seconds: 6)) as List;
+      total += rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
+      loaded = true;
     } catch (_) {}
-    return total;
+    if (loaded && schoolId != null) await prefs.setDouble('lamin_expenses_total_${schoolId}', total);
+    return loaded ? total : (schoolId == null ? 0 : (prefs.getDouble('lamin_expenses_total_${schoolId}') ?? 0));
   }
 
   Future<List<Map<String, dynamic>>> staffMembers() async {
