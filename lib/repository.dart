@@ -282,6 +282,10 @@ class SchoolRepository {
   }
 
   Future<String?> activeAcademicYearName() async {
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null
+        ? null
+        : _tenantCacheKey(schoolId, 'active_academic_year_name');
     try {
       final row = await db
           .from('academic_years')
@@ -289,10 +293,15 @@ class SchoolRepository {
           .eq('active', true)
           .order('created_at', ascending: false)
           .limit(1)
-          .maybeSingle();
-      return row?['name']?.toString();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      final name = row?['name']?.toString();
+      if (cacheKey != null && name != null) {
+        await prefs.setString(cacheKey, name);
+      }
+      return name;
     } catch (_) {
-      return null;
+      return cacheKey == null ? null : prefs.getString(cacheKey);
     }
   }
 
@@ -1013,6 +1022,13 @@ class SchoolRepository {
         .eq('school_id', (await profile())?.schoolId ?? '');
     return (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
   }
+
+  Future<List<Map<String, dynamic>>> expenses() => _readRows(
+    'expenses',
+    () => db.from('expenses').select(
+      'id,title,amount,category,note,created_at',
+    ).order('created_at', ascending: false),
+  );
 
   Future<void> addExpense({
     required String title,
