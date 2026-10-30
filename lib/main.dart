@@ -903,11 +903,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
-      try {
-        online = await _hasInternetConnection();
-      } catch (_) { online = false; }
-
-      if (!online) {
+      try { online = await _hasInternetConnection(); } catch (_) { online = false; }
+      if (online && db.auth.currentSession != null) {
+        try { final synced=await repo.syncPendingOfflineChanges(); if(synced>0)debugPrint('Lamīn synced $synced offline operations.'); }
+        catch(error){debugPrint('Pending offline sync will retry: $error');}
+      }
+      if (!online || db.auth.currentSession == null) {
+        online = false;
         profile = await repo.cachedProfile();
         schoolInfo = await repo.cachedSchool();
         students = await repo.students();
@@ -1384,14 +1386,12 @@ class _StudentsViewState extends State<StudentsView> {
         className.text.trim().isEmpty)
       return;
     try {
-      await db
-          .from('students')
-          .update({
-            'name': name.text.trim(),
-            'class_name': className.text.trim(),
-            'phone': phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
-          })
-          .eq('id', student.id);
+      await widget.repo.updateStudent(
+        studentId: student.id,
+        name: name.text,
+        className: className.text,
+        phone: phone.text,
+      );
       await widget.onChanged();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
