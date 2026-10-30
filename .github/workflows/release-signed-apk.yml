@@ -6,7 +6,7 @@ on:
       source_ref:
         description: "Source version to sign"
         required: true
-        default: "backup/lamin-reference-before-icon-change-20261029"
+        default: "feature/lamin-desktop-portal-2026-10-29"
         type: string
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || 'backup/lamin-reference-before-icon-change-20261029' }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || 'feature/lamin-desktop-portal-2026-10-29' }}
 
       - uses: actions/setup-java@v4
         with:
@@ -165,13 +165,13 @@ jobs:
 
       - name: Validate Google Drive OAuth configuration
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
         run: |
           test -n "$GOOGLE_SERVER_CLIENT_ID" || { echo "::error::Missing repository variable GOOGLE_SERVER_CLIENT_ID. Set it to the Web application OAuth client ID; otherwise Google Drive backup cannot work."; exit 1; }
 
       - name: Build signed release APK
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
 
       - name: Verify APK signature and certificate
