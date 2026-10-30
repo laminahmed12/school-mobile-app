@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';\nimport 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'models.dart';
 import 'supabase_config.dart';
 
 class SchoolRepository {
   final SharedPreferences prefs;
-  SchoolRepository(this.prefs);
+  SchoolRepository(this.prefs);\n\n  Future<String?> _userId() async =>\n      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
 
   String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
   String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
@@ -114,7 +114,7 @@ class SchoolRepository {
     try {
       schoolId = (await profile())?.schoolId;
     } catch (_) {
-      schoolId = prefs.getString('school_id_cache_${user.id}');
+      schoolId = prefs.getString('school_id_cache_${userId}');
     }
     if (schoolId == null || schoolId.isEmpty) return [];
     final cacheKey = 'students_cache_${schoolId}';
