@@ -10,22 +10,22 @@ VALUES ('40000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-00000000
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 DO $$
-DECLARE payment_id uuid; retry_id uuid; year_id uuid; allocation numeric;
+DECLARE v_payment_id uuid; v_retry_id uuid; v_year_id uuid; v_allocation numeric;
 BEGIN
- payment_id:=public.record_student_payment(
+ v_payment_id:=public.record_student_payment(
    '20000000-0000-4000-8000-000000000001',25,'historical year acceptance','Term 1',
    '40000000-0000-4000-8000-000000000003','historical-year-payment-ci-20261031');
- retry_id:=public.record_student_payment(
+ v_retry_id:=public.record_student_payment(
    '20000000-0000-4000-8000-000000000001',25,'historical year acceptance','Term 1',
    '40000000-0000-4000-8000-000000000003','historical-year-payment-ci-20261031');
- IF payment_id IS DISTINCT FROM retry_id THEN RAISE EXCEPTION 'payment retry did not return the original receipt'; END IF;
- SELECT academic_year_id INTO year_id FROM public.payments WHERE id=payment_id;
- IF year_id IS DISTINCT FROM '30000000-0000-4000-8000-000000000003'::uuid THEN
+ IF v_payment_id IS DISTINCT FROM v_retry_id THEN RAISE EXCEPTION 'payment retry did not return the original receipt'; END IF;
+ SELECT academic_year_id INTO v_year_id FROM public.payments WHERE id=v_payment_id;
+ IF v_year_id IS DISTINCT FROM '30000000-0000-4000-8000-000000000003'::uuid THEN
    RAISE EXCEPTION 'historical payment assigned to wrong academic year: %',year_id;
  END IF;
- SELECT coalesce(sum(amount),0) INTO allocation FROM public.payment_allocations
- WHERE payment_id=payment_id AND fee_assessment_id='40000000-0000-4000-8000-000000000003' AND reversed_at IS NULL;
- IF allocation<>25 THEN RAISE EXCEPTION 'expected 25 allocated to historical assessment, got %',allocation; END IF;
+ SELECT coalesce(sum(pa.amount),0) INTO v_allocation FROM public.payment_allocations pa
+ WHERE pa.payment_id=v_payment_id AND fee_assessment_id='40000000-0000-4000-8000-000000000003' AND reversed_at IS NULL;
+ IF v_allocation<>25 THEN RAISE EXCEPTION 'expected 25 allocated to historical assessment, got %',v_allocation; END IF;
 END
 $$;
 ROLLBACK;
