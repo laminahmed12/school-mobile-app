@@ -37,6 +37,12 @@ assert.match(app, /!state\.payments\.some\(p=>p\.id===op\.local_id\)/);
 // Mobile and portal payments must use the ledger RPC; direct table inserts bypass allocations.
 assert.match(mobileRepository, /db\.rpc\(\x27record_student_payment\x27/);
 assert.doesNotMatch(mobileRepository, /from\(\x27payments\x27\)\.insert/);
+assert.doesNotMatch(mobileRepository, /from\(\x27payments\x27\)\s*\.update/);
+assert.doesNotMatch(mobileRepository, /from\(\x27payments\x27\)\s*\.delete/);
+const mobileUi = await readFile(new URL("../lib/main.dart", import.meta.url), "utf8");
+assert.doesNotMatch(mobileUi, /Future<void> editPayment\(/);
+assert.doesNotMatch(mobileUi, /Future<void> deletePayment\(/);
+assert.doesNotMatch(mobileUi, /value: \x27edit\x27,\s*child: Text\(\x27تعديل الدفعة\x27\)/);
 assert.match(mobileRepository, /p_idempotency_key/);
 assert.match(mobileRepository, /Future<double> _sumColumnPaged/);
 assert.match(mobileRepository, /Future<int> _countRowsPaged/);
