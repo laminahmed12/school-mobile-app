@@ -269,6 +269,12 @@ async function refreshDashboard() {
     showMessage("app-message", "تعذر تحميل بعض البيانات. تحقق من صلاحيات قاعدة البيانات؛ لم تُغيّر أي بيانات.", true);
   }
 }
+function renderFeeSearchResults(){
+  const name=($("fee-search-name")?.value||"").trim().toLocaleLowerCase("ar"), cls=($("fee-search-class")?.value||"").trim().toLocaleLowerCase("ar"), year=$("fee-search-year")?.value||"", term=$("fee-search-term")?.value||"";
+  const rows=state.assessments.filter(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));return (!name||String(student?.name||"").toLocaleLowerCase("ar").includes(name))&&(!cls||String(student?.class_name||"").toLocaleLowerCase("ar").includes(cls))&&(!year||String(a.academic_year_id||a.academic_year_label||"")===year)&&(!term||String(a.term||"")===term);});
+  const paid=new Map();for(const p of state.payments||[])if(p.fee_assessment_id)paid.set(p.fee_assessment_id,(paid.get(p.fee_assessment_id)||0)+Number(p.amount||0));
+  $("fees-table").innerHTML=rows.map(a=>{const student=state.students.find(s=>String(s.id)===String(a.student_id));const fee=Number(a.total_fee||0),discount=Number(a.discount||0),amount=paid.get(a.id)||0,balance=Math.max(0,fee-discount-amount);return `<tr><td>${escapeHtml(student?.name||"طالب")}</td><td>${escapeHtml(a.academic_year_label||"—")}</td><td>${escapeHtml(a.term||"—")}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(amount))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role)?`<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button>`:""}</tr>`;}).join("")||'<tr><td colspan="8">لا توجد نتائج مطابقة لمعايير البحث.</td></tr>';
+}
 async function createBackup() {
   const button = $("create-backup"); button.disabled = true; showMessage("backup-status", "جارٍ إنشاء النسخة والتحقق منها…");
   try {
