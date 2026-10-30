@@ -436,7 +436,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {
       checking = false;
-      locked = session != null && enabled;
+      locked = enabled && (session != null || canOpenOffline);
       mustChangePassword = forcePassword;
       offlineAvailable = canOpenOffline;
     });
