@@ -137,6 +137,7 @@ function restoreOfflinePortal() {
     for (const [id,value] of Object.entries(metrics)) if ($(id)) $(id).textContent = value;
     const studentNames = new Map(state.students.map(s => [s.id,s.name]));
     renderManagedTables();
+    populateFeeSearchOptions(); renderFeeSearchResults();
     $("attendance-table").innerHTML = state.attendance.map(a => `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(formatDate(a.attendance_date))}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
     $("results-table").innerHTML = state.results.map(r => `<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج محفوظة.</td></tr>';
     const paidByAssessment = new Map();
@@ -265,6 +266,7 @@ async function refreshDashboard() {
     $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
     $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(formatDateTime(a.created_at))}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td class="audit-details">${readableDetails(a.details)}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
     renderManagedTables();
+    populateFeeSearchOptions(); renderFeeSearchResults();
     setOfflineMode(false);
     saveOfflineSnapshot();
     showMessage("app-message", "تم تحديث البيانات المتاحة. قد تكون بعض الأقسام فارغة إذا كانت صلاحيات قاعدة البيانات تمنع قراءتها.");
@@ -272,6 +274,11 @@ async function refreshDashboard() {
     console.error("Lamin dashboard read failed", error);
     showMessage("app-message", "تعذر تحميل بعض البيانات. تحقق من صلاحيات قاعدة البيانات؛ لم تُغيّر أي بيانات.", true);
   }
+}
+function populateFeeSearchOptions(){
+  const yearSelect=$("fee-search-year"), termSelect=$("fee-search-term");
+  if(yearSelect){const selected=yearSelect.value;const years=[...new Map(state.assessments.map(a=>[String(a.academic_year_id||a.academic_year_label||""),a.academic_year_label||"سنة غير محددة"])).entries()];yearSelect.innerHTML='<option value="">كل السنوات</option>'+years.map(([value,label])=>'<option value="'+escapeHtml(value)+'">'+escapeHtml(label)+'</option>').join("");yearSelect.value=selected;}
+  if(termSelect){const selected=termSelect.value;const terms=[...new Set(state.assessments.map(a=>a.term).filter(Boolean))];termSelect.innerHTML='<option value="">كل الفصول</option>'+terms.map(value=>'<option value="'+escapeHtml(value)+'">'+escapeHtml(value)+'</option>').join("");termSelect.value=selected;}
 }
 function renderFeeSearchResults(){
   const name=($("fee-search-name")?.value||"").trim().toLocaleLowerCase("ar"), cls=($("fee-search-class")?.value||"").trim().toLocaleLowerCase("ar"), year=$("fee-search-year")?.value||"", term=$("fee-search-term")?.value||"";
