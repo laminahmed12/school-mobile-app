@@ -504,9 +504,7 @@ class OfflineHomePage extends StatelessWidget {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('لا يزال الاتصال بالخادم غير متاح.'),
-            ),
+            const SnackBar(content: Text('لا يزال الاتصال بالخادم غير متاح.')),
           );
         }
         return;
