@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 const app = await readFile(new URL("../web/app.js", import.meta.url), "utf8");
 const html = await readFile(new URL("../web/index.html", import.meta.url), "utf8");
 const sw = await readFile(new URL("../web/sw.js", import.meta.url), "utf8");
+const mobileRepository = await readFile(new URL("../lib/repository.dart", import.meta.url), "utf8");
 
 function section(source, start, end) {
   const a = source.indexOf(start);
@@ -32,6 +33,11 @@ assert.match(app, /if\(result\.error\).*?writeOfflineQueue\(remaining\)/s);
 assert.match(app, /if \(op\.action === "rpc_payment"\)/);
 assert.match(app, /allowedActions=new Set\(\["insert","update","archive","rpc_student","rpc_payment","upsert"\]\)/);
 assert.match(app, /!state\.payments\.some\(p=>p\.id===op\.local_id\)/);
+
+// Mobile and portal payments must use the ledger RPC; direct table inserts bypass allocations.
+assert.match(mobileRepository, /db\.rpc\(\x27record_student_payment\x27/);
+assert.doesNotMatch(mobileRepository, /from\(\x27payments\x27\)\.insert/);
+assert.match(mobileRepository, /p_idempotency_key/);
 
 // Offline login stores a PBKDF2 verifier, not the raw password.
 assert.match(app, /PBKDF2/);
