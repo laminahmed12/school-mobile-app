@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'app_error.dart';
