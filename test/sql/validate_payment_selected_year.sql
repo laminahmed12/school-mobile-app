@@ -21,7 +21,7 @@ BEGIN
  IF v_payment_id IS DISTINCT FROM v_retry_id THEN RAISE EXCEPTION 'payment retry did not return the original receipt'; END IF;
  SELECT academic_year_id INTO v_year_id FROM public.payments WHERE id=v_payment_id;
  IF v_year_id IS DISTINCT FROM '30000000-0000-4000-8000-000000000003'::uuid THEN
-   RAISE EXCEPTION 'historical payment assigned to wrong academic year: %',year_id;
+   RAISE EXCEPTION 'historical payment assigned to wrong academic year: %',v_year_id;
  END IF;
  SELECT coalesce(sum(pa.amount),0) INTO v_allocation FROM public.payment_allocations pa
  WHERE pa.payment_id=v_payment_id AND fee_assessment_id='40000000-0000-4000-8000-000000000003' AND reversed_at IS NULL;
