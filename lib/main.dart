@@ -968,8 +968,7 @@ class _LoginPageState extends State<LoginPage> {
                   value: rememberMe,
                   onChanged: loading
                       ? null
-                      : (value) =>
-                          setState(() => rememberMe = value ?? false),
+                      : (value) => setState(() => rememberMe = value ?? false),
                 ),
                 const SizedBox(height: 4),
                 TextField(
@@ -1975,212 +1974,233 @@ class FinanceView extends StatelessWidget {
               student.phone.toLowerCase().contains(normalizedQuery);
         }).toList();
         return Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
           children: [
-            Expanded(
-              child: Card(
-                child: ListTile(
-                  title: const Text('الداخل'),
-                  trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Card(
-                child: ListTile(
-                  title: const Text('المصروف'),
-                  trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      if (canManageFees)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ManagerRequestsView(repo: repo),
-                ),
-              ),
-              icon: const Icon(Icons.assignment_outlined),
-              label: const Text(
-                'متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل',
-              ),
-            ),
-          ),
-        ),
-      if (canManageFees)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      FeeManagementView(repo: repo, students: students),
-                ),
-              ),
-              icon: const Icon(Icons.price_change_outlined),
-              label: const Text('إدارة الرسوم الدراسية حسب الفصل'),
-            ),
-          ),
-        ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        child: TextField(
-          onChanged: (value) =>
-              setLocalState(() => query = value),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            hintText: 'ابحث باسم الطالب أو الصف أو الهاتف',
-          ),
-        ),
-      ),
-      Expanded(
-        child: students.isEmpty
-            ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
-            : filteredStudents.isEmpty
-            ? const Center(child: Text('لا توجد نتائج مطابقة للبحث.'))
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                itemCount: filteredStudents.length,
-                itemBuilder: (_, i) {
-                  final s = filteredStudents[i];
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FutureBuilder<Map<String, dynamic>>(
-                            future: repo.studentFinancialSummary(s.id),
-                            builder: (context, snapshot) {
-                              final summary = snapshot.data;
-                              final fees =
-                                  (summary?['fees'] as num?)?.toDouble() ?? 0;
-                              final discount =
-                                  (summary?['discount'] as num?)?.toDouble() ??
-                                  0;
-                              final paid =
-                                  (summary?['paid'] as num?)?.toDouble() ?? 0;
-                              final remaining =
-                                  (summary?['remaining'] as num?)?.toDouble() ??
-                                  0;
-                              final hasCredit = remaining < -0.009;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const CircleAvatar(
-                                      child: Icon(Icons.school_outlined),
-                                    ),
-                                    title: Text(
-                                      'طالب ${students.indexOf(s) + 1}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      '${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}',
-                                    ),
-                                    trailing: canManageFees
-                                        ? IconButton(
-                                            tooltip: 'تعديل رسوم هذا الطالب',
-                                            icon: const Icon(
-                                              Icons.edit_note_outlined,
-                                            ),
-                                            onPressed: () => Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    FeeManagementView(
-                                                      repo: repo,
-                                                      students: students,
-                                                      initialStudentId: s.id,
-                                                    ),
-                                              ),
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting)
-                                    const LinearProgressIndicator(minHeight: 2)
-                                  else if (snapshot.hasError)
-                                    const Text(
-                                      'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
-                                      style: TextStyle(color: Colors.red),
-                                    )
-                                  else
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _moneyChip('الرسوم', fees),
-                                        _moneyChip('الخصم', discount),
-                                        _moneyChip('المدفوع', paid),
-                                        _moneyChip(
-                                          hasCredit ? 'رصيد دائن' : 'المتبقي',
-                                          hasCredit ? -remaining : remaining,
-                                          emphasis:
-                                              !hasCredit && remaining > 0.009,
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.tonalIcon(
-                                  onPressed: () => payment(context, s),
-                                  icon: const Icon(Icons.payments_outlined),
-                                  label: const Text('تسجيل دفعة'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => StudentAccountView(
-                                        repo: repo,
-                                        student: s,
-                                        canManageFees: canManageFees,
-                                      ),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.receipt_long_outlined),
-                                  label: const Text('كشف الحساب'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: ListTile(
+                        title: const Text('الداخل'),
+                        trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
                       ),
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Card(
+                      child: ListTile(
+                        title: const Text('المصروف'),
+                        trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-      ),
-    ],
+            ),
+            if (canManageFees)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ManagerRequestsView(repo: repo),
+                      ),
+                    ),
+                    icon: const Icon(Icons.assignment_outlined),
+                    label: const Text(
+                      'متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل',
+                    ),
+                  ),
+                ),
+              ),
+            if (canManageFees)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            FeeManagementView(repo: repo, students: students),
+                      ),
+                    ),
+                    icon: const Icon(Icons.price_change_outlined),
+                    label: const Text('إدارة الرسوم الدراسية حسب الفصل'),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: TextField(
+                onChanged: (value) => setLocalState(() => query = value),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'ابحث باسم الطالب أو الصف أو الهاتف',
+                ),
+              ),
+            ),
+            Expanded(
+              child: students.isEmpty
+                  ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
+                  : filteredStudents.isEmpty
+                  ? const Center(child: Text('لا توجد نتائج مطابقة للبحث.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                      itemCount: filteredStudents.length,
+                      itemBuilder: (_, i) {
+                        final s = filteredStudents[i];
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                FutureBuilder<Map<String, dynamic>>(
+                                  future: repo.studentFinancialSummary(s.id),
+                                  builder: (context, snapshot) {
+                                    final summary = snapshot.data;
+                                    final fees =
+                                        (summary?['fees'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final discount =
+                                        (summary?['discount'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final paid =
+                                        (summary?['paid'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final remaining =
+                                        (summary?['remaining'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final hasCredit = remaining < -0.009;
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const CircleAvatar(
+                                            child: Icon(Icons.school_outlined),
+                                          ),
+                                          title: Text(
+                                            'طالب ${students.indexOf(s) + 1}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            '${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}',
+                                          ),
+                                          trailing: canManageFees
+                                              ? IconButton(
+                                                  tooltip:
+                                                      'تعديل رسوم هذا الطالب',
+                                                  icon: const Icon(
+                                                    Icons.edit_note_outlined,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              FeeManagementView(
+                                                                repo: repo,
+                                                                students:
+                                                                    students,
+                                                                initialStudentId:
+                                                                    s.id,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                )
+                                              : null,
+                                        ),
+                                        if (snapshot.connectionState ==
+                                            ConnectionState.waiting)
+                                          const LinearProgressIndicator(
+                                            minHeight: 2,
+                                          )
+                                        else if (snapshot.hasError)
+                                          const Text(
+                                            'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
+                                            style: TextStyle(color: Colors.red),
+                                          )
+                                        else
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              _moneyChip('الرسوم', fees),
+                                              _moneyChip('الخصم', discount),
+                                              _moneyChip('المدفوع', paid),
+                                              _moneyChip(
+                                                hasCredit
+                                                    ? 'رصيد دائن'
+                                                    : 'المتبقي',
+                                                hasCredit
+                                                    ? -remaining
+                                                    : remaining,
+                                                emphasis:
+                                                    !hasCredit &&
+                                                    remaining > 0.009,
+                                              ),
+                                            ],
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: () => payment(context, s),
+                                        icon: const Icon(
+                                          Icons.payments_outlined,
+                                        ),
+                                        label: const Text('تسجيل دفعة'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => StudentAccountView(
+                                              repo: repo,
+                                              student: s,
+                                              canManageFees: canManageFees,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.receipt_long_outlined,
+                                        ),
+                                        label: const Text('كشف الحساب'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
     );
