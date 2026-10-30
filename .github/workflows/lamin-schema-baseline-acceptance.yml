@@ -107,6 +107,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_lock_payments_to_ledger_rpc.sql
       - name: Verify payment ledger write guard
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_write_guard.sql
+      - name: Consolidate RLS policies and add foreign-key indexes
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_consolidate_rls_policies_and_fk_indexes.sql
+      - name: Verify RLS policy matrix and supporting indexes
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_rls_policy_consolidation.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
