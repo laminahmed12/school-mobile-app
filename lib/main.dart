@@ -2314,21 +2314,13 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                             '${p['payment_date'] ?? p['created_at']?.toString().split('T').first ?? ''} • ${p['term'] ?? 'غير محدد'}${(p['note']?.toString().isNotEmpty ?? false) ? ' • ${p['note']}' : ''}',
                           ),
                           trailing: widget.canManageFees
-                              ? PopupMenuButton<String>(
-                                  onSelected: (action) {
-                                    if (action == 'edit') editPayment(p);
-                                    if (action == 'delete') deletePayment(p);
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('تعديل الدفعة'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('حذف الدفعة'),
-                                    ),
-                                  ],
+                              ? const Tooltip(
+                                  message:
+                                      'سجل مالي ثابت؛ لا يُعدّل أو يُحذف مباشرة.',
+                                  child: Icon(
+                                    Icons.verified_outlined,
+                                    color: Colors.green,
+                                  ),
                                 )
                               : null,
                         ),
@@ -2338,135 +2330,6 @@ class _StudentAccountViewState extends State<StudentAccountView> {
               ),
             ),
     );
-  }
-
-  Future<void> editPayment(Map<String, dynamic> payment) async {
-    final amount = TextEditingController(
-      text: payment['amount']?.toString() ?? '',
-    );
-    final note = TextEditingController(text: payment['note']?.toString() ?? '');
-    final date = TextEditingController(
-      text: payment['payment_date']?.toString() ?? '',
-    );
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تعديل عملية مالية'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'المبلغ (د.ل)'),
-              ),
-              TextField(
-                controller: date,
-                decoration: const InputDecoration(
-                  labelText: 'تاريخ الدفع YYYY-MM-DD',
-                ),
-              ),
-              TextField(
-                controller: note,
-                decoration: const InputDecoration(
-                  labelText: 'ملاحظة / رقم إيصال',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
-    );
-    final value = double.tryParse(amount.text.replaceAll(',', '.'));
-    if (ok != true ||
-        value == null ||
-        value <= 0 ||
-        DateTime.tryParse(date.text.trim()) == null)
-      return;
-    try {
-      await db
-          .from('payments')
-          .update({
-            'amount': value,
-            'payment_date': date.text.trim(),
-            'note': note.text.trim(),
-          })
-          .eq('id', payment['id'])
-          .eq('student_id', widget.student.id);
-      await load();
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تعديل الدفعة وتحديث كشف الحساب.')),
-        );
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'تعذر تعديل الدفعة: ${friendlyError(e, fallback: 'قد تمنع الصلاحيات أو القيود المحاسبية التعديل.')}',
-            ),
-          ),
-        );
-    }
-  }
-
-  Future<void> deletePayment(Map<String, dynamic> payment) async {
-    final amount = (double.tryParse(payment['amount']?.toString() ?? '0') ?? 0)
-        .toStringAsFixed(2);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف الدفعة'),
-        content: Text(
-          'سيتم حذف الدفعة بقيمة $amount د.ل من سجل الطالب. استخدم هذا الإجراء فقط لتصحيح إدخال خاطئ؛ قد تمنع قاعدة البيانات الحذف إذا كانت العملية مرتبطة بسجلات مالية أخرى.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف الدفعة'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await db
-          .from('payments')
-          .delete()
-          .eq('id', payment['id'])
-          .eq('student_id', widget.student.id);
-      await load();
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حذف الدفعة وتحديث كشف الحساب.')),
-        );
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم تُحذف الدفعة: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة من قاعدة البيانات.')}',
-            ),
-          ),
-        );
-    }
   }
 
   Widget _summaryRow(String label, double value, {bool bold = false}) =>
