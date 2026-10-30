@@ -8,7 +8,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 const $ = (id) => document.getElementById(id);
-const state = { profile: null, school: null, students: [], teachers: [], attendance: [], results: [], assessments: [], audit: [], expenses: [], payroll: [], backup: null, backupFileName: "" };
+const state = { profile: null, school: null, students: [], teachers: [], staff: [], attendance: [], results: [], assessments: [], audit: [], expenses: [], payroll: [], backup: null, backupFileName: "" };
 const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", currency: "LYD", maximumFractionDigits: 2 }).format(Number(value || 0));
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -28,7 +28,7 @@ function setOfflineMode(enabled) {
 function saveOfflineSnapshot() {
   if (!state.profile || !state.school || state.offline) return;
   try {
-    const data = { students:state.students, teachers:state.teachers, attendance:state.attendance, results:state.results, assessments:state.assessments, audit:state.audit, expenses:state.expenses, payroll:state.payroll, payments:state.payments || [] };
+    const data = { students:state.students, teachers:state.teachers, staff:state.staff || [], attendance:state.attendance, results:state.results, assessments:state.assessments, audit:state.audit, expenses:state.expenses, payroll:state.payroll, payments:state.payments || [] };
     const metrics = {};
     ["count-students","count-teachers","count-classes","total-payments","total-expenses","finance-payments","finance-expenses","finance-payroll","fees-total","fees-paid","fees-balance"].forEach(id => { if ($(id)) metrics[id] = $(id).textContent; });
     localStorage.setItem(OFFLINE_SNAPSHOT_PREFIX + state.school.id, JSON.stringify({ profile:{username:state.profile.username,role:state.profile.role,active:state.profile.active,school_id:state.school.id}, school:state.school, data, metrics, savedAt:new Date().toISOString() }));
@@ -217,20 +217,21 @@ async function refreshDashboard() {
     $("finance-payments").textContent = money(payments);
     $("finance-expenses").textContent = money(expenses);
     $("finance-payroll").textContent = money(payroll);
-    const [studentsResult, teachersResult, attendanceResult, resultsResult, assessmentsResult, auditResult, expensesResult, payrollResult] = await Promise.all([
+    const [studentsResult, teachersResult, staffResult, attendanceResult, resultsResult, assessmentsResult, auditResult, expensesResult, payrollResult] = await Promise.all([
       db.from("students").select("id,name,class_name,phone,active,status").order("name").limit(1000),
       db.from("teachers").select("id,name,subject,phone,salary").order("name").limit(1000),
+      db.from("staff").select("id,name,role,phone,salary,active,created_at").order("name").limit(1000),
       db.from("attendance").select("student_id,attendance_date,status,minutes_late").order("attendance_date",{ascending:false}).limit(1000),
       db.from("student_results").select("student_id,term,exam_name,score,max_score,created_at").order("created_at",{ascending:false}).limit(1000),
       db.from("student_fee_assessments").select("id,student_id,academic_year_id,academic_year_label,term,total_fee,discount,note").limit(2000),
       db.from("audit_log").select("created_at,username,action,entity,details").order("created_at",{ascending:false}).limit(500),
       db.from("expenses").select("title,category,amount,created_at").order("created_at",{ascending:false}).limit(1000),
-      db.from("payroll_transactions").select("transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
+      db.from("payroll_transactions").select("payee_type,payee_id,transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
     ]);
-    const results = [studentsResult,teachersResult,attendanceResult,resultsResult,assessmentsResult,auditResult,expensesResult,payrollResult];
-    const labels = ["الطلاب","المعلمون","الحضور","النتائج","الرسوم","التدقيق","المصروفات","الرواتب"];
+    const results = [studentsResult,teachersResult,staffResult,attendanceResult,resultsResult,assessmentsResult,auditResult,expensesResult,payrollResult];
+    const labels = ["الطلاب","المعلمون","الموظفون","الحضور","النتائج","الرسوم","التدقيق","المصروفات","الرواتب"];
     results.forEach((r,i)=>{ if(r.error) console.warn("Lamin portal optional dataset unavailable:",labels[i],r.error.message); });
-    state.students = safeRows(studentsResult.data); state.teachers = safeRows(teachersResult.data);
+    state.students = safeRows(studentsResult.data); state.teachers = safeRows(teachersResult.data); state.staff = safeRows(staffResult.data);
     state.attendance = safeRows(attendanceResult.data); state.results = safeRows(resultsResult.data);
     state.assessments = safeRows(assessmentsResult.data); state.audit = safeRows(auditResult.data);
     state.expenses = safeRows(expensesResult.data); state.payroll = safeRows(payrollResult.data);
