@@ -100,7 +100,7 @@ $("reminder-form")?.addEventListener("submit", event => {
   event.preventDefault();
   const title = $("reminder-title").value.trim();
   const dueText = $("reminder-due").value.trim();
-  const match=dueText.match(/^(\d{2})\/(\d{2})\/(\d{4})\\s+(\d{2}):(\d{2})$/);
+  const match=dueText.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
   if(!title||!match){status("أدخل الموعد بصيغة يوم/شهر/سنة ساعة:دقيقة.",true);return;}
   const [,day,month,year,hour,minute]=match;const localDate=new Date(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute));
   if(localDate.getFullYear()!==Number(year)||localDate.getMonth()!==Number(month)-1||localDate.getDate()!==Number(day)||localDate.getHours()!==Number(hour)||localDate.getMinutes()!==Number(minute)){status("التاريخ أو الوقت غير صحيح.",true);return;}
