@@ -38,6 +38,11 @@ BEGIN
    FROM public.student_fee_assessments sfa
    WHERE sfa.id=p_fee_assessment_id AND sfa.school_id=v_school AND sfa.student_id=p_student_id;
    IF NOT FOUND THEN RAISE EXCEPTION 'بند الرسوم المحدد لا يخص هذا الطالب'; END IF;
+   IF v_year IS NULL THEN
+     SELECT ay.id INTO v_year FROM public.academic_years ay
+     WHERE ay.school_id=v_school AND ay.active=true AND coalesce(ay.is_closed,false)=false
+     ORDER BY ay.starts_on DESC NULLS LAST,ay.created_at DESC LIMIT 1;
+   END IF;
  ELSE
    SELECT ay.id INTO v_year FROM public.academic_years ay
    WHERE ay.school_id=v_school AND ay.active=true AND coalesce(ay.is_closed,false)=false
