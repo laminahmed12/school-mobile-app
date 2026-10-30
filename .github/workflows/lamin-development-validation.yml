@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - development/lamin-after-obour-2026-10-28
+      - fix/lamin-portal-crud-offline-20261030
   pull_request:
     branches:
       - main
       - development/lamin-after-obour-2026-10-28
+      - feature/lamin-desktop-portal-2026-10-29
 permissions:
   contents: read
 
