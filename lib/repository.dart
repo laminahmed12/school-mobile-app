@@ -243,7 +243,9 @@ class SchoolRepository {
     String note = '',
   }) async {
     if (totalFee < 0 || discount < 0 || discount > totalFee) {
-      throw Exception('تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.');
+      throw Exception(
+        'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
+      );
     }
     final queueKey = 'lamin_offline_fee_updates_$schoolId';
     List<Map<String, dynamic>> queue = [];
@@ -306,7 +308,8 @@ class SchoolRepository {
           totalFee: (item['total_fee'] as num).toDouble(),
           discount: (item['discount'] as num).toDouble(),
           academicYearId: item['academic_year_id']?.toString(),
-          academicYearLabel: item['academic_year_label']?.toString() ?? 'غير محدد',
+          academicYearLabel:
+              item['academic_year_label']?.toString() ?? 'غير محدد',
           note: item['note']?.toString() ?? '',
         );
         synced++;
@@ -405,13 +408,14 @@ class SchoolRepository {
     final schoolId = (await profile())?.schoolId;
     final cacheKey = schoolId == null ? null : 'academic_years_cache_$schoolId';
     try {
-      final rows = (await db
-                  .from('academic_years')
-                  .select()
-                  .order('created_at', ascending: false)
-              as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      final rows =
+          (await db
+                      .from('academic_years')
+                      .select()
+                      .order('created_at', ascending: false)
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
       if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(rows));
       return rows;
     } catch (_) {
