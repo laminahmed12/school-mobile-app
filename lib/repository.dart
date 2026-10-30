@@ -134,7 +134,7 @@ class SchoolRepository {
       try{
         final type=item['type']?.toString();
         if(type=='create_student'){
-          final result=await db.rpc('create_student_with_fee',params:{'p_name':item['name'],'p_class_name':item['class_name'],'p_phone':item['phone']??'','p_term_fee':item['term_fee']??0,'p_term':item['term']??'الفصل الأول'}).timeout(const Duration(seconds:15));
+          final result=await db.rpc('create_student_with_fee_idempotent',params:{'p_operation_id':item['operation_id'],'p_name':item['name'],'p_class_name':item['class_name'],'p_phone':item['phone']??'','p_term_fee':item['term_fee']??0,'p_term':item['term']??'الفصل الأول'}).timeout(const Duration(seconds:15));
           final remote=result?.toString()??'';if(remote.isEmpty)throw Exception('لم يؤكد الخادم إنشاء الطالب.');
           final local=item['local_id'].toString();idMap[local]=remote;await prefs.setString(mapKey,jsonEncode(idMap));
           final students=await _cachedStudentMaps(schoolId);final ix=students.indexWhere((x)=>x['id']?.toString()==local);
@@ -262,22 +262,24 @@ class SchoolRepository {
       final list = (rows as List)
           .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
           .toList();
-      await prefs.setString(
-        cacheKey,
-        jsonEncode(
-          list
-              .map(
-                (s) => {
-                  'id': s.id,
-                  'name': s.name,
-                  'class_name': s.className,
-                  'phone': s.phone,
-                },
-              )
-              .toList(),
-        ),
-      );
-      return list;
+      final merged = list.map((s) => {
+        'id': s.id, 'name': s.name, 'class_name': s.className, 'phone': s.phone,
+      }).toList();
+      final pending = await _readOfflineOperations(schoolId);
+      for (final op in pending) {
+        if (op['type'] == 'create_student') {
+          merged.removeWhere((x) => x['id'] == op['local_id']);
+          merged.add({'id': op['local_id'], 'name': op['name'],
+            'class_name': op['class_name'], 'phone': op['phone'] ?? ''});
+        } else if (op['type'] == 'update_student') {
+          final ix = merged.indexWhere((x) => x['id']?.toString() == op['student_id']?.toString());
+          if (ix >= 0) merged[ix] = {...merged[ix], 'name': op['name'],
+            'class_name': op['class_name'], 'phone': op['phone'] ?? ''};
+        }
+      }
+      merged.sort((a,b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+      await prefs.setString(cacheKey, jsonEncode(merged));
+      return merged.map((row) => Student.fromMap(row)).toList();
     } catch (_) {
       final raw = prefs.getString(cacheKey);
       if (raw == null) return [];
