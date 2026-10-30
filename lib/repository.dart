@@ -497,8 +497,7 @@ class SchoolRepository {
         .from('teachers')
         .update({
           'name': name.trim(),
-          'subject': subject.trim(),
-          'phone': normalizedPhone,
+          'subject': subject.trim(),          'phone': normalizedPhone,
           'salary': salary,
         })        .eq('id', teacherId);
   }
@@ -655,52 +654,66 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
-    final fees = await studentFeeAssessments(studentId);
-    final paymentRows = await studentPayments(studentId);
-    final year = await db
-        .from('academic_years')
-        .select('id,name')
-        .eq('active', true)
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-    double totalFee = 0, discount = 0, paid = 0;
-    for (final row in fees) {
-      totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
-      discount += (row['discount'] as num?)?.toDouble() ?? 0;
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'financial_summary_$studentId');
+    try {
+      final fees = await studentFeeAssessments(studentId);
+      final paymentRows = await studentPayments(studentId);
+      final year = await db.from('academic_years').select('id,name')
+          .eq('active', true).order('created_at', ascending: false)
+          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      double totalFee = 0, discount = 0, paid = 0;
+      for (final row in fees) {
+        totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+        discount += (row['discount'] as num?)?.toDouble() ?? 0;
+      }
+      for (final row in paymentRows) {
+        paid += (row['amount'] as num?)?.toDouble() ?? 0;
+      }
+      double opening = 0;
+      if (year?['id'] != null) {
+        final rows = await db.from('student_opening_balances').select('amount')
+            .eq('student_id', studentId).eq('academic_year_id', year!['id'])
+            .timeout(const Duration(seconds: 6));
+        opening = (rows as List).fold<double>(0,
+            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      }
+      final due = totalFee - discount + opening;
+      final summary = {
+        'academic_year': year?['name']?.toString() ??
+            (fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد'),
+        'fees': totalFee, 'discount': discount, 'opening_balance': opening,
+        'paid': paid, 'remaining': due - paid,
+        'assessments': fees, 'payments': paymentRows,
+      };
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(summary));
+      return summary;
+    } catch (_) {
+      if (cacheKey != null) {
+        final raw = prefs.getString(cacheKey);
+        if (raw != null) {
+          try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+            await prefs.remove(cacheKey);
+          }
+        }
+      }
+      final fees = await studentFeeAssessments(studentId);
+      final paymentRows = await studentPayments(studentId);
+      double totalFee = 0, discount = 0, paid = 0;
+      for (final row in fees) {
+        totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+        discount += (row['discount'] as num?)?.toDouble() ?? 0;
+      }
+      for (final row in paymentRows) {
+        paid += (row['amount'] as num?)?.toDouble() ?? 0;
+      }
+      return {
+        'academic_year': fees.isNotEmpty ? fees.first['academic_year_label']?.toString() : 'غير محدد',
+        'fees': totalFee, 'discount': discount, 'opening_balance': 0,
+        'paid': paid, 'remaining': totalFee - discount - paid,
+        'assessments': fees, 'payments': paymentRows,
+      };
     }
-    for (final row in paymentRows) {
-      paid += (row['amount'] as num?)?.toDouble() ?? 0;
-    }
-    double opening = 0;
-    if (year?['id'] != null) {
-      try {
-        final rows = await db
-            .from('student_opening_balances')
-            .select('amount')
-            .eq('student_id', studentId)
-            .eq('academic_year_id', year!['id']);
-        opening = (rows as List).fold<double>(
-          0,
-          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-        );
-      } catch (_) {}
-    }
-    final due = totalFee - discount + opening;
-    return {
-      'academic_year':
-          year?['name']?.toString() ??
-          (fees.isNotEmpty
-              ? fees.first['academic_year_label']?.toString()
-              : 'غير محدد'),
-      'fees': totalFee,
-      'discount': discount,
-      'opening_balance': opening,
-      'paid': paid,
-      'remaining': due - paid,
-      'assessments': fees,
-      'payments': paymentRows,
-    };
   }
 
   Future<void> saveStudentFeeAssessment({
