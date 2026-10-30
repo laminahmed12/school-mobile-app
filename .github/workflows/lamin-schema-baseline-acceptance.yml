@@ -103,6 +103,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_fix_payment_selected_academic_year.sql
       - name: Verify historical fee payment year and idempotency
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_selected_year.sql
+      - name: Lock direct payment writes to the ledger RPC
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_lock_payments_to_ledger_rpc.sql
+      - name: Verify payment ledger write guard
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_write_guard.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
