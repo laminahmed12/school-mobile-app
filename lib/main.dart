@@ -463,6 +463,7 @@ class OfflineHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     Map<String, dynamic>? profile;
     List<Student> students = [];
+    List<Map<String, dynamic>> academicYears = [];
     try {
       final rawProfile = prefs.getString('lamin_last_profile_cache');
       if (rawProfile != null) {
@@ -470,6 +471,12 @@ class OfflineHomePage extends StatelessWidget {
       }
       final schoolId = profile?['school_id']?.toString();
       if (schoolId != null && schoolId.isNotEmpty) {
+        final rawYears = prefs.getString('academic_years_cache_$schoolId');
+        if (rawYears != null) {
+          academicYears = (jsonDecode(rawYears) as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }
         final rawStudents = prefs.getString('students_cache_$schoolId');
         if (rawStudents != null) {
           students = (jsonDecode(rawStudents) as List)
@@ -557,6 +564,105 @@ class OfflineHomePage extends StatelessWidget {
             content: Text(
               'حُفظ التعديل على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.',
             ),
+          ),
+        );
+      }
+    }
+
+    Future<void> editCachedFee(Student student) async {
+      if (schoolId.isEmpty) return;
+      final activeYears = academicYears.where((year) => year['active'] == true).toList();
+      final activeYear = activeYears.isEmpty ? null : activeYears.first;
+      final fee = TextEditingController();
+      final discount = TextEditingController(text: '0');
+      final note = TextEditingController();
+      String selectedTerm = 'الفصل الأول';
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: Text('تعديل رسوم ${student.name} دون إنترنت'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTerm,
+                    decoration: const InputDecoration(labelText: 'الفصل الدراسي'),
+                    items: const [
+                      DropdownMenuItem(value: 'الفصل الأول', child: Text('الفصل الأول')),
+                      DropdownMenuItem(value: 'الفصل الثاني', child: Text('الفصل الثاني')),
+                      DropdownMenuItem(value: 'الفصل الثالث', child: Text('الفصل الثالث')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => selectedTerm = value);
+                    },
+                  ),
+                  TextField(
+                    controller: fee,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'قيمة الرسوم'),
+                  ),
+                  TextField(
+                    controller: discount,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'الخصم'),
+                  ),
+                  TextField(
+                    controller: note,
+                    decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)'),
+                  ),
+                  if (activeYear == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text('لم تُحفظ سنة دراسية نشطة على الجهاز. ستُسجل الرسوم دون ربط بسنة محددة.'),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text('السنة الدراسية: ${activeYear['name'] ?? 'غير محدد'}'),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('حفظ على الجهاز'),
+              ),
+            ],
+          ),
+        ),
+      );
+      final totalFee = double.tryParse(fee.text.trim());
+      final discountValue = double.tryParse(discount.text.trim()) ?? 0;
+      if (saved != true || totalFee == null || totalFee < 0 ||
+          discountValue < 0 || discountValue > totalFee) {
+        if (saved == true && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تحقق من قيمة الرسوم والخصم.')),
+          );
+        }
+        return;
+      }
+      await repository.queueOfflineFeeAssessment(
+        schoolId: schoolId,
+        studentId: student.id,
+        term: selectedTerm,
+        totalFee: totalFee,
+        discount: discountValue,
+        academicYearId: activeYear?['id']?.toString(),
+        academicYearLabel: activeYear?['name']?.toString() ?? 'غير محدد',
+        note: note.text,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('حُفظ تعديل الرسوم على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.'),
           ),
         );
       }
@@ -652,10 +758,21 @@ class OfflineHomePage extends StatelessWidget {
                       ),
                       title: Text(student.name),
                       subtitle: Text(student.className),
-                      trailing: IconButton(
-                        tooltip: 'تعديل بيانات الطالب',
-                        onPressed: () => editCachedStudent(student),
-                        icon: const Icon(Icons.edit_outlined),
+                      trailing: Wrap(
+                        spacing: 2,
+                        children: [
+                          IconButton(
+                            tooltip: 'تعديل بيانات الطالب',
+                            onPressed: () => editCachedStudent(student),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          if (['admin', 'owner', 'accountant'].contains(profile?['role']))
+                            IconButton(
+                              tooltip: 'تعديل الرسوم',
+                              onPressed: () => editCachedFee(student),
+                              icon: const Icon(Icons.price_change_outlined),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -663,7 +780,7 @@ class OfflineHomePage extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.only(top: 16),
                 child: Text(
-                  'هذا الوضع للعرض فقط. تسجيل الدفعات وتعديل الرسوم والحضور يحتاج اتصالاً حتى لا تضيع أو تتكرر العمليات المالية.',
+                  'يمكن تعديل بيانات الطالب والرسوم المحفوظة محلياً. تُرسل التعديلات بعد عودة الإنترنت وتسجيل الدخول. تسجيل الدفعات يبقى متصلاً لحماية السجلات من التكرار.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -1295,6 +1412,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       profile = await repo.profile();
       try {
         await repo.syncOfflineStudentUpdates();
+        await repo.syncOfflineFeeAssessments();
+      } catch (_) {}
+      try {
+        await repo.academicYears();
       } catch (_) {}
       schoolInfo = await repo.school();
 

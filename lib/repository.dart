@@ -232,6 +232,97 @@ class SchoolRepository {
     return synced;
   }
 
+  Future<void> queueOfflineFeeAssessment({
+    required String schoolId,
+    required String studentId,
+    required String term,
+    required double totalFee,
+    required double discount,
+    String? academicYearId,
+    required String academicYearLabel,
+    String note = '',
+  }) async {
+    if (totalFee < 0 || discount < 0 || discount > totalFee) {
+      throw Exception('تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.');
+    }
+    final queueKey = 'lamin_offline_fee_updates_$schoolId';
+    List<Map<String, dynamic>> queue = [];
+    final raw = prefs.getString(queueKey);
+    if (raw != null) {
+      try {
+        queue = (jsonDecode(raw) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      } catch (_) {
+        queue = [];
+      }
+    }
+    queue.removeWhere(
+      (item) =>
+          item['student_id'] == studentId &&
+          item['term'] == term &&
+          item['academic_year_id'] == academicYearId,
+    );
+    queue.add({
+      'student_id': studentId,
+      'term': term,
+      'total_fee': totalFee,
+      'discount': discount,
+      'academic_year_id': academicYearId,
+      'academic_year_label': academicYearLabel,
+      'note': note.trim(),
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    await prefs.setString(queueKey, jsonEncode(queue));
+  }
+
+  Future<int> syncOfflineFeeAssessments() async {
+    if (db.auth.currentUser == null) return 0;
+    final currentProfile = await profile();
+    final schoolId = currentProfile?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    if (!['admin', 'owner', 'accountant'].contains(currentProfile?.role)) {
+      return 0;
+    }
+    final queueKey = 'lamin_offline_fee_updates_$schoolId';
+    final raw = prefs.getString(queueKey);
+    if (raw == null) return 0;
+    List<Map<String, dynamic>> queue;
+    try {
+      queue = (jsonDecode(raw) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      return 0;
+    }
+    final pending = <Map<String, dynamic>>[];
+    var synced = 0;
+    for (var index = 0; index < queue.length; index++) {
+      final item = queue[index];
+      try {
+        await saveStudentFeeAssessment(
+          studentId: item['student_id'].toString(),
+          term: item['term'].toString(),
+          totalFee: (item['total_fee'] as num).toDouble(),
+          discount: (item['discount'] as num).toDouble(),
+          academicYearId: item['academic_year_id']?.toString(),
+          academicYearLabel: item['academic_year_label']?.toString() ?? 'غير محدد',
+          note: item['note']?.toString() ?? '',
+        );
+        synced++;
+      } catch (_) {
+        pending.addAll(queue.skip(index));
+        break;
+      }
+    }
+    if (pending.isEmpty) {
+      await prefs.remove(queueKey);
+    } else {
+      await prefs.setString(queueKey, jsonEncode(pending));
+    }
+    return synced;
+  }
+
   Future<Map<String, dynamic>?> parent(String studentId) async {
     try {
       final row = await db
@@ -311,16 +402,29 @@ class SchoolRepository {
   }
 
   Future<List<Map<String, dynamic>>> academicYears() async {
+    final schoolId = (await profile())?.schoolId;
+    final cacheKey = schoolId == null ? null : 'academic_years_cache_$schoolId';
     try {
-      return (await db
+      final rows = (await db
                   .from('academic_years')
                   .select()
                   .order('created_at', ascending: false)
               as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(rows));
+      return rows;
     } catch (_) {
-      return [];
+      if (cacheKey == null) return [];
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return [];
+      try {
+        return (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } catch (_) {
+        return [];
+      }
     }
   }
 
