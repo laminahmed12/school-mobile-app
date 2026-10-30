@@ -604,6 +604,8 @@ $("staff-form").addEventListener("submit",async event=>{
     if(result.error)throw result.error;if(!result.data?.id)throw new Error("لم تؤكد قاعدة البيانات حفظ الموظف.");$("staff-form").classList.add("hidden");await refreshDashboard();}
   catch(error){showMessage("staff-status",error.message||"تعذر حفظ الموظف.",true);}
 });
+$("student-search")?.addEventListener("input", renderManagedTables);
+$("student-class-filter")?.addEventListener("input", renderManagedTables);
 $("payroll-payee-type").addEventListener("change",renderManagedTables);
 $("payroll-date").value=new Date().toISOString().slice(0,10);
 $("payroll-form").addEventListener("submit",async event=>{
