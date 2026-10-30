@@ -13,6 +13,12 @@ function section(source, start, end) {
   return source.slice(a, b);
 }
 
+// Large school datasets must be paginated; payment read failures must never become zero balances.
+assert.match(app, /async function fetchAllRows\(table,columns/);
+assert.match(app, /fetchAllRows\("payments","id,fee_assessment_id,amount,student_id,term,created_at"/);
+assert.match(app, /if\(paymentsResult\.error\)throw paymentsResult\.error/);
+assert.doesNotMatch(app, /from\("payments"\)\.select\("fee_assessment_id,amount"\)\.limit\(5000\)/);
+
 // Every payment, online or offline, must use the atomic, idempotent ledger RPC.
 const paymentForm = section(app, '$("payment-form").addEventListener("submit"', '$("export-fees").addEventListener');
 assert.match(paymentForm, /db\.rpc\("record_student_payment",\s*params\)/);
