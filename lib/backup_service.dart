@@ -122,7 +122,7 @@ class BackupService {
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
     final year = await repo.activeAcademicYearName() ?? 'current';
     final safeYear = year.replaceAll(
-      RegExp(r'[^0-9A-Za-z\\u0600-\\u06FF_-]+'),
+      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
     );
     final envelope = {
