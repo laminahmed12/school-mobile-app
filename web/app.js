@@ -245,6 +245,19 @@ async function sumColumn(table, column, filter = null) {
   }
   return total;
 }
+async function fetchAllRows(table,columns,orderBy=null,ascending=true,pageSize=500) {
+  const rows=[];let offset=0;
+  while(true){
+    let query=db.from(table).select(columns).range(offset,offset+pageSize-1);
+    if(orderBy)query=query.order(orderBy,{ascending});
+    const {data,error}=await query;
+    if(error)return {data:null,error};
+    const page=safeRows(data);rows.push(...page);
+    if(page.length<pageSize)break;
+    offset+=pageSize;
+  }
+  return {data:rows,error:null};
+}
 async function refreshDashboard() {
   showMessage("app-message", "جارٍ تحديث الملخص…");
   try {
@@ -261,16 +274,16 @@ async function refreshDashboard() {
     $("finance-expenses").textContent = money(expenses);
     $("finance-payroll").textContent = money(payroll);
     const [studentsResult, teachersResult, staffResult, classesResult, attendanceResult, resultsResult, assessmentsResult, auditResult, expensesResult, payrollResult] = await Promise.all([
-      db.from("students").select("id,name,class_name,phone,active,status").order("name").limit(1000),
-      db.from("teachers").select("id,name,subject,phone,salary").order("name").limit(1000),
-      db.from("staff").select("id,name,role,phone,salary,active,created_at").order("name").limit(1000),
-      db.from("classes").select("id,name,section,academic_year_id").order("name").limit(500),
-      db.from("attendance").select("student_id,attendance_date,status,minutes_late").order("attendance_date",{ascending:false}).limit(1000),
-      db.from("student_results").select("student_id,term,exam_name,score,max_score,created_at").order("created_at",{ascending:false}).limit(1000),
-      db.from("student_fee_assessments").select("id,student_id,academic_year_id,academic_year_label,term,total_fee,discount,note").limit(2000),
-      db.from("audit_log").select("created_at,username,action,entity,details").order("created_at",{ascending:false}).limit(500),
-      db.from("expenses").select("title,category,amount,created_at").order("created_at",{ascending:false}).limit(1000),
-      db.from("payroll_transactions").select("payee_type,payee_id,transaction_type,amount,payment_date,note").order("payment_date",{ascending:false}).limit(1000),
+      fetchAllRows("students","id,name,class_name,phone,active,status","name"),
+      fetchAllRows("teachers","id,name,subject,phone,salary","name"),
+      fetchAllRows("staff","id,name,role,phone,salary,active,created_at","name"),
+      fetchAllRows("classes","id,name,section,academic_year_id","name"),
+      fetchAllRows("attendance","student_id,attendance_date,status,minutes_late","attendance_date",false),
+      fetchAllRows("student_results","student_id,term,exam_name,score,max_score,created_at","created_at",false),
+      fetchAllRows("student_fee_assessments","id,student_id,academic_year_id,academic_year_label,term,total_fee,discount,note"),
+      fetchAllRows("audit_log","created_at,username,action,entity,details","created_at",false,500),
+      fetchAllRows("expenses","title,category,amount,created_at","created_at",false),
+      fetchAllRows("payroll_transactions","payee_type,payee_id,transaction_type,amount,payment_date,note","payment_date",false),
     ]);
     const results = [studentsResult,teachersResult,staffResult,classesResult,attendanceResult,resultsResult,assessmentsResult,auditResult,expensesResult,payrollResult];
     const labels = ["الطلاب","المعلمون","الموظفون","الصفوف","الحضور","النتائج","الرسوم","التدقيق","المصروفات","الرواتب"];
@@ -285,8 +298,9 @@ async function refreshDashboard() {
     $("attendance-table").innerHTML = state.attendance.map(a=>`<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(formatDate(a.attendance_date))}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات متاحة أو لا تسمح الصلاحيات بعرضها.</td></tr>';
     $("results-table").innerHTML = state.results.map(r=>`<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج متاحة.</td></tr>';
     const paidByAssessment = new Map();
-    const paymentsResult = await db.from("payments").select("fee_assessment_id,amount").limit(5000);
-    state.payments = paymentsResult.error ? [] : safeRows(paymentsResult.data);
+    const paymentsResult = await fetchAllRows("payments","id,fee_assessment_id,amount,student_id,term,created_at","created_at",false);
+    if(paymentsResult.error)throw paymentsResult.error;
+    state.payments = paymentsResult.data;
     if (!paymentsResult.error) for(const p of state.payments) if(p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id,(paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     let totalFees=0,totalDiscount=0,totalPaid=0;
     $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role) ? `<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button></td>` : ""}</tr>`;}).join("") || '<tr><td colspan="8">لا توجد تقديرات رسوم متاحة.</td></tr>';
