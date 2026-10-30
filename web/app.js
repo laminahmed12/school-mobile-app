@@ -378,7 +378,7 @@ async function inspectBackup(file) {
       if(String(envelope.school_id)!==String(state.school.id)||String(envelope.school_code||"")!==String(state.school.code||""))throw new Error("هذه النسخة المحلية لا تخص المدرسة الحالية.");
       if(!envelope.snapshot?.profile||!envelope.snapshot?.school||!envelope.snapshot?.data||!Array.isArray(envelope.queue))throw new Error("ملف النسخة المحلية غير مكتمل أو تالف.");
       const allowedTables=new Set(["students","teachers","staff","classes","attendance","student_results","assessments","student_fee_assessments","payments","expenses","payroll_transactions"]);
-      const allowedActions=new Set(["insert","update","archive","rpc_student","upsert"]);
+      const allowedActions=new Set(["insert","update","archive","rpc_student","rpc_payment","upsert"]);
       if(envelope.queue.some(op=>!allowedTables.has(op.table)||!allowedActions.has(op.action)))throw new Error("تحتوي النسخة على عمليات محلية غير معتمدة.");
       state.backup={__localOfflineBackup:true,envelope};state.backupFileName=file.name;
       const preview=$("backup-preview");preview.classList.remove("hidden");preview.innerHTML=`<strong>نسخة محلية صالحة مبدئياً</strong><div>الملف: ${escapeHtml(file.name)}</div><div>المدرسة: ${escapeHtml(envelope.school_name||state.school.name)}</div><div>تاريخ النسخة: ${escapeHtml(formatDateTime(envelope.exported_at))}</div><div>الطلاب المحفوظون: ${(envelope.snapshot.data.students||[]).length}</div><div>التغييرات المعلّقة: ${envelope.queue.length}</div><span class="muted">ستُستعاد محلياً على هذا الجهاز، ولن تُستبدل بيانات الخادم بهذه النسخة.</span>`;
