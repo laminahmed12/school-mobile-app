@@ -2004,7 +2004,17 @@ class FinanceView extends StatelessWidget {
         term: result['term']?.toString() ?? 'غير محدد',
         feeAssessmentId: result['fee_assessment_id']?.toString(),
       );
-      await onChanged();
+      try {
+        await onChanged();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم تسجيل الدفعة، لكن تعذر تحديث العرض. أعد تحميل البيانات.'),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
