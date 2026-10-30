@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'dart:convert';
 import 'app_error.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -329,6 +330,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool locked = false;
   bool checking = true;
   bool mustChangePassword = false;
+  bool offlineAvailable = false;
 
   @override
   void initState() {
@@ -357,6 +359,25 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
+    var hasNetwork = true;
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      hasNetwork = connectivity.any((item) => item != ConnectivityResult.none);
+    } catch (_) {
+      hasNetwork = false;
+    }
+    var canOpenOffline = false;
+    if (session == null && !hasNetwork) {
+      final raw = widget.prefs.getString('lamin_last_profile_cache');
+      if (raw != null) {
+        try {
+          final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          canOpenOffline = cached['active'] != false &&
+              cached['must_change_password'] != true &&
+              (cached['school_id']?.toString().isNotEmpty ?? false);
+        } catch (_) {}
+      }
+    }
     bool forcePassword = false;
     if (session != null) {
       try {
@@ -376,6 +397,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       checking = false;
       locked = session != null && enabled;
       mustChangePassword = forcePassword;
+      offlineAvailable = canOpenOffline;
     });
   }
 
@@ -387,13 +409,124 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
-      if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
+      if (checking) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      if (db.auth.currentSession == null) {
+        return offlineAvailable
+            ? OfflineHomePage(prefs: widget.prefs)
+            : LoginPage(prefs: widget.prefs);
+      }
+      if (locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
       return HomePage(prefs: widget.prefs);
     },
   );
+}
+
+
+class OfflineHomePage extends StatelessWidget {
+  final SharedPreferences prefs;
+  const OfflineHomePage({super.key, required this.prefs});
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, dynamic>? profile;
+    List<Student> students = [];
+    try {
+      final rawProfile = prefs.getString('lamin_last_profile_cache');
+      if (rawProfile != null) {
+        profile = Map<String, dynamic>.from(jsonDecode(rawProfile) as Map);
+      }
+      final schoolId = profile?['school_id']?.toString();
+      if (schoolId != null && schoolId.isNotEmpty) {
+        final rawStudents = prefs.getString('students_cache_$schoolId');
+        if (rawStudents != null) {
+          students = (jsonDecode(rawStudents) as List)
+              .map((item) => Student.fromMap(Map<String, dynamic>.from(item as Map)))
+              .toList();
+        }
+      }
+    } catch (_) {
+      students = [];
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('لامين'),
+        actions: const [
+          Padding(
+            padding: EdgeInsetsDirectional.only(end: 16),
+            child: Center(
+              child: Chip(
+                avatar: Icon(Icons.cloud_off, size: 16),
+                label: Text('دون اتصال'),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            color: brandGreen,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('وضع العمل المحلي', style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'مرحباً \${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
+                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'تم فتح التطبيق باستخدام بيانات الدخول المحفوظة على هذا الجهاز. بعض البيانات قد لا تكون محدثة.',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('الطلاب المحفوظون على الجهاز'),
+              trailing: Text('\${students.length}'),
+            ),
+          ),
+          if (students.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('لا توجد قائمة طلاب محفوظة محلياً بعد. اتصل بالإنترنت مرة واحدة لتحميل البيانات.'),
+            )
+          else
+            ...students.map(
+              (student) => Card(
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.school_outlined)),
+                  title: Text(student.name),
+                  subtitle: Text(student.className),
+                ),
+              ),
+            ),
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: Text(
+              'هذا الوضع للعرض فقط. تسجيل الدفعات وتعديل الرسوم والحضور يحتاج اتصالاً حتى لا تضيع أو تتكرر العمليات المالية.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class ForcePasswordChangePage extends StatefulWidget {
@@ -1811,6 +1944,22 @@ class FinanceView extends StatelessWidget {
                                     subtitle: Text(
                                       '${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}',
                                     ),
+                                    trailing: canManageFees
+                                        ? IconButton(
+                                            tooltip: 'تعديل رسوم هذا الطالب',
+                                            icon: const Icon(Icons.edit_note_outlined),
+                                            onPressed: () => Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => FeeManagementView(
+                                                  repo: repo,
+                                                  students: students,
+                                                  initialStudentId: s.id,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : null,
                                   ),
                                   if (snapshot.connectionState ==
                                       ConnectionState.waiting)
