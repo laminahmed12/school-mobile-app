@@ -465,6 +465,122 @@ feeForm.addEventListener("submit", async event => {
     showMessage("fee-edit-status", error?.message || "تعذر حفظ الرسوم. لم نعتبر التعديل ناجحًا.", true);
   } finally { saveButton.disabled = false; }
 });
+
+function openStudentForm(record = null) {
+  $("student-form").reset(); $("student-id").value = record?.id || "";
+  $("student-name").value = record?.name || ""; $("student-class").value = record?.class_name || "";
+  $("student-phone").value = record?.phone || "";
+  $("student-form-title").textContent = record ? "تعديل بيانات الطالب" : "إضافة طالب";
+  $("student-form").classList.remove("hidden"); $("student-form").scrollIntoView({behavior:"smooth",block:"center"});
+}
+function openTeacherForm(record = null) {
+  $("teacher-form").reset(); $("teacher-id").value = record?.id || "";
+  $("teacher-name").value = record?.name || ""; $("teacher-subject").value = record?.subject || "";
+  $("teacher-phone").value = record?.phone || ""; $("teacher-salary").value = record?.salary ?? "";
+  $("teacher-form-title").textContent = record ? "تعديل بيانات المعلم" : "إضافة معلم";
+  $("teacher-form").classList.remove("hidden"); $("teacher-form").scrollIntoView({behavior:"smooth",block:"center"});
+}
+$("student-new").addEventListener("click", () => openStudentForm());
+$("student-cancel").addEventListener("click", () => $("student-form").classList.add("hidden"));
+$("students-table").addEventListener("click", async event => {
+  const edit = event.target.closest("[data-student-edit]");
+  const archive = event.target.closest("[data-student-archive]");
+  if (edit) { const row=state.students.find(x=>String(x.id)===edit.dataset.studentEdit); if(row) openStudentForm(row); }
+  if (archive) {
+    if (!canManageSchool()) return;
+    const row=state.students.find(x=>String(x.id)===archive.dataset.studentArchive); if(!row) return;
+    if (!confirm("ستتم أرشفة الطالب مع الاحتفاظ بسجلاته المالية والتاريخية. متابعة؟")) return;
+    try {
+      if (state.offline || !navigator.onLine) {
+        queueOfflineChange({action:"archive",table:"students",record_id:row.id});
+        row.active=false; row._pending=true; renderManagedTables();
+        showMessage("app-message","حُفظت أرشفة الطالب محلياً وستتم مزامنتها عند عودة الإنترنت.");
+      } else {
+        const {data,error}=await db.from("students").update({active:false}).eq("id",row.id).eq("school_id",state.school.id).select("id").maybeSingle();
+        if(error) throw error; if(!data?.id) throw new Error("لم تؤكد قاعدة البيانات الأرشفة.");
+        await refreshDashboard();
+      }
+    } catch(error) { showMessage("app-message",error.message || "تعذرت أرشفة الطالب.",true); }
+  }
+});
+$("student-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageSchool()) return;
+  const id=$("student-id").value;
+  const payload={name:$("student-name").value.trim(),class_name:$("student-class").value.trim(),phone:$("student-phone").value.trim()};
+  if(!payload.name) { showMessage("student-status","اسم الطالب مطلوب.",true); return; }
+  try {
+    if(state.offline || !navigator.onLine) {
+      if(id) { queueOfflineChange({action:"update",table:"students",record_id:id,payload}); const row=state.students.find(x=>String(x.id)===id); if(row) Object.assign(row,payload,{_pending:true}); }
+      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"insert",table:"students",local_id:localId,payload:{...payload,school_id:state.school.id,active:true}}); state.students.unshift(full); }
+      renderManagedTables(); $("student-form").classList.add("hidden"); showMessage("app-message","حُفظ الطالب محلياً. ستتم مزامنة التغيير عند عودة الإنترنت."); return;
+    }
+    const result=id
+      ? await db.from("students").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle()
+      : await db.from("students").insert({...payload,school_id:state.school.id,active:true}).select("id").single();
+    if(result.error) throw result.error; if(!result.data?.id) throw new Error("لم تؤكد قاعدة البيانات حفظ الطالب.");
+    $("student-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message",id?"تم تحديث بيانات الطالب.":"تمت إضافة الطالب.");
+  } catch(error) { showMessage("student-status",error.message || "تعذر حفظ الطالب.",true); }
+});
+$("teacher-new").addEventListener("click", () => openTeacherForm());
+$("teacher-cancel").addEventListener("click", () => $("teacher-form").classList.add("hidden"));
+$("teachers-table").addEventListener("click", event => {
+  const button=event.target.closest("[data-teacher-edit]"); if(!button) return;
+  const row=state.teachers.find(x=>String(x.id)===button.dataset.teacherEdit); if(row) openTeacherForm(row);
+});
+$("teacher-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageSchool()) return;
+  const id=$("teacher-id").value;
+  const salary=$("teacher-salary").value.trim();
+  const payload={name:$("teacher-name").value.trim(),subject:$("teacher-subject").value.trim(),phone:$("teacher-phone").value.trim(),salary:salary===""?null:Number(salary)};
+  if(!payload.name || (payload.salary!==null && (!Number.isFinite(payload.salary)||payload.salary<0))) { showMessage("teacher-status","تحقق من الاسم والراتب.",true); return; }
+  try {
+    if(state.offline || !navigator.onLine) {
+      if(id) { queueOfflineChange({action:"update",table:"teachers",record_id:id,payload}); const row=state.teachers.find(x=>String(x.id)===id); if(row) Object.assign(row,payload,{_pending:true}); }
+      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); queueOfflineChange({action:"insert",table:"teachers",local_id:localId,payload:{...payload,school_id:state.school.id}}); state.teachers.unshift({...payload,school_id:state.school.id,id:localId,_pending:true}); }
+      renderManagedTables(); $("teacher-form").classList.add("hidden"); showMessage("app-message","حُفظت بيانات المعلم محلياً وستتم مزامنتها عند عودة الإنترنت."); return;
+    }
+    const result=id
+      ? await db.from("teachers").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle()
+      : await db.from("teachers").insert({...payload,school_id:state.school.id}).select("id").single();
+    if(result.error) throw result.error; if(!result.data?.id) throw new Error("لم تؤكد قاعدة البيانات حفظ المعلم.");
+    $("teacher-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message",id?"تم تحديث بيانات المعلم.":"تمت إضافة المعلم.");
+  } catch(error) { showMessage("teacher-status",error.message || "تعذر حفظ المعلم.",true); }
+});
+$("expense-new").addEventListener("click", () => { $("expense-form").reset(); $("expense-form").classList.remove("hidden"); });
+$("expense-cancel").addEventListener("click", () => $("expense-form").classList.add("hidden"));
+$("expense-form").addEventListener("submit", async event => {
+  event.preventDefault(); if(!canManageFinance()) return;
+  const payload={title:$("expense-title").value.trim(),category:$("expense-category").value.trim(),amount:Number($("expense-amount").value),school_id:state.school.id};
+  if(!payload.title || !Number.isFinite(payload.amount) || payload.amount<=0) { showMessage("expense-status","أدخل بياناً ومبلغاً صحيحاً.",true); return; }
+  try {
+    if(state.offline || !navigator.onLine) {
+      const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+      queueOfflineChange({action:"insert",table:"expenses",local_id:localId,payload});
+      state.expenses.unshift({...payload,id:localId,created_at:new Date().toISOString(),_pending:true});
+      renderManagedTables(); $("expense-form").classList.add("hidden"); showMessage("app-message","حُفظ المصروف محلياً وسيُزامن عند عودة الإنترنت."); return;
+    }
+    const {data,error}=await db.from("expenses").insert(payload).select("id").single();
+    if(error) throw error; if(!data?.id) throw new Error("لم تؤكد قاعدة البيانات حفظ المصروف.");
+    $("expense-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message","تم تسجيل المصروف.");
+  } catch(error) { showMessage("expense-status",error.message || "تعذر حفظ المصروف.",true); }
+});
+async function syncOfflineQueue() {
+  if(!navigator.onLine || !state.school || !state.profile) return;
+  const queue=readOfflineQueue(); if(!queue.length) { setOfflineMode(false); return; }
+  const remaining=[...queue];
+  showMessage("app-message","جارٍ مزامنة التغييرات المحفوظة دون إنترنت…");
+  while(remaining.length) {
+    const op=remaining[0]; let result;
+    if(op.action==="insert") { const payload={...op.payload}; delete payload.id; result=await db.from(op.table).insert(payload); }
+    else if(op.action==="update") result=await db.from(op.table).update(op.payload).eq("id",op.record_id).eq("school_id",state.school.id);
+    else if(op.action==="archive") result=await db.from(op.table).update({active:false}).eq("id",op.record_id).eq("school_id",state.school.id);
+    else throw new Error("تعذر تحديد نوع التغيير المحلي.");
+    if(result.error) { writeOfflineQueue(remaining); showMessage("app-message","بقيت تغييرات غير متزامنة ومحفوظة على الجهاز: "+result.error.message,true); return; }
+    remaining.shift(); writeOfflineQueue(remaining);
+  }
+  setOfflineMode(false); await refreshDashboard(); showMessage("app-message","اكتملت مزامنة التغييرات المحلية.");
+}
+
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
 $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
 $("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
