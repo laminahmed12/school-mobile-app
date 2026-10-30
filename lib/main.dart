@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'app_error.dart';
@@ -73,7 +74,7 @@ String? _schoolTrialStatus(Map<String, dynamic>? school) {
   return 'فترة تجريبية لمدة شهر — متبقي $days يوم. تنتهي في $date';
 }
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
@@ -83,13 +84,163 @@ Future<void> main() async {
     debugPrintStack(stackTrace: stack);
     return true;
   };
+  runApp(const LaminBootstrapApp());
+}
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    publishableKey: supabasePublishableKey,
-  );
-  final prefs = await SharedPreferences.getInstance();
-  runApp(LaminApp(prefs: prefs));
+/// Render the app immediately, then initialize Supabase and local preferences.
+/// Startup failures remain recoverable inside the app instead of terminating
+/// before Flutter can render its first frame.
+class LaminBootstrapApp extends StatefulWidget {
+  const LaminBootstrapApp({super.key});
+
+  @override
+  State<LaminBootstrapApp> createState() => _LaminBootstrapAppState();
+}
+
+class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
+  Future<Supabase>? _supabaseInitialization;
+  SharedPreferences? _prefs;
+  Object? _initializationError;
+  bool _loading = true;
+  bool _initializing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    if (_initializing) return;
+    _initializing = true;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _initializationError = null;
+      });
+    }
+
+    try {
+      final initialization = _supabaseInitialization ??= Supabase.initialize(
+        url: supabaseUrl,
+        publishableKey: supabasePublishableKey,
+      );
+      // Keep a timed-out in-flight Future for retry. Clear it only if the
+      // underlying initialization actually fails.
+      initialization.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {
+          if (identical(_supabaseInitialization, initialization)) {
+            _supabaseInitialization = null;
+          }
+        },
+      );
+      await initialization.timeout(const Duration(seconds: 30));
+      final prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 15),
+      );
+      if (!mounted) return;
+      setState(() {
+        _prefs = prefs;
+        _loading = false;
+        _initializationError = null;
+      });
+    } catch (error, stack) {
+      debugPrint('Lamīn startup initialization failed: $error');
+      debugPrintStack(stackTrace: stack);
+      if (mounted) {
+        setState(() {
+          _initializationError = error;
+          _loading = false;
+        });
+      }
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = _prefs;
+    if (!_loading && prefs != null) {
+      return LaminApp(prefs: prefs);
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'لامين',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
+        scaffoldBackgroundColor: brandCanvas,
+      ),
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: brandGreen,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      child: const Icon(
+                        Icons.school,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'لامين',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading) ...[
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'جارٍ تجهيز التطبيق...',
+                        textAlign: TextAlign.center,
+                      ),
+                    ] else ...[
+                      const Text(
+                        'تعذر بدء التطبيق. تحقق من اتصال الإنترنت ثم أعد المحاولة.',
+                        textAlign: TextAlign.center,
+                      ),
+                      if (_initializationError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _initializationError.toString(),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _initialize,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LaminApp extends StatelessWidget {
