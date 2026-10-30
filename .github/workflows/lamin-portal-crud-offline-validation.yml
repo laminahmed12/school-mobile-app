@@ -1,0 +1,24 @@
+name: Lamin portal validation
+on:
+  push:
+    branches: [fix/lamin-portal-crud-offline-20261030]
+  pull_request:
+    branches: [feature/lamin-desktop-portal-2026-10-29]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check web/app.js
+      - run: node --check web/reminders.js
+      - run: node --check web/sw.js
+      - run: test -s web/index.html && test -s web/app.js && test -s web/sw.js
+      - run: grep -q OFFLINE_SNAPSHOT_PREFIX web/app.js && grep -q syncOfflineQueue web/app.js
+      - run: grep -q student-form web/index.html && grep -q payment-form web/index.html
+      - run: grep -q attendance-form web/index.html && grep -q result-form web/index.html
+      - run: '! grep -R -nE "service[_-]?role|SUPABASE_SERVICE_ROLE_KEY" web/'
