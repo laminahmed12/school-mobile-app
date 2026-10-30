@@ -112,19 +112,19 @@ class BackupService {
   /// Uploads the generated backup directly to the signed-in user's Google Drive.
   /// Uses the narrow drive.file scope and updates this app's existing backup
   /// for the same school/year rather than creating a duplicate on every run.
-  static Future<DriveBackupResult?> backupAndSave(
-    SchoolRepository repo, {
-    required Future<bool> Function(String accountEmail) confirmAccount,
-  }) async {
+  /// Opens Android's native save-location picker instead of performing
+  /// Google OAuth inside the app. The user may choose Google Drive or another
+  /// document provider; the returned path is only a save confirmation from
+  /// the picker and must not be described as a cloud upload.
+  static Future<String?> backupAndSave(SchoolRepository repo) async {
     final data = await repo.exportBackup();
     final school = await repo.school();
     final schoolId = school?['id']?.toString() ?? 'unknown-school';
     final year = await repo.activeAcademicYearName() ?? 'current';
     final safeYear = year.replaceAll(
-      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
+      RegExp(r'[^0-9A-Za-z\\u0600-\\u06FF_-]+'),
       '_',
     );
-    final fileName = 'lamin_${safeYear}_${schoolId}.json';
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -138,145 +138,11 @@ class BackupService {
     final bytes = utf8.encode(
       const JsonEncoder.withIndent('  ').convert(envelope),
     );
-
-    var stage = 'initialize';
-    try {
-      final signIn = GoogleSignIn.instance;
-      if (_googleServerClientId.trim().isEmpty) {
-        throw Exception(
-          'تكامل Google Drive غير مهيأ: يلزم ضبط GOOGLE_SERVER_CLIENT_ID في إعدادات بناء التطبيق.',
-        );
-      }
-      if (!_googleSignInInitialized) {
-        stage = 'initialize';
-        await signIn.initialize(serverClientId: _googleServerClientId);
-        _googleSignInInitialized = true;
-      }
-
-      // Do not sign out immediately before interactive authentication.
-      // Forcing sign-out here can trigger Google account reauthentication
-      // failures on Android; authenticate directly and let Google handle the
-      // account/session state.
-      stage = 'authenticate';
-      final account = await signIn.authenticate();
-      final accountEmail = account.email.trim();
-      if (accountEmail.isEmpty) {
-        throw Exception(
-          'تعذر التحقق من حساب Google الذي اختير للنسخ الاحتياطي.',
-        );
-      }
-      stage = 'confirm_account';
-      final accountConfirmed = await confirmAccount(accountEmail);
-      if (!accountConfirmed) return null;
-      stage = 'authorize_drive_scope';
-      final authorization = await account.authorizationClient.authorizeScopes(
-        const ['https://www.googleapis.com/auth/drive.file'],
-      );
-      final token = authorization.accessToken;
-      if (token.isEmpty) {
-        throw Exception(
-          'لم يمنح حساب Google صلاحية الوصول إلى ملف النسخة الاحتياطية.',
-        );
-      }
-      final headers = {'Authorization': 'Bearer $token'};
-      final escapedName = fileName
-          .replaceAll(r'\', r'\\')
-          .replaceAll("'", r"\'");
-      final query = "name = '$escapedName' and trashed = false";
-      final searchUri = Uri.https('www.googleapis.com', '/drive/v3/files', {
-        'q': query,
-        'pageSize': '1',
-        'orderBy': 'modifiedTime desc',
-        'fields': 'files(id,name,webViewLink)',
-      });
-      stage = 'drive_search';
-      final searchResponse = await http.get(searchUri, headers: headers);
-      if (searchResponse.statusCode != 200) {
-        throw Exception(
-          _driveError(searchResponse.statusCode, searchResponse.body),
-        );
-      }
-      final searchJson =
-          jsonDecode(searchResponse.body) as Map<String, dynamic>;
-      final files = searchJson['files'] as List<dynamic>? ?? const [];
-      late final http.Response uploadResponse;
-
-      if (files.isNotEmpty && files.first is Map) {
-        final existing = Map<String, dynamic>.from(files.first as Map);
-        final id = existing['id']?.toString();
-        if (id == null || id.isEmpty) {
-          throw Exception('تعذر تحديد ملف النسخة الاحتياطية الموجود في Drive.');
-        }
-        final updateUri = Uri.https(
-          'www.googleapis.com',
-          '/upload/drive/v3/files/$id',
-          {'uploadType': 'media', 'fields': 'id,name,webViewLink'},
-        );
-        stage = 'drive_update_upload';
-        uploadResponse = await http.patch(
-          updateUri,
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json; charset=UTF-8',
-          },
-          body: bytes,
-        );
-      } else {
-        final boundary =
-            'lamin_backup_${DateTime.now().microsecondsSinceEpoch}';
-        final metadata = jsonEncode({
-          'name': fileName,
-          'mimeType': 'application/json',
-          'description': 'Lamīn school backup; school_id=$schoolId; year=$year',
-        });
-        final prefix = utf8.encode(
-          '--$boundary\r\n'
-          'Content-Type: application/json; charset=UTF-8\r\n\r\n'
-          '$metadata\r\n'
-          '--$boundary\r\n'
-          'Content-Type: application/json; charset=UTF-8\r\n\r\n',
-        );
-        final suffix = utf8.encode('\r\n--$boundary--\r\n');
-        final body = <int>[...prefix, ...bytes, ...suffix];
-        final createUri = Uri.https(
-          'www.googleapis.com',
-          '/upload/drive/v3/files',
-          {'uploadType': 'multipart', 'fields': 'id,name,webViewLink'},
-        );
-        stage = 'drive_create_upload';
-        uploadResponse = await http.post(
-          createUri,
-          headers: {
-            ...headers,
-            'Content-Type': 'multipart/related; boundary=$boundary',
-          },
-          body: body,
-        );
-      }
-
-      if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
-        throw Exception(
-          _driveError(uploadResponse.statusCode, uploadResponse.body),
-        );
-      }
-      final result = jsonDecode(uploadResponse.body) as Map<String, dynamic>;
-      final fileId = result['id']?.toString();
-      if (fileId == null || fileId.isEmpty) {
-        throw Exception('لم يؤكد Google Drive حفظ ملف النسخة الاحتياطية.');
-      }
-      return DriveBackupResult(accountEmail: accountEmail, fileId: fileId);
-    } catch (error, stackTrace) {
-      debugPrint('LAMIN_DRIVE_DIAGNOSTIC stage=$stage error=$error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (error.toString().contains('Account reauth failed')) {
-        throw Exception(
-          'مرحلة التشخيص: $stage. أعاد Google الخطأ [16] Account reauth failed أثناء المصادقة. '
-          'هذا الخطأ لا يحدد السبب وحده؛ أكثر أسباب إعداد OAuth شيوعًا هي عدم تطابق بصمة SHA-1 لشهادة APK المثبّت، '
-          'أو اسم الحزمة، أو Web Client ID. لا تُرسل أي رموز دخول أو أسرار.',
-        );
-      }
-      rethrow;
-    }
+    return FilePicker.platform.saveFile(
+      dialogTitle: 'حفظ النسخة الاحتياطية في Google Drive أو موقع آخر',
+      fileName: 'lamin_${safeYear}_${schoolId}.json',
+      bytes: bytes,
+    );
   }
 
   /// Downloads the current school's backup from the selected Google Drive account.
