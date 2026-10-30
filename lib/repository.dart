@@ -9,20 +9,39 @@ class SchoolRepository {
 
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
-    if (u == null) return null;
-    final row = await db
-        .from('profiles')
-        .select()
-        .eq('user_id', u.id)
-        .maybeSingle();
-    if (row == null) return null;
-    final profile = SchoolProfile.fromMap(row);
-    final schoolId = profile.schoolId;
-    if (schoolId != null && schoolId.isNotEmpty) {
-      // Cache tenant scope per authenticated user for offline reads only.
-      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    final cacheKey = u == null ? 'lamin_last_profile_cache' : 'profile_cache_${u.id}';
+    try {
+      if (u == null) {
+        final cached = prefs.getString('lamin_last_profile_cache');
+        if (cached == null) return null;
+        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+      }
+      final row = await db
+          .from('profiles')
+          .select()
+          .eq('user_id', u.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+      if (row == null) return null;
+      final profile = SchoolProfile.fromMap(row);
+      final encoded = jsonEncode(Map<String, dynamic>.from(row));
+      await prefs.setString(cacheKey, encoded);
+      await prefs.setString('lamin_last_profile_cache', encoded);
+      final schoolId = profile.schoolId;
+      if (schoolId != null && schoolId.isNotEmpty) {
+        // Cache tenant scope per authenticated user for offline reads only.
+        await prefs.setString('school_id_cache_${u.id}', schoolId);
+      }
+      return profile;
+    } catch (_) {
+      final cached = prefs.getString(cacheKey) ?? prefs.getString('lamin_last_profile_cache');
+      if (cached == null) return null;
+      try {
+        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+      } catch (_) {
+        return null;
+      }
     }
-    return profile;
   }
 
   Future<Map<String, dynamic>?> school() async {
