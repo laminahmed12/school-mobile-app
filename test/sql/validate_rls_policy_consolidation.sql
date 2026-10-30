@@ -19,7 +19,7 @@ BEGIN
 
  SELECT count(*) INTO n FROM pg_policies WHERE schemaname='public' AND tablename='teachers';
  IF n<>4 OR NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='teachers' AND policyname='teachers_select' AND cmd='SELECT')
-   OR NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='teachers' AND policyname='teachers_insert' AND cmd='INSERT')
+   OR NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='teachers' AND policyname='teachers_insert' AND cmd='INSERT' AND with_check LIKE '%owner%')
    OR NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='teachers' AND policyname='teachers_update' AND cmd='UPDATE')
    OR NOT EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='teachers' AND policyname='teachers_delete' AND cmd='DELETE') THEN
    RAISE EXCEPTION 'teachers policy consolidation failed';
@@ -49,20 +49,14 @@ BEGIN
 END
 $$;
 
-INSERT INTO auth.users(id) VALUES
- ('00000000-0000-4000-8000-000000000003'),
- ('00000000-0000-4000-8000-000000000004')
-ON CONFLICT DO NOTHING;
-INSERT INTO public.profiles(user_id,school_id,username,role,active,must_change_password) VALUES
- ('00000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','testownera','owner',true,false),
- ('00000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000001','testaccountanta','accountant',true,false)
+INSERT INTO auth.users(id) VALUES ('00000000-0000-4000-8000-000000000004') ON CONFLICT DO NOTHING;
+INSERT INTO public.profiles(user_id,school_id,username,role,active,must_change_password)
+VALUES ('00000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000001','testaccountanta','accountant',true,false)
 ON CONFLICT(user_id) DO UPDATE SET role=EXCLUDED.role,active=true;
 
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',false);
 INSERT INTO public.teachers(name,subject,phone) VALUES('Admin RLS Gate','Math','09100000031');
-SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',false);
-INSERT INTO public.teachers(name,subject,phone) VALUES('Owner RLS Gate','Science','09100000033');
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000004',false);
 DO $$
 BEGIN
