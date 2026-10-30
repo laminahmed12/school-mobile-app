@@ -21,7 +21,6 @@ import 'auth_service.dart';
 import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
-import 'test_builder.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -822,6 +821,8 @@ class _LoginPageState extends State<LoginPage> {
       password = TextEditingController();
   final auth = LaminAuthService();
   bool loading = false, hide = true, schoolLocked = false;
+  bool rememberMe = false;
+  static const _rememberedUsernameKey = 'lamin.remembered.username';
   String? error;
   int _ownerTaps = 0;
   DateTime? _lastOwnerTap;
@@ -830,6 +831,14 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadSchool();
+    _loadRememberedUsername();
+  }
+
+  Future<void> _loadRememberedUsername() async {
+    final saved = widget.prefs.getString(_rememberedUsernameKey);
+    if (!mounted || saved == null || saved.trim().isEmpty) return;
+    username.text = saved;
+    setState(() => rememberMe = true);
   }
 
   Future<void> _loadSchool() async {
@@ -858,6 +867,17 @@ class _LoginPageState extends State<LoginPage> {
         username: username.text,
         password: password.text,
       );
+      if (!mounted) return;
+      if (r.ok) {
+        if (rememberMe) {
+          await widget.prefs.setString(
+            _rememberedUsernameKey,
+            username.text.trim(),
+          );
+        } else {
+          await widget.prefs.remove(_rememberedUsernameKey);
+        }
+      }
       if (!mounted) return;
       setState(
         () => error = r.ok
@@ -940,7 +960,18 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.trailing,
+                  title: const Text('تذكرني'),
+                  value: rememberMe,
+                  onChanged: loading
+                      ? null
+                      : (value) =>
+                          setState(() => rememberMe = value ?? false),
+                ),
+                const SizedBox(height: 4),
                 TextField(
                   controller: password,
                   obscureText: hide,
@@ -982,12 +1013,6 @@ class _LoginPageState extends State<LoginPage> {
                         : const Icon(Icons.login),
                     label: Text(loading ? 'جارِ الدخول...' : 'دخول'),
                   ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'سيتم حفظ رمز المدرسة بأمان على هذا الجهاز بعد أول دخول ناجح.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 22),
                 GestureDetector(
@@ -1938,7 +1963,18 @@ class FinanceView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    String query = '';
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        final normalizedQuery = query.trim().toLowerCase();
+        final filteredStudents = students.where((student) {
+          if (normalizedQuery.isEmpty) return true;
+          return student.name.toLowerCase().contains(normalizedQuery) ||
+              student.className.toLowerCase().contains(normalizedQuery) ||
+              student.phone.toLowerCase().contains(normalizedQuery);
+        }).toList();
+        return Column(
     children: [
       Padding(
         padding: const EdgeInsets.all(12),
@@ -2001,14 +2037,27 @@ class FinanceView extends StatelessWidget {
             ),
           ),
         ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: TextField(
+          onChanged: (value) =>
+              setLocalState(() => query = value),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            hintText: 'ابحث باسم الطالب أو الصف أو الهاتف',
+          ),
+        ),
+      ),
       Expanded(
         child: students.isEmpty
             ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
+            : filteredStudents.isEmpty
+            ? const Center(child: Text('لا توجد نتائج مطابقة للبحث.'))
             : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                itemCount: students.length,
+                itemCount: filteredStudents.length,
                 itemBuilder: (_, i) {
-                  final s = students[i];
+                  final s = filteredStudents[i];
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(10),
@@ -2039,7 +2088,7 @@ class FinanceView extends StatelessWidget {
                                       child: Icon(Icons.school_outlined),
                                     ),
                                     title: Text(
-                                      s.name,
+                                      'طالب ${students.indexOf(s) + 1}',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -2132,7 +2181,10 @@ class FinanceView extends StatelessWidget {
               ),
       ),
     ],
-  );
+        );
+      },
+    );
+  }
 
   Widget _moneyChip(String label, double value, {bool emphasis = false}) =>
       Container(
@@ -4012,21 +4064,6 @@ class MoreView extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => ReportsView(repo: repo)),
-              ),
-            ),
-          ),
-        if (isAdmin || isSupervisor)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.quiz_outlined),
-              title: const Text('منشئ الاختبارات والتدريبات'),
-              subtitle: const Text(
-                'إنشاء الأسئلة، نماذج متعددة، تصحيح تلقائي وتصدير النتائج',
-              ),
-              trailing: const Icon(Icons.chevron_left),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TestBuilderView()),
               ),
             ),
           ),
