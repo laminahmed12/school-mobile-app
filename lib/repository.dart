@@ -8,8 +8,11 @@ class SchoolRepository {
   final SharedPreferences prefs;
   SchoolRepository(this.prefs);
 
-  Future<String?> _userId() async =>
-      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+  Future<String?> _userId() async {
+    final currentUserId = db.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) return currentUserId;
+    return const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+  }
 
   String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
   String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
