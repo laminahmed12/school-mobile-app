@@ -484,7 +484,18 @@ class OfflineHomePage extends StatelessWidget {
       students = [];
     }
 
-    return Scaffold(
+    String query = '';
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        final normalizedQuery = query.trim().toLowerCase();
+        final visibleStudents = normalizedQuery.isEmpty
+            ? <Student>[]
+            : students.where((student) {
+                return student.name.toLowerCase().contains(normalizedQuery) ||
+                    student.className.toLowerCase().contains(normalizedQuery) ||
+                    student.phone.toLowerCase().contains(normalizedQuery);
+              }).toList();
+        return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('لامين'),
@@ -533,22 +544,29 @@ class OfflineHomePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.people_outline),
-              title: const Text('الطلاب المحفوظون على الجهاز'),
-              trailing: Text('${students.length}'),
+          TextField(
+            onChanged: (value) => setLocalState(() => query = value),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'ابحث عن طالب بالاسم أو الصف أو الهاتف',
             ),
           ),
-          if (students.isEmpty)
+          const SizedBox(height: 12),
+          if (normalizedQuery.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
               child: Text(
-                'لا توجد قائمة طلاب محفوظة محلياً بعد. اتصل بالإنترنت مرة واحدة لتحميل البيانات.',
+                'بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.',
+                textAlign: TextAlign.center,
               ),
             )
+          else if (visibleStudents.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('لا توجد نتائج مطابقة للبحث.'),
+            )
           else
-            ...students.map(
+            ...visibleStudents.map(
               (student) => Card(
                 child: ListTile(
                   leading: const CircleAvatar(
@@ -568,6 +586,8 @@ class OfflineHomePage extends StatelessWidget {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }
@@ -788,6 +808,28 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => rememberMe = true);
   }
 
+  Future<void> _setRememberMe(bool value) async {
+    setState(() => rememberMe = value);
+    if (value) {
+      final valueToSave = username.text.trim();
+      if (valueToSave.isNotEmpty) {
+        await widget.prefs.setString(_rememberedUsernameKey, valueToSave);
+      }
+    } else {
+      await widget.prefs.remove(_rememberedUsernameKey);
+    }
+  }
+
+  Future<void> _saveUsernameIfRemembered(String value) async {
+    if (!rememberMe) return;
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      await widget.prefs.remove(_rememberedUsernameKey);
+    } else {
+      await widget.prefs.setString(_rememberedUsernameKey, normalized);
+    }
+  }
+
   Future<void> _loadSchool() async {
     final saved = await auth.savedSchoolCode();
     if (!mounted) return;
@@ -814,16 +856,10 @@ class _LoginPageState extends State<LoginPage> {
         username: username.text,
         password: password.text,
       );
-      if (!mounted) return;
-      if (r.ok) {
-        if (rememberMe) {
-          await widget.prefs.setString(
-            _rememberedUsernameKey,
-            username.text.trim(),
-          );
-        } else {
-          await widget.prefs.remove(_rememberedUsernameKey);
-        }
+      if (!rememberMe) {
+        await widget.prefs.remove(_rememberedUsernameKey);
+      } else {
+        await _saveUsernameIfRemembered(username.text);
       }
       if (!mounted) return;
       setState(
@@ -902,6 +938,7 @@ class _LoginPageState extends State<LoginPage> {
                 TextField(
                   controller: username,
                   autocorrect: false,
+                  onChanged: _saveUsernameIfRemembered,
                   decoration: const InputDecoration(
                     labelText: 'اسم المستخدم',
                     prefixIcon: Icon(Icons.person_outline),
@@ -915,7 +952,7 @@ class _LoginPageState extends State<LoginPage> {
                   value: rememberMe,
                   onChanged: loading
                       ? null
-                      : (value) => setState(() => rememberMe = value ?? false),
+                      : (value) => _setRememberMe(value ?? false),
                 ),
                 const SizedBox(height: 4),
                 TextField(
@@ -1914,12 +1951,13 @@ class FinanceView extends StatelessWidget {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         final normalizedQuery = query.trim().toLowerCase();
-        final filteredStudents = students.where((student) {
-          if (normalizedQuery.isEmpty) return true;
-          return student.name.toLowerCase().contains(normalizedQuery) ||
-              student.className.toLowerCase().contains(normalizedQuery) ||
-              student.phone.toLowerCase().contains(normalizedQuery);
-        }).toList();
+        final filteredStudents = normalizedQuery.isEmpty
+            ? <Student>[]
+            : students.where((student) {
+                return student.name.toLowerCase().contains(normalizedQuery) ||
+                    student.className.toLowerCase().contains(normalizedQuery) ||
+                    student.phone.toLowerCase().contains(normalizedQuery);
+              }).toList();
         return Column(
           children: [
             Padding(
@@ -1928,18 +1966,56 @@ class FinanceView extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Card(
-                      child: ListTile(
-                        title: const Text('الداخل'),
-                        trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 14,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('الداخل', textAlign: TextAlign.center),
+                            const SizedBox(height: 6),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${payments.toStringAsFixed(2)} د.ل',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Card(
-                      child: ListTile(
-                        title: const Text('المصروف'),
-                        trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 14,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('المصروف', textAlign: TextAlign.center),
+                            const SizedBox(height: 6),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${expenses.toStringAsFixed(2)} د.ل',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1996,6 +2072,10 @@ class FinanceView extends StatelessWidget {
             Expanded(
               child: students.isEmpty
                   ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
+                  : normalizedQuery.isEmpty
+                  ? const Center(
+                      child: Text('بيانات الطلاب والدفعات مخفية. ابحث لعرضها.'),
+                    )
                   : filteredStudents.isEmpty
                   ? const Center(child: Text('لا توجد نتائج مطابقة للبحث.'))
                   : ListView.builder(
@@ -2040,7 +2120,7 @@ class FinanceView extends StatelessWidget {
                                             child: Icon(Icons.school_outlined),
                                           ),
                                           title: Text(
-                                            'طالب ${students.indexOf(s) + 1}',
+                                            s.name,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                             ),
