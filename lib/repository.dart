@@ -239,18 +239,37 @@ class SchoolRepository {
       result = Map<String, dynamic>.from(r as Map);
       final start = DateTime(day.year, day.month, day.day).toUtc().toIso8601String();
       final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
-      final expenseRows = await db.from('expenses').select('amount')
-          .gte('created_at', start).lt('created_at', end)
-          .timeout(const Duration(seconds: 7));
-      final payrollRows = await db.from('payroll_transactions').select('amount,transaction_type')
-          .eq('payment_date', d).timeout(const Duration(seconds: 7));
-      final expenseTotal = (expenseRows as List).fold<double>(0,
-          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
-      final payrollList = payrollRows as List;
-      final salaryTotal = payrollList.where((row) => row['transaction_type'] == 'salary')
-          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
-      final advanceTotal = payrollList.where((row) => row['transaction_type'] == 'advance')
-          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      var expenseTotal = 0.0;
+      var offset = 0;
+      const pageSize = 500;
+      while (true) {
+        final rows = await db.from('expenses').select('id,amount')
+            .gte('created_at', start).lt('created_at', end)
+            .order('id', ascending: true)
+            .range(offset, offset + pageSize - 1)
+            .timeout(const Duration(seconds: 7)) as List;
+        expenseTotal += rows.fold<double>(
+          0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+        if (rows.length < pageSize) break;
+        offset += pageSize;
+      }
+      var salaryTotal = 0.0;
+      var advanceTotal = 0.0;
+      offset = 0;
+      while (true) {
+        final rows = await db.from('payroll_transactions')
+            .select('id,amount,transaction_type')
+            .eq('payment_date', d).order('id', ascending: true)
+            .range(offset, offset + pageSize - 1)
+            .timeout(const Duration(seconds: 7)) as List;
+        for (final row in rows) {
+          final amount = (row['amount'] as num?)?.toDouble() ?? 0;
+          if (row['transaction_type'] == 'salary') salaryTotal += amount;
+          if (row['transaction_type'] == 'advance') advanceTotal += amount;
+        }
+        if (rows.length < pageSize) break;
+        offset += pageSize;
+      }
       result['payroll_salaries'] = salaryTotal;
       result['payroll_advances'] = advanceTotal;
       result['expenses'] = expenseTotal + salaryTotal + advanceTotal;
