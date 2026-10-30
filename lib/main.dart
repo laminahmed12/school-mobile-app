@@ -1045,7 +1045,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : pages[tab],
+          : Column(
+              children: [
+                if (!online)
+                  Material(
+                    color: const Color(0xFFFFF0CC),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.cloud_off, color: Color(0xFF795B16), size: 19),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة. لا تُحفظ التعديلات الجديدة حتى عودة الإنترنت.',
+                              style: TextStyle(color: Color(0xFF624A13), fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Expanded(child: pages[tab]),
+              ],
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
         onDestinationSelected: (v) => setState(() => tab = v),
