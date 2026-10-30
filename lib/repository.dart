@@ -28,6 +28,23 @@ class SchoolRepository {
     await prefs.setString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
   }
 
+  Future<SchoolProfile?> cachedProfile() async {
+    final user = db.auth.currentUser;
+    if (user == null) return null;
+    final raw = prefs.getString(_profileCacheKey(user.id));
+    if (raw == null) return null;
+    try { return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw))); }
+    catch (_) { return null; }
+  }
+
+  Future<Map<String, dynamic>?> cachedSchool() async {
+    final p = await cachedProfile();
+    if (p?.schoolId == null) return null;
+    final raw = prefs.getString(_schoolCacheKey(p!.schoolId!));
+    if (raw == null) return null;
+    try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
+  }
+
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
     if (u == null) return null;
