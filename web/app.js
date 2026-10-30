@@ -128,7 +128,7 @@ function restoreOfflinePortal(expectedSchool="",expectedUsername="") {
   try {
     const candidates = Object.keys(localStorage).filter(key => key.startsWith(OFFLINE_SNAPSHOT_PREFIX));
     if (!candidates.length) return false;
-    const snapshots = candidates.map(key => ({ key, value: JSON.parse(localStorage.getItem(key) || "null") })).filter(x => x.value?.profile && x.value?.school && x.value?.data);
+    const snapshots = candidates.map(key => ({ key, value: JSON.parse(localStorage.getItem(key) || "null") })).filter(x => x.value?.profile && x.value?.school && x.value?.data && (!expectedSchool || String(x.value.school.code||"").toLowerCase()===expectedSchool.trim().toLowerCase()) && (!expectedUsername || String(x.value.profile.username||"").toLowerCase()===expectedUsername.trim().toLowerCase()));
     const cached = snapshots.sort((a,b) => new Date(b.value.savedAt)-new Date(a.value.savedAt))[0]?.value;
     if (!cached) return false;
     if(expectedSchool && String(cached.school.code||"").toLowerCase()!==expectedSchool.trim().toLowerCase()) return false;
@@ -182,6 +182,7 @@ async function login(event) {
     await loadPortal();
   } catch (error) {
     console.error("Lamin portal login failed", error);
+    if(await verifyOfflineCredential(school,username,password) && restoreOfflinePortal(school,username)){ $("password").value=""; showMessage("app-message","تعذر الوصول لخدمة تسجيل الدخول؛ تم فتح بيانات المدرسة المحفوظة محلياً بعد التحقق من كلمة المرور."); return; }
     const sessionResult=await db.auth.getSession().catch(()=>({data:{session:null}}));
     if(sessionResult.data?.session){try{await loadPortal();$("password").value="";showMessage("app-message","تم الدخول بالجلسة المحفوظة؛ تعذر الوصول لخدمة تسجيل الدخول مؤقتاً.");return;}catch(loadError){console.warn("Saved session could not load portal",loadError);}}
     showMessage("login-message", error?.message || "تعذر تسجيل الدخول. تحقق من البيانات وحاول مجددًا.", true);
