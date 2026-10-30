@@ -10,8 +10,11 @@ const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 const $ = (id) => document.getElementById(id);
 const state = { profile: null, school: null, students: [], teachers: [], staff: [], classes: [], attendance: [], results: [], assessments: [], audit: [], expenses: [], payroll: [], backup: null, backupFileName: "" };
 const money = (value) => new Intl.NumberFormat("ar-LY", { style: "currency", currency: "LYD", maximumFractionDigits: 2 }).format(Number(value || 0));
-const formatDateTime = (value) => { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", { dateStyle:"medium", ...(String(value).includes("T")?{timeStyle:"short"}:{}) }).format(date); };
-const formatDate = (value) => { if (!value) return "—"; const date = new Date(String(value).length===10 ? value+"T12:00:00" : value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("ar-LY", {dateStyle:"medium"}).format(date); };
+const DATE_LOCALE_OPTIONS={calendar:"gregory",numberingSystem:"latn",timeZone:"Africa/Tripoli",day:"2-digit",month:"2-digit",year:"numeric"};
+const formatDate = (value) => { if(!value)return "—"; const raw=String(value); const date=/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)?new Date(raw+"T12:00:00+02:00"):new Date(raw); return Number.isNaN(date.getTime())?raw:new Intl.DateTimeFormat("en-GB",DATE_LOCALE_OPTIONS).format(date); };
+const formatDateTime = (value) => { if(!value)return "—"; const date=new Date(value); return Number.isNaN(date.getTime())?String(value):new Intl.DateTimeFormat("en-GB",{...DATE_LOCALE_OPTIONS,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date); };
+const isNetworkFetchError = (error) => error instanceof TypeError && /fetch|network|load failed/i.test(error.message||"");
+const queueStudentLocally = ({id,payload,termFee}) => { if(id){queueOfflineChange({action:"update",table:"students",record_id:id,payload});const row=state.students.find(x=>String(x.id)===String(id));if(row)Object.assign(row,payload,{_pending:true});}else{const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now()));const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true};queueOfflineChange({action:"rpc_student",table:"students",local_id:localId,params:{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone||"",p_term_fee:termFee,p_term:"الفصل الأول"}});state.students.unshift(full);}renderManagedTables();saveOfflineSnapshot();$("student-form").classList.add("hidden");showMessage("app-message","تعذر الاتصال بالخادم؛ حُفظ الطالب على هذا الجهاز وسيُزامن تلقائياً عند عودة الاتصال."); };
 const readableDetails = (details) => { const labels={attendance_date:"تاريخ الحضور",minutes_late:"دقائق التأخير",status:"الحالة",phone:"الهاتف",name:"الاسم",class_name:"الصف",amount:"المبلغ",term:"الفصل",academic_year_id:"السنة الدراسية",exam_name:"الاختبار",score:"الدرجة",max_score:"الدرجة القصوى",total_fee:"الرسوم",discount:"الخصم"}; if(!details||typeof details!=="object")return escapeHtml(details??"—"); return Object.entries(details).filter(([key])=>!["id","school_id","created_by","student_id","user_id"].includes(key)).map(([key,value])=>{const shown=key==="status"?({absent:"غائب",present:"حاضر",late:"متأخر",excused:"معذور"}[value]||value):value;return "<div class=\"audit-detail\"><strong>"+escapeHtml(labels[key]||key.replaceAll("_"," "))+":</strong> <span>"+escapeHtml(typeof shown==="object"?JSON.stringify(shown):shown)+"</span></div>";}).join("")||"لا توجد تفاصيل إضافية."; };
 const showMessage = (id, message, error = false) => { const el = $(id); el.textContent = message || ""; el.classList.toggle("error", error); };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -361,7 +364,7 @@ $("backup-file").addEventListener("change", (e) => inspectBackup(e.target.files?
 $("restore-confirm").addEventListener("change", updateRestoreButton);
 $("restore-backup").addEventListener("click", () => { if (state.offline || !navigator.onLine) { showMessage("restore-status", OFFLINE_MODE_MESSAGE, true); return; } restoreBackup(); });
 $("export-students").addEventListener("click", () => csvDownload("lamin-students.csv", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map((s) => [s.name, s.class_name, s.phone, s.status])]));
-$("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]));
+$("export-attendance").addEventListener("click", () => csvDownload("lamin-attendance.csv", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",formatDate(a.attendance_date),a.status,a.minutes_late])]));
 const feeForm = $("fee-edit-form");
 $("fees-table").addEventListener("click", event => {
   const button = event.target.closest("[data-fee-edit]");
@@ -459,17 +462,13 @@ $("student-form").addEventListener("submit", async event => {
   const termFee=Number($("student-term-fee").value || 0);
   if(!payload.name || !Number.isFinite(termFee) || termFee<0) { showMessage("student-status","تحقق من اسم الطالب ورسوم الفصل.",true); return; }
   try {
-    if(state.offline || !navigator.onLine) {
-      if(id) { queueOfflineChange({action:"update",table:"students",record_id:id,payload}); const row=state.students.find(x=>String(x.id)===id); if(row) Object.assign(row,payload,{_pending:true}); }
-      else { const localId="offline-"+(crypto.randomUUID?crypto.randomUUID():String(Date.now())); const full={...payload,school_id:state.school.id,active:true,id:localId,_pending:true}; queueOfflineChange({action:"rpc_student",table:"students",local_id:localId,params:{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone || "",p_term_fee:termFee,p_term:"الفصل الأول"}}); state.students.unshift(full); }
-      renderManagedTables(); $("student-form").classList.add("hidden"); showMessage("app-message","حُفظ الطالب محلياً. ستتم مزامنة التغيير عند عودة الإنترنت."); return;
-    }
+    if(state.offline || !navigator.onLine) { queueStudentLocally({id,payload,termFee}); return; }
     const result=id
       ? await db.from("students").update(payload).eq("id",id).eq("school_id",state.school.id).select("id").maybeSingle()
       : await db.rpc("create_student_with_fee",{p_name:payload.name,p_class_name:payload.class_name,p_phone:payload.phone || "",p_term_fee:termFee,p_term:"الفصل الأول"});
     if(result.error) throw result.error; if(id && !result.data?.id) throw new Error("لم تؤكد قاعدة البيانات تحديث الطالب."); if(!id && !result.data) throw new Error("لم يؤكد الخادم إنشاء الطالب والرسوم.");
     $("student-form").classList.add("hidden"); await refreshDashboard(); showMessage("app-message",id?"تم تحديث بيانات الطالب.":"تمت إضافة الطالب.");
-  } catch(error) { showMessage("student-status",error.message || "تعذر حفظ الطالب.",true); }
+  } catch(error) { if(isNetworkFetchError(error)||!navigator.onLine){queueStudentLocally({id,payload,termFee});return;} showMessage("student-status",error.message || "تعذر حفظ الطالب.",true); }
 });
 $("teacher-new").addEventListener("click", () => openTeacherForm());
 $("teacher-cancel").addEventListener("click", () => $("teacher-form").classList.add("hidden"));
@@ -645,7 +644,7 @@ $("payment-form").addEventListener("submit", async event => {
 $("export-fees").addEventListener("click", () => csvDownload("lamin-fees-summary.csv", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map((a) => [state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]));
 $("export-finance").addEventListener("click", () => csvDownload("lamin-finance-summary.csv", [["البند","القيمة"],["المقبوضات", $("finance-payments").textContent],["المصروفات", $("finance-expenses").textContent],["الرواتب والسلف", $("finance-payroll").textContent],["الرسوم المقدرة", $("fees-total").textContent],["المدفوع", $("fees-paid").textContent],["الرصيد التقريبي", $("fees-balance").textContent]]));
 $("export-staff").addEventListener("click", () => csvDownload("lamin-teachers.csv", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map((t) => [t.name,t.subject,t.phone,t.salary])]));
-$("export-audit").addEventListener("click", () => csvDownload("lamin-audit-log.csv", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map((a) => [a.created_at,a.username,a.action,a.entity,JSON.stringify(a.details||{})])]));
+$("export-audit").addEventListener("click", () => csvDownload("lamin-audit-log.csv", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map((a) => [formatDateTime(a.created_at),a.username,a.action,a.entity,JSON.stringify(a.details||{})])]));
 $("settings-refresh").addEventListener("click", () => loadPortal().catch(e=>showMessage("app-message", "تعذر تحديث بيانات المدرسة.", true)));
 $("export-xlsx").addEventListener("click", async () => {
   try {
@@ -655,9 +654,9 @@ $("export-xlsx").addEventListener("click", async () => {
     const sheets = [
       ["الطلاب", [["الاسم","الصف","الهاتف","الحالة"], ...state.students.map(s=>[s.name,s.class_name,s.phone,s.status])]],
       ["المعلمون", [["الاسم","التخصص","الهاتف","الراتب"], ...state.teachers.map(t=>[t.name,t.subject,t.phone,t.salary])]],
-      ["الحضور", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map(a=>[state.students.find(s=>s.id===a.student_id)?.name||"",a.attendance_date,a.status,a.minutes_late])]],
+      ["الحضور", [["الطالب","التاريخ","الحالة","التأخير بالدقائق"], ...state.attendance.map(a=>[state.students.find(s=>s.id===a.student_id)?.name||"",formatDate(a.attendance_date),a.status,a.minutes_late])]],
       ["الرسوم", [["الطالب","السنة","الفصل","الرسوم","الخصم"], ...state.assessments.map(a=>[state.students.find(s=>s.id===a.student_id)?.name||"",a.academic_year_label,a.term,a.total_fee,a.discount])]],
-      ["التدقيق", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map(a=>[a.created_at,a.username,a.action,a.entity,JSON.stringify(a.details||{})])]]
+      ["التدقيق", [["التاريخ","المستخدم","العملية","الكيان","التفاصيل"], ...state.audit.map(a=>[formatDateTime(a.created_at),a.username,a.action,a.entity,JSON.stringify(a.details||{})])]]
     ];
     for (const [name, rows] of sheets) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name);
     XLSX.writeFile(workbook, "lamin-school-report.xlsx");
