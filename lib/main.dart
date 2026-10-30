@@ -506,9 +506,9 @@ class OfflineHomePage extends StatelessWidget {
       final Widget destination = db.auth.currentSession == null
           ? LoginPage(prefs: prefs)
           : HomePage(prefs: prefs);
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => destination),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute<void>(builder: (_) => destination));
     }
 
     Future<void> editCachedStudent(Student student) async {
@@ -1532,7 +1532,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         payments = 0;
         expenses = 0;
       }
-
     } catch (_) {
       // Keep the app usable even if profile/bootstrap loading temporarily fails.
     }
