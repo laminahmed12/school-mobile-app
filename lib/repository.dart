@@ -1,11 +1,18 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';\nimport 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'models.dart';
 import 'supabase_config.dart';
 
 class SchoolRepository {
   final SharedPreferences prefs;
-  SchoolRepository(this.prefs);\n\n  Future<String?> _userId() async =>\n      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+  SchoolRepository(this.prefs);
+
+  Future<String?> _userId() async =>
+      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
+
+  Future<String?> _userId() async =>
+      db.auth.currentUser?.id ?? const FlutterSecureStorage().read(key: 'lamin.offline.user.id');
 
   String _profileCacheKey(String userId) => 'lamin_profile_cache_v1_$userId';
   String _schoolCacheKey(String schoolId) => 'lamin_school_cache_v1_$schoolId';
@@ -29,9 +36,9 @@ class SchoolRepository {
   }
 
   Future<SchoolProfile?> cachedProfile() async {
-    final user = db.auth.currentUser;
-    if (user == null) return null;
-    final raw = prefs.getString(_profileCacheKey(user.id));
+    final userId = await _userId();
+    if (userId == null) return null;
+    final raw = prefs.getString(_profileCacheKey(userId));
     if (raw == null) return null;
     try { return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw))); }
     catch (_) { return null; }
@@ -47,7 +54,7 @@ class SchoolRepository {
 
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
-    if (u == null) return null;
+    if (u == null) return cachedProfile();
     try {
       final row = await db.from('profiles').select().eq('user_id', u.id)
           .maybeSingle().timeout(const Duration(seconds: 6));
@@ -108,8 +115,8 @@ class SchoolRepository {
   Future<List<Student>> students() async {
     // Never read a shared unscoped cache: devices can be used by multiple
     // school accounts. Offline data is isolated by the authenticated tenant.
-    final user = db.auth.currentUser;
-    if (user == null) return [];
+    final userId = await _userId();
+    if (userId == null) return [];
     String? schoolId;
     try {
       schoolId = (await profile())?.schoolId;
@@ -338,8 +345,8 @@ class SchoolRepository {
   }
 
   Future<List<Teacher>> teachers() async {
-    final user = db.auth.currentUser;
-    final schoolId = user == null ? null : (prefs.getString('school_id_cache_${user.id}') ?? (await profile())?.schoolId);
+    final userId = await _userId();
+    final schoolId = userId == null ? null : (prefs.getString('school_id_cache_${userId}') ?? (await cachedProfile())?.schoolId);
     if (schoolId == null || schoolId.isEmpty) return [];
     try {
       final rows = await db.from('teachers').select().order('name').timeout(const Duration(seconds: 6));
@@ -429,8 +436,8 @@ class SchoolRepository {
   }
 
   Future<double> paymentsTotal() async {
-    final user = db.auth.currentUser;
-    final schoolId = user == null ? null : prefs.getString('school_id_cache_${user.id}');
+    final userId = await _userId();
+    final schoolId = userId == null ? null : prefs.getString('school_id_cache_${userId}');
     try {
       final rows = await db.from('payments').select('amount').timeout(const Duration(seconds: 6)) as List;
       final total = rows.fold<double>(0, (x, e) => x + ((e['amount'] as num?)?.toDouble() ?? 0));
