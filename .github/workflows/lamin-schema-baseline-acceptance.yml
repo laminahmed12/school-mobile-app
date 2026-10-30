@@ -91,6 +91,14 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Reconstruct additive 2026-10 school-year and fee schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023120000_school_year_teacher_assignments_and_flexible_fees.sql
+      - name: Reconstruct annual teacher and installment-plan schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261024090000_manager_annual_teachers_and_finance.sql
+      - name: Reconstruct current backup and restore routines
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023120100_backup_new_fee_and_teacher_year_records.sql
+      - name: Apply idempotent manager finance schema repair
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261029022612_manager_annual_teachers_and_finance_fix_20261029.sql
       - name: Apply optional student phone migration in disposable database
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030230000_allow_optional_student_phone.sql
       - name: Verify student phone can be left blank
