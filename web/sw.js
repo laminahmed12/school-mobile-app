@@ -1,4 +1,4 @@
-const CACHE_NAME = "lamin-portal-shell-v12";
+const CACHE_NAME = "lamin-portal-shell-v13";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./reminders.js"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
