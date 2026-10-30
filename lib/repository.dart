@@ -186,15 +186,30 @@ class SchoolRepository {
   }
 
   Future<Map<String, dynamic>?> parent(String studentId) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null) return null;
+    final key = _tenantCacheKey(schoolId, 'parent_$studentId');
     try {
       final row = await db
           .from('student_parents')
           .select()
           .eq('student_id', studentId)
-          .maybeSingle();
-      return row == null ? null : Map<String, dynamic>.from(row);
+          .maybeSingle()
+          .timeout(const Duration(seconds: 6));
+      if (row == null) {
+        await prefs.remove(key);
+        return null;
+      }
+      final data = Map<String, dynamic>.from(row);
+      await prefs.setString(key, jsonEncode(data));
+      return data;
     } catch (_) {
-      return null;
+      final raw = prefs.getString(key);
+      if (raw == null) return null;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+        await prefs.remove(key);
+        return null;
+      }
     }
   }
 
@@ -214,53 +229,41 @@ class SchoolRepository {
 
   Future<Map<String, dynamic>> dailySummary(DateTime day) async {
     final d = day.toIso8601String().substring(0, 10);
+    final schoolId = await _schoolId();
+    final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'daily_summary_$d');
     Map<String, dynamic> result = {};
     try {
-      final r = await db.rpc('school_daily_summary', params: {'p_date': d});
+      final r = await db.rpc('school_daily_summary', params: {'p_date': d})
+          .timeout(const Duration(seconds: 7));
       result = Map<String, dynamic>.from(r as Map);
-    } catch (_) {}
-    try {
-      final start = DateTime(
-        day.year,
-        day.month,
-        day.day,
-      ).toUtc().toIso8601String();
-      final end = DateTime(
-        day.year,
-        day.month,
-        day.day + 1,
-      ).toUtc().toIso8601String();
-      final expenseRows = await db
-          .from('expenses')
-          .select('amount')
-          .gte('created_at', start)
-          .lt('created_at', end);
-      final payrollRows = await db
-          .from('payroll_transactions')
-          .select('amount,transaction_type')
-          .eq('payment_date', d);
-      final expenseTotal = (expenseRows as List).fold<double>(
-        0,
-        (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-      );
+      final start = DateTime(day.year, day.month, day.day).toUtc().toIso8601String();
+      final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
+      final expenseRows = await db.from('expenses').select('amount')
+          .gte('created_at', start).lt('created_at', end)
+          .timeout(const Duration(seconds: 7));
+      final payrollRows = await db.from('payroll_transactions').select('amount,transaction_type')
+          .eq('payment_date', d).timeout(const Duration(seconds: 7));
+      final expenseTotal = (expenseRows as List).fold<double>(0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
       final payrollList = payrollRows as List;
-      final salaryTotal = payrollList
-          .where((row) => row['transaction_type'] == 'salary')
-          .fold<double>(
-            0,
-            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-          );
-      final advanceTotal = payrollList
-          .where((row) => row['transaction_type'] == 'advance')
-          .fold<double>(
-            0,
-            (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-          );
+      final salaryTotal = payrollList.where((row) => row['transaction_type'] == 'salary')
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
+      final advanceTotal = payrollList.where((row) => row['transaction_type'] == 'advance')
+          .fold<double>(0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
       result['payroll_salaries'] = salaryTotal;
       result['payroll_advances'] = advanceTotal;
       result['expenses'] = expenseTotal + salaryTotal + advanceTotal;
-    } catch (_) {}
-    return result;
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(result));
+      return result;
+    } catch (_) {
+      if (cacheKey == null) return result;
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return result;
+      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
+        await prefs.remove(cacheKey);
+        return result;
+      }
+    }
   }
 
   Future<List<Map<String, dynamic>>> academicYears() => _readRows(
@@ -497,8 +500,7 @@ class SchoolRepository {
           'subject': subject.trim(),
           'phone': normalizedPhone,
           'salary': salary,
-        })
-        .eq('id', teacherId);
+        })        .eq('id', teacherId);
   }
 
   Future<void> updateStaffMember({
