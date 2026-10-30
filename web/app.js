@@ -204,6 +204,7 @@ function restoreOfflinePortal() {
     if (!cached) return false;
     state.profile = cached.profile; state.school = cached.school;
     Object.assign(state, cached.data); state.offline = true;
+    for (const op of readOfflineQueue()) { const rows = state[op.table]; if (!Array.isArray(rows)) continue; if (op.action === "insert") rows.unshift({ ...op.payload, id: op.local_id, _pending: true }); if (op.action === "update") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) Object.assign(row,op.payload,{_pending:true}); } if(op.action === "archive") { const row=rows.find(x=>String(x.id)===String(op.record_id)); if(row) row.active=false; } }
     $("school-name").textContent = state.school.name || "مدرستك";
     $("setting-school-name").textContent = state.school.name || "—";
     $("setting-school-code").textContent = state.school.code || "—";
@@ -215,15 +216,15 @@ function restoreOfflinePortal() {
     const metrics = cached.metrics || {};
     for (const [id,value] of Object.entries(metrics)) if ($(id)) $(id).textContent = value;
     const studentNames = new Map(state.students.map(s => [s.id,s.name]));
-    $("students-table").innerHTML = state.students.map(s => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class_name)}</td><td>${escapeHtml(s.phone)}</td></tr>`).join("") || '<tr><td colspan="3">لا توجد سجلات محفوظة.</td></tr>';
-    $("teachers-table").innerHTML = state.teachers.map(t => `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.subject)}</td><td>${escapeHtml(t.phone)}</td><td>${escapeHtml(t.salary == null ? "—" : money(t.salary))}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
+    renderManagedTables();
     $("attendance-table").innerHTML = state.attendance.map(a => `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.attendance_date)}</td><td>${escapeHtml(a.status)}</td><td>${escapeHtml(a.minutes_late ?? 0)}</td></tr>`).join("") || '<tr><td colspan="4">لا توجد سجلات محفوظة.</td></tr>';
     $("results-table").innerHTML = state.results.map(r => `<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج محفوظة.</td></tr>';
     const paidByAssessment = new Map();
     for (const p of state.payments || []) if (p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id, (paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     $("fees-table").innerHTML = state.assessments.map(a => { const fee=Number(a.total_fee||0), discount=Number(a.discount||0), paid=paidByAssessment.get(a.id)||0, balance=Math.max(0,fee-discount-paid); return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td></tr>`; }).join("") || '<tr><td colspan="8">لا توجد رسوم محفوظة.</td></tr>';
     $("audit-table").innerHTML = state.audit.map(a => `<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل محفوظ.</td></tr>';
-    showMessage("app-message", "عرض نسخة محفوظة بتاريخ " + new Date(cached.savedAt).toLocaleString("ar-LY") + ". لا يمكن حفظ تغييرات جديدة دون اتصال.");
+    const queueBadge = $("offline-queue-count"); if (queueBadge) queueBadge.textContent = readOfflineQueue().length ? "تغييرات معلّقة: " + readOfflineQueue().length : "لا توجد تغييرات معلّقة";
+    showMessage("app-message", "عرض نسخة محفوظة بتاريخ " + new Date(cached.savedAt).toLocaleString("ar-LY") + ". يمكنك إجراء التغييرات المسموح بها؛ ستتم مزامنتها عند عودة الإنترنت.");
     return true;
   } catch (error) { console.error("Lamin offline restore failed", error); return false; }
 }
@@ -334,11 +335,15 @@ async function refreshDashboard() {
     $("results-table").innerHTML = state.results.map(r=>`<tr><td>${escapeHtml(studentNames.get(r.student_id)||"طالب")}</td><td>${escapeHtml(r.exam_name)}</td><td>${escapeHtml(r.term)}</td><td>${escapeHtml(r.score)}</td><td>${escapeHtml(r.max_score)}</td></tr>`).join("") || '<tr><td colspan="5">لا توجد نتائج متاحة.</td></tr>';
     const paidByAssessment = new Map();
     const paymentsResult = await db.from("payments").select("fee_assessment_id,amount").limit(5000);
-    if (!paymentsResult.error) for(const p of safeRows(paymentsResult.data)) if(p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id,(paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
+    state.payments = paymentsResult.error ? [] : safeRows(paymentsResult.data);
+    if (!paymentsResult.error) for(const p of state.payments) if(p.fee_assessment_id) paidByAssessment.set(p.fee_assessment_id,(paidByAssessment.get(p.fee_assessment_id)||0)+Number(p.amount||0));
     let totalFees=0,totalDiscount=0,totalPaid=0;
     $("fees-table").innerHTML = state.assessments.map(a=>{const fee=Number(a.total_fee||0),discount=Number(a.discount||0),paid=paidByAssessment.get(a.id)||0,balance=Math.max(0,fee-discount-paid);totalFees+=fee;totalDiscount+=discount;totalPaid+=paid;return `<tr><td>${escapeHtml(studentNames.get(a.student_id)||"طالب")}</td><td>${escapeHtml(a.academic_year_label)}</td><td>${escapeHtml(a.term)}</td><td>${escapeHtml(money(fee))}</td><td>${escapeHtml(money(discount))}</td><td>${escapeHtml(money(paid))}</td><td>${escapeHtml(money(balance))}</td>${["admin","owner","accountant"].includes(state.profile?.role) ? `<td><button class="button button-secondary" type="button" data-fee-edit="${escapeHtml(a.id)}">تعديل</button></td>` : ""}</tr>`;}).join("") || '<tr><td colspan="8">لا توجد تقديرات رسوم متاحة.</td></tr>';
     $("fees-total").textContent=money(totalFees); $("fees-paid").textContent=money(totalPaid); $("fees-balance").textContent=money(Math.max(0,totalFees-totalDiscount-totalPaid));
     $("audit-table").innerHTML = state.audit.map(a=>`<tr><td>${escapeHtml(a.created_at)}</td><td>${escapeHtml(a.username)}</td><td>${escapeHtml(a.action)}</td><td>${escapeHtml(a.entity)}</td><td>${escapeHtml(JSON.stringify(a.details||{}))}</td></tr>`).join("") || '<tr><td colspan="5">لا يوجد سجل تدقيق متاح أو لا تسمح الصلاحيات بعرضه.</td></tr>';
+    renderManagedTables();
+    setOfflineMode(false);
+    saveOfflineSnapshot();
     showMessage("app-message", "تم تحديث البيانات المتاحة. قد تكون بعض الأقسام فارغة إذا كانت صلاحيات قاعدة البيانات تمنع قراءتها.");
   } catch (error) {
     console.error("Lamin dashboard read failed", error);
