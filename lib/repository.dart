@@ -159,7 +159,7 @@ class SchoolRepository {
           const secure=FlutterSecureStorage();final pendingKey='lamin.pending_payments.v1_$schoolId';
           try{final raw=await secure.read(key:pendingKey);if(raw!=null){final pending=Map<String,dynamic>.from(jsonDecode(raw));pending.remove(item['fingerprint']);if(pending.isEmpty)await secure.delete(key:pendingKey);else await secure.write(key:pendingKey,value:jsonEncode(pending));}}catch(_){}
         }else if(type=='attendance'){
-          await db.from('attendance').upsert({'student_id':resolve(item['student_id']),'attendance_date':item['attendance_date'],'status':item['status'],'minutes_late':item['minutes_late']??0}).timeout(const Duration(seconds:15));
+          await _writeAttendanceRemote(studentId:resolve(item['student_id']),date:item['attendance_date'].toString(),status:item['status'].toString(),minutesLate:(item['minutes_late'] as num?)?.toInt()??0).timeout(const Duration(seconds:15));
         }else{throw Exception('نوع عملية محلية غير معروف: $type');}
         queue.removeAt(0);await _writeOfflineOperations(schoolId,queue);synced++;
       }catch(error){debugPrint('Offline sync paused at ${item['type']}: $error');break;}
@@ -518,6 +518,30 @@ class SchoolRepository {
         .map(AttendanceRecord.fromMap).toList();
   }
 
+  Future<void> _writeAttendanceRemote({
+    required String studentId,
+    required String date,
+    required String status,
+    required int minutesLate,
+  }) async {
+    final matches = await db.from('attendance').select('id')
+        .eq('student_id', studentId).eq('attendance_date', date).limit(1);
+    final payload = {
+      'student_id': studentId,
+      'attendance_date': date,
+      'status': status,
+      'minutes_late': minutesLate,
+    };
+    if ((matches as List).isNotEmpty) {
+      await db.from('attendance').update({
+        'status': status,
+        'minutes_late': minutesLate,
+      }).eq('student_id', studentId).eq('attendance_date', date);
+    } else {
+      await db.from('attendance').insert(payload);
+    }
+  }
+
   Future<void> saveAttendance({required String studentId,required DateTime day,required String status,int minutesLate=0}) async {
     final schoolId=await _schoolId();if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
     final date=day.toIso8601String().substring(0,10);
@@ -527,7 +551,7 @@ class SchoolRepository {
       rows.add({'id':_newOfflineId('attendance'),'student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate});
       await _saveRows(schoolId,'attendance_$date',rows);return;
     }
-    await db.from('attendance').upsert({'student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate});
+    await _writeAttendanceRemote(studentId:studentId,date:date,status:status,minutesLate:minutesLate);
   }
 
   Future<List<ResultItem>> results(String studentId) async =>
