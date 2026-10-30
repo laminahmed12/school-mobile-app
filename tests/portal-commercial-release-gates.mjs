@@ -38,6 +38,8 @@ assert.match(app, /!state\.payments\.some\(p=>p\.id===op\.local_id\)/);
 assert.match(mobileRepository, /db\.rpc\(\x27record_student_payment\x27/);
 assert.doesNotMatch(mobileRepository, /from\(\x27payments\x27\)\.insert/);
 assert.match(mobileRepository, /p_idempotency_key/);
+assert.match(mobileRepository, /Future<double> _sumColumnPaged/);
+assert.match(mobileRepository, /Future<int> _countRowsPaged/);
 
 // Offline login stores a PBKDF2 verifier, not the raw password.
 assert.match(app, /PBKDF2/);
