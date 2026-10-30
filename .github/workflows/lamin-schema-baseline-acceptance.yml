@@ -91,6 +91,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Apply optional student phone migration in disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030230000_allow_optional_student_phone.sql
+      - name: Verify student phone can be left blank
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_optional_student_phone.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
