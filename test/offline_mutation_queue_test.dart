@@ -8,87 +8,93 @@ import '../lib/repository.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test(
-    'offline student edits are persisted and coalesced per student',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final repo = SchoolRepository(prefs);
-
-      await repo.queueOfflineStudentUpdate(
-        schoolId: 'school-1',
-        studentId: 'student-1',
-        name: 'الاسم الأول',
-        className: 'الأول أ',
-        phone: '0910000000',
-      );
-      await repo.queueOfflineStudentUpdate(
-        schoolId: 'school-1',
-        studentId: 'student-1',
-        name: 'الاسم الأخير',
-        className: 'الأول ب',
-        phone: '0920000000',
-      );
-
-      final queue =
-          jsonDecode(prefs.getString('lamin_offline_student_updates_school-1')!)
-              as List;
-      expect(queue, hasLength(1));
-      expect(queue.single['name'], 'الاسم الأخير');
-      expect(queue.single['class_name'], 'الأول ب');
-    },
-  );
-
-  test(
-    'offline fee edits are persisted and coalesced per student, term and year',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final repo = SchoolRepository(prefs);
-
-      await repo.queueOfflineFeeAssessment(
-        schoolId: 'school-1',
-        studentId: 'student-1',
-        term: 'الفصل الأول',
-        totalFee: 1000,
-        discount: 50,
-        academicYearId: 'year-1',
-        academicYearLabel: '2026-2027',
-      );
-      await repo.queueOfflineFeeAssessment(
-        schoolId: 'school-1',
-        studentId: 'student-1',
-        term: 'الفصل الأول',
-        totalFee: 1200,
-        discount: 100,
-        academicYearId: 'year-1',
-        academicYearLabel: '2026-2027',
-      );
-
-      final queue =
-          jsonDecode(prefs.getString('lamin_offline_fee_updates_school-1')!)
-              as List;
-      expect(queue, hasLength(1));
-      expect(queue.single['total_fee'], 1200);
-      expect(queue.single['discount'], 100);
-    },
-  );
-
-  test('offline fee queue rejects invalid discounts', () async {
+  setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test('offline student edits update the cache and replace older queued edits', () async {
     final prefs = await SharedPreferences.getInstance();
-    final repo = SchoolRepository(prefs);
+    await prefs.setString('students_cache_school-1', jsonEncode([
+      {'id': 'student-1', 'name': 'الاسم القديم', 'class_name': 'الأول', 'phone': '091'},
+    ]));
+    final repository = SchoolRepository(prefs);
+
+    await repository.queueOfflineStudentUpdate(
+      schoolId: 'school-1',
+      studentId: 'student-1',
+      name: 'اسم مؤقت',
+      className: 'الثاني',
+      phone: '092',
+    );
+    await repository.queueOfflineStudentUpdate(
+      schoolId: 'school-1',
+      studentId: 'student-1',
+      name: 'الاسم النهائي',
+      className: 'الثالث',
+      phone: '093',
+    );
+
+    final cache = jsonDecode(prefs.getString('students_cache_school-1')!) as List;
+    final queue = jsonDecode(prefs.getString('lamin_offline_student_updates_school-1')!) as List;
+    expect(cache.single['name'], 'الاسم النهائي');
+    expect(cache.single['class_name'], 'الثالث');
+    expect(queue, hasLength(1));
+    expect(queue.single['name'], 'الاسم النهائي');
+  });
+
+  test('offline fee edits are queued by student, term and academic year', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final repository = SchoolRepository(prefs);
+
+    await repository.queueOfflineFeeAssessment(
+      schoolId: 'school-1',
+      studentId: 'student-1',
+      term: 'الفصل الأول',
+      totalFee: 1000,
+      discount: 100,
+      academicYearId: 'year-1',
+      academicYearLabel: '2026-2027',
+    );
+    await repository.queueOfflineFeeAssessment(
+      schoolId: 'school-1',
+      studentId: 'student-1',
+      term: 'الفصل الأول',
+      totalFee: 1200,
+      discount: 200,
+      academicYearId: 'year-1',
+      academicYearLabel: '2026-2027',
+    );
+    await repository.queueOfflineFeeAssessment(
+      schoolId: 'school-1',
+      studentId: 'student-1',
+      term: 'الفصل الثاني',
+      totalFee: 800,
+      discount: 0,
+      academicYearId: 'year-1',
+      academicYearLabel: '2026-2027',
+    );
+
+    final queue = jsonDecode(prefs.getString('lamin_offline_fee_updates_school-1')!) as List;
+    expect(queue, hasLength(2));
+    expect(queue.first['total_fee'], 1200);
+    expect(queue.last['term'], 'الفصل الثاني');
+  });
+
+  test('offline fee queue rejects invalid discount values', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final repository = SchoolRepository(prefs);
 
     expect(
-      () => repo.queueOfflineFeeAssessment(
+      () => repository.queueOfflineFeeAssessment(
         schoolId: 'school-1',
         studentId: 'student-1',
         term: 'الفصل الأول',
-        totalFee: 500,
-        discount: 600,
+        totalFee: 100,
+        discount: 101,
         academicYearLabel: '2026-2027',
       ),
       throwsException,
     );
+    expect(prefs.getString('lamin_offline_fee_updates_school-1'), isNull);
   });
 }
