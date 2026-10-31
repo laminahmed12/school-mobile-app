@@ -119,16 +119,41 @@ class BackupService {
   }
 
   static Future<File> createLocalBackup(SchoolRepository repo) async {
-    final data = await repo.exportBackup();
+    // Local backups must be independent of Supabase availability. The exported
+    // payload is a snapshot of encrypted values already cached on this device.
+    final data = await repo.exportCachedBackup();
     final dir = await getApplicationDocumentsDirectory();
     final backups = Directory('${dir.path}/LaameenBackups');
     if (!await backups.exists()) await backups.create(recursive: true);
-    final year = await repo.activeAcademicYearName() ?? 'current';
-    final school = await repo.school();
+    final school = await repo.cachedSchool();
     final schoolId = school?['id']?.toString();
-    if (schoolId == null || schoolId.isEmpty) {
-      throw Exception('تعذر تحديد المدرسة؛ لم تُنشأ نسخة احتياطية غير مرتبطة بمدرسة.');
+    if (schoolId == null ||
+        schoolId.isEmpty ||
+        data['school_filter']?.toString() != schoolId) {
+      throw Exception(
+        'تعذر تحديد المدرسة من التخزين المحلي؛ لم تُنشأ نسخة غير مرتبطة بمدرسة.',
+      );
     }
+
+    var year = 'local';
+    final cache = data['local_cache'];
+    final cachedYears = cache is Map
+        ? cache['lamin_data_cache_v1_${schoolId}_academic_years']
+        : null;
+    if (cachedYears is String) {
+      try {
+        final years = jsonDecode(cachedYears);
+        if (years is List) {
+          final active = years.whereType<Map>().firstWhere(
+            (row) => row['active'] == true,
+            orElse: () => const {},
+          );
+          final label = active['name']?.toString();
+          if (label != null && label.isNotEmpty) year = label;
+        }
+      } catch (_) {}
+    }
+
     final safeYear = year.replaceAll(
       RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
@@ -162,7 +187,7 @@ class BackupService {
     final dir = await getApplicationDocumentsDirectory();
     final backups = Directory('${dir.path}/LaameenBackups');
     if (!await backups.exists()) return null;
-    final school = await repo.school();
+    final school = await repo.cachedSchool();
     final schoolId = school?['id']?.toString();
     if (schoolId == null || schoolId.isEmpty) return null;
 
