@@ -313,11 +313,17 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     } catch (error) {
       debugPrint('AuthGate cache restore failed: $error');
       if (!mounted) return;
-      // Do not strand a valid Supabase session on a startup cache exception.
+      var keepBiometricLock = false;
+      try {
+        keepBiometricLock =
+            db.auth.currentSession != null && await security.enabled;
+      } catch (_) {}
+      // Do not strand a valid Supabase session on a startup cache exception,
+      // and do not bypass an already-enabled biometric lock.
       setState(() {
         checking = false;
         offlineAccess = false;
-        locked = db.auth.currentSession != null && false;
+        locked = keepBiometricLock;
         mustChangePassword = false;
       });
     }
