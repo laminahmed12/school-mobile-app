@@ -114,6 +114,13 @@ class BackupService {
         data['school_filter']?.toString() != expectedSchoolId) {
       throw Exception('محتوى النسخة الاحتياطية لا يطابق المدرسة الحالية.');
     }
+    if (data['local_cache_snapshot'] == true &&
+        (data['local_cache_version'] != 1 ||
+            data['local_user_id']?.toString().isEmpty != false ||
+            data['local_cache'] is! Map ||
+            data['pending_offline_operations'] is! List)) {
+      throw Exception('بنية نسخة التخزين المحلي غير مكتملة.');
+    }
     envelope['data'] = data;
     return envelope;
   }
