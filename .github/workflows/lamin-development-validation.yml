@@ -96,7 +96,7 @@ jobs:
           test -n "$AAPT"
           "$APKSIGNER" verify --verbose "$APK"
           BADGING="$("$AAPT" dump badging "$APK")"
-          grep -q "package: name='com.adreemk.school.lamin_school' versionCode='11' versionName='2.0.2'" <<< "$BADGING"
+          grep -q "package: name='com.adreemk.school.lamin_school' versionCode='12' versionName='2.0.3'" <<< "$BADGING"
           sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
       - name: Upload candidate APK and checksum
         uses: actions/upload-artifact@v4
