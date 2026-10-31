@@ -82,18 +82,12 @@ class BackupService {
       await temporary.delete();
       throw Exception('تعذر التحقق من النسخة الاحتياطية المشفرة.');
     }
-    final previous = File('$path.previous');
-    if (await previous.exists()) await previous.delete();
-    final hadPrevious = await target.exists();
-    if (hadPrevious) await target.rename(previous.path);
+    // On Android/iOS rename replaces an existing file atomically after the
+    // temporary file has been fully written and authenticated.
     try {
-      final saved = await temporary.rename(path);
-      if (await previous.exists()) await previous.delete();
-      return saved;
+      return await temporary.rename(path);
     } catch (_) {
-      if (hadPrevious && await previous.exists() && !await target.exists()) {
-        await previous.rename(path);
-      }
+      if (await temporary.exists()) await temporary.delete();
       rethrow;
     }
   }
