@@ -1,7 +1,7 @@
 name: lamin_school
 description: "لامين لإدارة وتنظيم المدارس - Adreemk"
 publish_to: "none"
-version: 2.0.3+12
+version: 2.0.3+13
 environment:
   sdk: ">=3.9.0 <4.0.0"
 dependencies:
