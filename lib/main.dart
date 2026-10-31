@@ -2167,6 +2167,7 @@ class _FinanceViewState extends State<FinanceView> {
       ),
     ],
   );
+  }
 
   Widget _moneyChip(String label, double value, {bool emphasis = false}) =>
       Container(
