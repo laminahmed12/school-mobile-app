@@ -1042,9 +1042,14 @@ class SchoolRepository {
       final localId='offline-payment-$idempotencyKey';
       await _queueOfflineOperation(schoolId,{'type':'add_payment','student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'idempotency_key':idempotencyKey,'fingerprint':fingerprint},dedupeType:'add_payment',dedupeKey:idempotencyKey);
       final rows=await _cachedRows(schoolId,'payments_$studentId');
-      if(!rows.any((x)=>x['id']==localId)){rows.insert(0,{'id':localId,'student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'payment_date':DateTime.now().toIso8601String().substring(0,10),'created_at':DateTime.now().toUtc().toIso8601String(),'pending_sync':true});await _saveRows(schoolId,'payments_$studentId',rows);}
-      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final rawSummary=prefs.getString(summaryKey);
-      if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+      final alreadyQueued=rows.any((x)=>x['id']==localId);
+      if(!alreadyQueued){
+        rows.insert(0,{'id':localId,'student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'payment_date':DateTime.now().toIso8601String().substring(0,10),'created_at':DateTime.now().toUtc().toIso8601String(),'pending_sync':true});
+        await _saveRows(schoolId,'payments_$studentId',rows);
+        final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');
+        final rawSummary=prefs.getString(summaryKey);
+        if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+      }
       return;
     }
 
