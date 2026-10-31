@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'models.dart';
 import 'supabase_config.dart';
 
@@ -187,19 +189,58 @@ class SchoolRepository {
     }
   }
 
-  Future<void> _queueOfflineOperation(String schoolId,Map<String,dynamic> op,{String? dedupeType,String? dedupeKey}) async {
-    final rows=await _readOfflineOperations(schoolId);
-    if(dedupeType!=null&&dedupeKey!=null) rows.removeWhere((x)=>x['type']==dedupeType&&x['dedupe_key']==dedupeKey);
-    rows.add({'operation_id':_newOfflineId('op'),'created_at':DateTime.now().toUtc().toIso8601String(),...op,if(dedupeKey!=null)'dedupe_key':dedupeKey});
-    await _writeOfflineOperations(schoolId,rows);
+  Future<void> _queueOfflineOperation(
+    String schoolId,
+    Map<String, dynamic> op, {
+    String? dedupeType,
+    String? dedupeKey,
+    String? operationId,
+  }) async {
+    final rows = await _readOfflineOperations(schoolId);
+    if (dedupeType != null && dedupeKey != null) {
+      rows.removeWhere(
+        (row) => row['type'] == dedupeType && row['dedupe_key'] == dedupeKey,
+      );
+    }
+    rows.add({
+      'operation_id': operationId ?? _newOfflineId('op'),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      ...op,
+      if (dedupeKey != null) 'dedupe_key': dedupeKey,
+    });
+    await _writeOfflineOperations(schoolId, rows);
   }
+
+  bool _isNetworkFailure(Object error) {
+    if (error is TimeoutException) return true;
+    final message = error.toString().toLowerCase();
+    return message.contains('socketexception') ||
+        message.contains('failed host lookup') ||
+        message.contains('network is unreachable') ||
+        message.contains('connection refused') ||
+        message.contains('connection reset') ||
+        message.contains('timed out') ||
+        message.contains('no address associated with hostname');
+  }
+
   Future<bool> _serverAvailable() async {
     final user = db.auth.currentUser;
     if (user == null) return false;
     try {
-      final row = await db.from('profiles').select('user_id')
-          .eq('user_id', user.id).maybeSingle()
-          .timeout(const Duration(seconds: 3));
+      final connections = await Connectivity()
+          .checkConnectivity()
+          .timeout(const Duration(milliseconds: 700));
+      if (connections.contains(ConnectivityResult.none)) return false;
+    } catch (_) {
+      // The authenticated server probe below remains the authoritative check.
+    }
+    try {
+      final row = await db
+          .from('profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 2));
       return row != null;
     } catch (_) {
       return false;
@@ -453,21 +494,41 @@ class SchoolRepository {
     return OfflineSyncResult(synced: synced, pending: queue.length);
   }
 
+  Future<SchoolProfile?> cachedProfileForUser(String userId) async {
+    if (userId.isEmpty) return null;
+    final raw = await _readCacheString(_profileCacheKey(userId));
+    if (raw == null) return null;
+    try {
+      return SchoolProfile.fromMap(
+        Map<String, dynamic>.from(jsonDecode(raw)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<SchoolProfile?> cachedProfile() async {
     final userId = await _userId();
     if (userId == null) return null;
-    final raw = await _readCacheString(_profileCacheKey(userId));
+    return cachedProfileForUser(userId);
+  }
+
+  Future<Map<String, dynamic>?> cachedSchoolForId(String schoolId) async {
+    if (schoolId.isEmpty) return null;
+    final raw = await _readCacheString(_schoolCacheKey(schoolId));
     if (raw == null) return null;
-    try { return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw))); }
-    catch (_) { return null; }
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>?> cachedSchool() async {
     final p = await cachedProfile();
-    if (p?.schoolId == null) return null;
-    final raw = await _readCacheString(_schoolCacheKey(p!.schoolId!));
-    if (raw == null) return null;
-    try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
+    final schoolId = p?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return null;
+    return cachedSchoolForId(schoolId);
   }
 
   Future<SchoolProfile?> profile() async {
@@ -478,7 +539,18 @@ class SchoolRepository {
           .maybeSingle().timeout(const Duration(seconds: 6));
       if (row == null) return null;
       final profile = SchoolProfile.fromMap(row);
-      await _writeCacheString(_profileCacheKey(u.id), jsonEncode(Map<String, dynamic>.from(row)));
+      await _writeCacheString(
+        _profileCacheKey(u.id),
+        jsonEncode(Map<String, dynamic>.from(row)),
+      );
+      try {
+        await const FlutterSecureStorage().write(
+          key: 'lamin.offline.user.id',
+          value: u.id,
+        );
+      } catch (error) {
+        debugPrint('Offline identity persistence failed: $error');
+      }
       final schoolId = profile.schoolId;
       if (schoolId != null && schoolId.isNotEmpty) {
         await _writeCacheString('school_id_cache_${u.id}', schoolId);
@@ -1042,17 +1114,85 @@ class SchoolRepository {
     });
   }
 
-  Future<String> addStudent({required String name,required String className,required String phone,double termFee=0,String term='الفصل الأول'}) async {
-    if(name.trim().length<2||className.trim().isEmpty||termFee<0)throw Exception('تحقق من اسم الطالب والصف والرسوم.');
-    final schoolId=await _schoolId();if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
-    if(!await _serverAvailable()){
-      final localId=_newOfflineId('student');
-      await _queueOfflineOperation(schoolId,{'type':'create_student','local_id':localId,'name':name.trim(),'class_name':className.trim(),'phone':phone.trim(),'term_fee':termFee,'term':term});
-      await _cacheStudent(schoolId,id:localId,name:name,className:className,phone:phone);return localId;
+  Future<String> addStudent({
+    required String name,
+    required String className,
+    required String phone,
+    double termFee = 0,
+    String term = 'الفصل الأول',
+  }) async {
+    if (name.trim().length < 2 ||
+        className.trim().isEmpty ||
+        termFee < 0) {
+      throw Exception('تحقق من اسم الطالب والصف والرسوم.');
     }
-    final result=await db.rpc('create_student_with_fee',params:{'p_name':name.trim(),'p_class_name':className.trim(),'p_phone':phone.trim(),'p_term_fee':termFee,'p_term':term});
-    final id=result?.toString()??'';if(id.isEmpty)throw Exception('لم يُرجع الخادم رقم الطالب الجديد.');
-    await _cacheStudent(schoolId,id:id,name:name,className:className,phone:phone);return id;
+
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية.');
+    }
+
+    // Reuse the same idempotency receipt if a request times out after the
+    // server has committed. This keeps the UI responsive without duplicate
+    // student records when synchronization retries the queued operation.
+    final operationId = _newOfflineId('student-operation');
+
+    Future<String> queueLocally() async {
+      final localId = _newOfflineId('student');
+      await _queueOfflineOperation(
+        schoolId,
+        {
+          'type': 'create_student',
+          'local_id': localId,
+          'name': name.trim(),
+          'class_name': className.trim(),
+          'phone': phone.trim(),
+          'term_fee': termFee,
+          'term': term,
+        },
+        operationId: operationId,
+      );
+      await _cacheStudent(
+        schoolId,
+        id: localId,
+        name: name,
+        className: className,
+        phone: phone,
+      );
+      return localId;
+    }
+
+    if (!await _serverAvailable()) return queueLocally();
+
+    try {
+      final result = await db.rpc(
+        'create_student_with_fee_idempotent',
+        params: {
+          'p_operation_id': operationId,
+          'p_name': name.trim(),
+          'p_class_name': className.trim(),
+          'p_phone': phone.trim(),
+          'p_term_fee': termFee,
+          'p_term': term,
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      final id = result?.toString() ?? '';
+      if (id.isEmpty) {
+        throw Exception('لم يُرجع الخادم رقم الطالب الجديد.');
+      }
+      await _cacheStudent(
+        schoolId,
+        id: id,
+        name: name,
+        className: className,
+        phone: phone,
+      );
+      return id;
+    } catch (error) {
+      if (_isNetworkFailure(error)) return queueLocally();
+      rethrow;
+    }
   }
 
   Future<void> addTeacher({
@@ -1350,6 +1490,112 @@ class SchoolRepository {
       await secureStorage.delete(key: pendingKey);
     } else {
       await secureStorage.write(key: pendingKey, value: jsonEncode(pending));
+    }
+  }
+
+  /// Creates an encrypted-device-cache snapshot without contacting Supabase.
+  /// It intentionally includes only data already persisted in this device's
+  /// secure cache and the pending write queue; it is not a fresh server export.
+  Future<Map<String, dynamic>> exportCachedBackup() async {
+    final userId = await _userId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('لا توجد هوية مدرسة محفوظة محلياً لهذا الجهاز.');
+    }
+    final profile = await cachedProfileForUser(userId);
+    final schoolId = profile?.schoolId;
+    if (profile == null || schoolId == null || schoolId.isEmpty) {
+      throw Exception('لا توجد بيانات مدرسة محفوظة محلياً لإنشاء النسخة.');
+    }
+    final school = await cachedSchoolForId(schoolId);
+    if (school == null) {
+      throw Exception('بيانات المدرسة غير موجودة في التخزين المحلي.');
+    }
+
+    const prefix = 'lamin.cache.v1.';
+    final allSecureValues = await _cacheStorage.readAll();
+    final cachedValues = <String, String>{};
+    for (final entry in allSecureValues.entries) {
+      if (!entry.key.startsWith(prefix)) continue;
+      final cacheKey = entry.key.substring(prefix.length);
+      final belongsToCurrentUser =
+          cacheKey == _profileCacheKey(userId) ||
+          cacheKey == 'school_id_cache_$userId';
+      final belongsToCurrentSchool =
+          cacheKey == _schoolCacheKey(schoolId) ||
+          cacheKey.contains(schoolId);
+      if (belongsToCurrentUser || belongsToCurrentSchool) {
+        cachedValues[cacheKey] = entry.value;
+      }
+    }
+
+    final pendingOperations = await _readOfflineOperations(schoolId);
+    return {
+      'format': 'lamin-school-backup-v2',
+      'taken_at': DateTime.now().toUtc().toIso8601String(),
+      'school_filter': schoolId,
+      'local_cache_snapshot': true,
+      'local_cache_version': 1,
+      'local_user_id': userId,
+      'local_cache': cachedValues,
+      'pending_offline_operations': pendingOperations,
+    };
+  }
+
+  /// Restores a cache-only backup to this device. It never writes to Supabase.
+  Future<void> restoreCachedSnapshot(Map<String, dynamic> backup) async {
+    final userId = await _userId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('تعذر تحديد المستخدم الحالي لاستعادة النسخة المحلية.');
+    }
+    final profile = await cachedProfileForUser(userId);
+    final schoolId = profile?.schoolId;
+    if (schoolId == null || schoolId.isEmpty ||
+        backup['format'] != 'lamin-school-backup-v2' ||
+        backup['local_cache_snapshot'] != true ||
+        backup['school_filter']?.toString() != schoolId ||
+        backup['local_user_id']?.toString() != userId ||
+        backup['local_cache'] is! Map) {
+      throw Exception('النسخة المحلية لا تطابق المدرسة والمستخدم الحاليين.');
+    }
+
+    final cacheValues = Map<String, dynamic>.from(
+      backup['local_cache'] as Map,
+    );
+    const allowedPrefix = 'lamin.cache.v1.';
+    for (final entry in cacheValues.entries) {
+      final cacheKey = entry.key;
+      final belongsToCurrentUser =
+          cacheKey == _profileCacheKey(userId) ||
+          cacheKey == 'school_id_cache_$userId';
+      final belongsToCurrentSchool =
+          cacheKey == _schoolCacheKey(schoolId) ||
+          cacheKey.contains(schoolId);
+      if ((!belongsToCurrentUser && !belongsToCurrentSchool) ||
+          entry.value is! String) {
+        continue;
+      }
+      await _cacheStorage.write(
+        key: '$allowedPrefix$cacheKey',
+        value: entry.value as String,
+      );
+      await prefs.remove(cacheKey);
+    }
+
+    final pending = backup['pending_offline_operations'];
+    if (pending is List) {
+      const supportedTypes = {
+        'create_student',
+        'update_student',
+        'save_fee',
+        'add_payment',
+        'attendance',
+      };
+      final operations = pending
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .where((row) => supportedTypes.contains(row['type']))
+          .toList();
+      await _writeOfflineOperations(schoolId, operations);
     }
   }
 
