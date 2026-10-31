@@ -70,15 +70,31 @@ class SchoolRepository {
   }
   String _offlineQueueKey(String schoolId) => 'lamin_offline_ops_v2_$schoolId';
   Future<List<Map<String, dynamic>>> _readOfflineOperations(String schoolId) async {
-    final raw = prefs.getString(_offlineQueueKey(schoolId));
+    const secureStorage = FlutterSecureStorage();
+    final raw = await secureStorage.read(key: _offlineQueueKey(schoolId));
     if (raw == null) return [];
-    try { return (jsonDecode(raw) as List).map((x) => Map<String,dynamic>.from(x as Map)).toList(); }
-    catch (_) { return []; }
+    try {
+      return (jsonDecode(raw) as List)
+          .map((x) => Map<String, dynamic>.from(x as Map))
+          .toList();
+    } catch (_) {
+      throw Exception('تعذر قراءة قائمة التعديلات المحلية المحفوظة بأمان.');
+    }
   }
-  Future<void> _writeOfflineOperations(String schoolId,List<Map<String,dynamic>> rows) async {
-    if(rows.isEmpty) await prefs.remove(_offlineQueueKey(schoolId));
-    else await prefs.setString(_offlineQueueKey(schoolId),jsonEncode(rows));
+
+  Future<void> _writeOfflineOperations(
+    String schoolId,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    const secureStorage = FlutterSecureStorage();
+    final key = _offlineQueueKey(schoolId);
+    if (rows.isEmpty) {
+      await secureStorage.delete(key: key);
+    } else {
+      await secureStorage.write(key: key, value: jsonEncode(rows));
+    }
   }
+
   Future<void> _queueOfflineOperation(String schoolId,Map<String,dynamic> op,{String? dedupeType,String? dedupeKey}) async {
     final rows=await _readOfflineOperations(schoolId);
     if(dedupeType!=null&&dedupeKey!=null) rows.removeWhere((x)=>x['type']==dedupeType&&x['dedupe_key']==dedupeKey);
