@@ -80,14 +80,30 @@ jobs:
           </adaptive-icon>
           EOF
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
-      - name: Build Android candidate (unsigned)
+      - name: Build Android candidate (debug-signed for testing)
         env:
           GOOGLE_SERVER_CLIENT_ID: 207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
-      - name: Upload candidate APK
+      - name: Verify candidate APK signature and package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -q "package: name='com.adreemk.school.lamin_school' versionCode='11' versionName='2.0.2'" <<< "$BADGING"
+          sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
+      - name: Upload candidate APK and checksum
         uses: actions/upload-artifact@v4
         with:
           name: lamin-development-candidate
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            ${{ runner.temp }}/lamin-candidate-sha256.txt
           if-no-files-found: error
           retention-days: 7
