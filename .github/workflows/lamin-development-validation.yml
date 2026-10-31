@@ -98,6 +98,23 @@ jobs:
           BADGING="$("$AAPT" dump badging "$APK")"
           grep -q "package: name='com.adreemk.school.lamin_school' versionCode='12' versionName='2.0.3'" <<< "$BADGING"
           sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
+      - name: Package Android signing toolchain for release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS_DIR/apksigner"
+          mkdir -p "$RUNNER_TEMP/apksigner-tools"
+          cp "$BUILD_TOOLS_DIR/apksigner" "$RUNNER_TEMP/apksigner-tools/"
+          cp -a "$BUILD_TOOLS_DIR/lib" "$RUNNER_TEMP/apksigner-tools/"
+          tar -czf "$RUNNER_TEMP/apksigner-tools.tar.gz" -C "$RUNNER_TEMP" apksigner-tools
+      - name: Upload Android signing toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-apksigner-toolchain
+          path: ${{ runner.temp }}/apksigner-tools.tar.gz
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload candidate APK and checksum
         uses: actions/upload-artifact@v4
         with:
