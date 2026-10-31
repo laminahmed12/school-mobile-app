@@ -253,52 +253,74 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshLock() async {
-    final session = db.auth.currentSession;
-    final enabled = await security.enabled;
-    final repo = SchoolRepository(widget.prefs);
-    final hasInternet = await _hasInternetConnection();
-    SchoolProfile? cached;
-    bool canOpenOffline = false;
+    try {
+      final session = db.auth.currentSession;
+      final enabled = await security.enabled;
+      final repo = SchoolRepository(widget.prefs);
+      final rememberedId = session?.user.id ??
+          await const FlutterSecureStorage().read(
+            key: 'lamin.offline.user.id',
+          );
 
-    if (session != null) {
-      cached = hasInternet
-          ? await repo.profile().timeout(
-              const Duration(seconds: 7),
-              onTimeout: () => repo.cachedProfile(),
-            )
-          : await repo.cachedProfile();
-    } else {
-      // Wi-Fi/mobile connectivity does not guarantee internet access.
-      final rememberedId = await const FlutterSecureStorage()
-          .read(key: 'lamin.offline.user.id');
+      SchoolProfile? cached;
+      Map<String, dynamic>? cachedSchool;
       if (rememberedId != null && rememberedId.isNotEmpty) {
-        cached = await repo.cachedProfile();
-        final cachedSchool = await repo.cachedSchool();
-        final validTrial = schoolTrialEnd(cachedSchool)
-                ?.isAfter(DateTime.now().toUtc()) ??
-            false;
-        final licensed = cachedSchool?['licensed'] == true;
-        canOpenOffline = cached != null &&
-            cached.active &&
-            cached.schoolId != null &&
-            cachedSchool != null &&
-            cachedSchool['active'] != false &&
-            (cached.role == 'owner' || cached.mustChangePassword != true) &&
-            (licensed || validTrial);
+        cached = await repo.cachedProfileForUser(rememberedId);
+        final schoolId = cached?.schoolId;
+        if (schoolId != null && schoolId.isNotEmpty) {
+          cachedSchool = await repo.cachedSchoolForId(schoolId);
+        }
       }
-    }
 
-    final activeSession = session != null || canOpenOffline;
-    final forcePassword = cached?.active == true &&
-        cached?.role != 'owner' &&
-        cached?.mustChangePassword == true;
-    if (!mounted) return;
-    setState(() {
-      checking = false;
-      offlineAccess = canOpenOffline;
-      locked = activeSession && enabled;
-      mustChangePassword = forcePassword && session != null;
-    });
+      // A signed-in online session can refresh a missing cache. This is only
+      // a fallback; offline startup never waits for a network probe.
+      if (session != null && cached == null) {
+        cached = await repo.profile().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.cachedProfileForUser(session.user.id),
+        );
+        if (cached?.schoolId != null) {
+          cachedSchool = await repo.cachedSchoolForId(cached!.schoolId!);
+        }
+      }
+
+      final validTrial =
+          schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
+          false;
+      final licensed = cachedSchool?['licensed'] == true;
+      final canOpenOffline = session == null &&
+          rememberedId != null &&
+          rememberedId.isNotEmpty &&
+          cached != null &&
+          cached.active &&
+          cached.schoolId != null &&
+          cached.schoolId!.isNotEmpty &&
+          cachedSchool != null &&
+          cachedSchool['active'] != false &&
+          (cached.role == 'owner' || cached.mustChangePassword != true) &&
+          (licensed || validTrial);
+
+      final forcePassword = cached?.active == true &&
+          cached?.role != 'owner' &&
+          cached?.mustChangePassword == true;
+      if (!mounted) return;
+      setState(() {
+        checking = false;
+        offlineAccess = canOpenOffline;
+        locked = (session != null || canOpenOffline) && enabled;
+        mustChangePassword = forcePassword && session != null;
+      });
+    } catch (error) {
+      debugPrint('AuthGate cache restore failed: $error');
+      if (!mounted) return;
+      // Do not strand a valid Supabase session on a startup cache exception.
+      setState(() {
+        checking = false;
+        offlineAccess = false;
+        locked = db.auth.currentSession != null && false;
+        mustChangePassword = false;
+      });
+    }
   }
 
   void _unlock() {
