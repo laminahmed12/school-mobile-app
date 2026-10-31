@@ -64,7 +64,6 @@ class BackupService {
       key: key,
       schoolId: schoolId,
     );
-    final target = File(path);
     final temporary = File('$path.tmp');
     await temporary.writeAsString(jsonEncode(encrypted), flush: true);
 
