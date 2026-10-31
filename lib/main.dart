@@ -2655,6 +2655,7 @@ class FeeManagementView extends StatefulWidget {
 
 class _FeeManagementViewState extends State<FeeManagementView> {
   final feeController = TextEditingController();
+  final studentSearchController = TextEditingController();
   final discountController = TextEditingController(text: '0');
   final noteController = TextEditingController();
   List<Map<String, dynamic>> years = [];
@@ -2673,6 +2674,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
   @override
   void dispose() {
     feeController.dispose();
+    studentSearchController.dispose();
     discountController.dispose();
     noteController.dispose();
     super.dispose();
@@ -2681,9 +2683,13 @@ class _FeeManagementViewState extends State<FeeManagementView> {
   Future<void> load() async {
     try {
       years = await widget.repo.academicYears();
-      studentId =
-          widget.initialStudentId ??
-          (widget.students.isNotEmpty ? widget.students.first.id : null);
+      studentId = widget.initialStudentId;
+      if (studentId != null) {
+        final selected = widget.students
+            .where((student) => student.id == studentId)
+            .firstOrNull;
+        if (selected != null) studentSearchController.text = selected.name;
+      }
       final activeYears = years.where((y) => y['active'] == true).toList();
       final active = activeYears.isEmpty ? null : activeYears.first;
       yearId = active?['id']?.toString();
@@ -2692,6 +2698,16 @@ class _FeeManagementViewState extends State<FeeManagementView> {
       error = friendlyError(e, fallback: 'تعذر تحميل الرسوم.');
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> selectStudent(Student student) async {
+    setState(() {
+      studentId = student.id;
+      studentSearchController.text = student.name;
+      error = null;
+    });
+    await prefill();
+    if (mounted) setState(() {});
   }
 
   Future<void> prefill() async {
@@ -2795,25 +2811,87 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: studentId,
-                        decoration: const InputDecoration(labelText: 'الطالب'),
-                        items: widget.students
-                            .map(
-                              (s) => DropdownMenuItem(
-                                value: s.id,
-                                child: Text(s.name),
+                      TextField(
+                        controller: studentSearchController,
+                        enabled: !saving,
+                        onChanged: (_) => setState(() {
+                          studentId = null;
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'ابحث عن الطالب بالاسم',
+                          hintText: 'اكتب اسم الطالب لعرض نتيجة البحث',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: studentSearchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'مسح البحث',
+                                  onPressed: saving
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            studentId = null;
+                                            studentSearchController.clear();
+                                            feeController.clear();
+                                            discountController.text = '0';
+                                            noteController.clear();
+                                          });
+                                        },
+                                  icon: const Icon(Icons.clear),
+                                ),
+                        ),
+                      ),
+                      if (studentId == null &&
+                          studentSearchController.text.trim().isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text('أدخل اسم الطالب للعثور عليه.'),
+                        ),
+                      if (studentId == null &&
+                          studentSearchController.text.trim().isNotEmpty)
+                        ...widget.students
+                            .where(
+                              (student) => student.name.toLowerCase().contains(
+                                studentSearchController.text.trim().toLowerCase(),
                               ),
                             )
-                            .toList(),
-                        onChanged: saving
-                            ? null
-                            : (v) async {
-                                setState(() => studentId = v);
-                                await prefill();
-                                if (mounted) setState(() {});
-                              },
-                      ),
+                            .take(12)
+                            .map(
+                              (student) => ListTile(
+                                dense: true,
+                                leading: const Icon(Icons.person_outline),
+                                title: Text(student.name),
+                                subtitle: Text(student.className),
+                                onTap: saving ? null : () => selectStudent(student),
+                              ),
+                            ),
+                      if (studentId != null)
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.person_pin_circle_outlined),
+                          title: Text(
+                            widget.students
+                                .where((student) => student.id == studentId)
+                                .map((student) => student.name)
+                                .firstOrNull ??
+                                studentSearchController.text,
+                          ),
+                          subtitle: const Text('الطالب المحدد'),
+                          trailing: IconButton(
+                            tooltip: 'تغيير الطالب',
+                            onPressed: saving
+                                ? null
+                                : () {
+                                    setState(() {
+                                      studentId = null;
+                                      studentSearchController.clear();
+                                      feeController.clear();
+                                      discountController.text = '0';
+                                      noteController.clear();
+                                    });
+                                  },
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String?>(
                         initialValue: yearId,
