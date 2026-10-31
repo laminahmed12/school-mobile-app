@@ -4,9 +4,11 @@ on:
     branches:
       - experiment/lamin-db-schema-baseline-20261015
       - review/lamin-db-schema-baseline-20261015
+      - fix/lamin-portal-crud-offline-20261030
   pull_request:
     branches:
       - main
+      - feature/lamin-desktop-portal-2026-10-29
   workflow_dispatch:
 permissions:
   contents: read
@@ -89,6 +91,38 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/0012_repo_drift_reconciliation.sql
       - name: Test tenant isolation, finance, backup, and restore
         run: psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Reconstruct additive 2026-10 school-year and fee schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023120000_school_year_teacher_assignments_and_flexible_fees.sql
+      - name: Reconstruct annual teacher and installment-plan schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261024090000_manager_annual_teachers_and_finance.sql
+      - name: Reconstruct current backup and restore routines
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261023120100_backup_new_fee_and_teacher_year_records.sql
+      - name: Apply idempotent manager finance schema repair
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261029022612_manager_annual_teachers_and_finance_fix_20261029.sql
+      - name: Apply optional student phone migration in disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030230000_allow_optional_student_phone.sql
+      - name: Verify student phone can be left blank
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_optional_student_phone.sql
+      - name: Harden privileged user-management RPC search paths
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031100000_harden_user_admin_rpc_search_path.sql
+      - name: Verify privileged user-management RPC hardening
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_user_admin_rpc_hardening.sql
+      - name: Correct payment academic-year attribution
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031120000_fix_payment_selected_academic_year.sql
+      - name: Verify historical fee payment year and idempotency
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_selected_year.sql
+      - name: Lock direct payment writes to the ledger RPC
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031140000_lock_payments_to_ledger_rpc.sql
+      - name: Verify payment ledger write guard
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_payment_write_guard.sql
+      - name: Consolidate RLS policies and add foreign-key indexes
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031160000_consolidate_rls_policies_and_fk_indexes.sql
+      - name: Verify RLS policy matrix and supporting indexes
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_rls_policy_consolidation.sql
+      - name: Add retry-safe offline student creation
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031180000_offline_student_create_idempotency.sql
+      - name: Verify offline student creation idempotency
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_offline_student_idempotency.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail

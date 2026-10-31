@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - development/lamin-after-obour-2026-10-28
+      - fix/lamin-portal-crud-offline-20261030
   pull_request:
     branches:
       - main
       - development/lamin-after-obour-2026-10-28
+      - feature/lamin-desktop-portal-2026-10-29
 permissions:
   contents: read
 
@@ -78,14 +80,52 @@ jobs:
           </adaptive-icon>
           EOF
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
-      - name: Build Android candidate (unsigned)
+      - name: Build Android candidate (debug-signed for testing)
         env:
           GOOGLE_SERVER_CLIENT_ID: 207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
-      - name: Upload candidate APK
+      - name: Verify candidate APK signature and package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          APP_VERSION="$(awk '/^version:/ {print $2; exit}' pubspec.yaml | tr -d '"')"
+          IFS='+' read -r VERSION_NAME VERSION_CODE <<< "$APP_VERSION"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          EXPECTED_BADGING="package: name='com.adreemk.school.lamin_school' versionCode='${VERSION_CODE}' versionName='${VERSION_NAME}'"
+          grep -Fq "$EXPECTED_BADGING" <<< "$BADGING"
+          sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
+      - name: Package Android signing toolchain for release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS_DIR/apksigner"
+          mkdir -p "$RUNNER_TEMP/apksigner-tools"
+          cp "$BUILD_TOOLS_DIR/apksigner" "$RUNNER_TEMP/apksigner-tools/"
+          cp -a "$BUILD_TOOLS_DIR/lib" "$RUNNER_TEMP/apksigner-tools/"
+          tar -czf "$RUNNER_TEMP/apksigner-tools.tar.gz" -C "$RUNNER_TEMP" apksigner-tools
+      - name: Upload Android signing toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-apksigner-toolchain
+          path: ${{ runner.temp }}/apksigner-tools.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload candidate APK and checksum
         uses: actions/upload-artifact@v4
         with:
           name: lamin-development-candidate
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            ${{ runner.temp }}/lamin-candidate-sha256.txt
           if-no-files-found: error
           retention-days: 7

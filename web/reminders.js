@@ -35,7 +35,7 @@ if (reports) {
     <div class="section-heading"><div><h2>التذكيرات والتنبيهات</h2><p class="muted">أنشئ تذكيرًا بموعد تحصيل أو متابعة أو مهمة إدارية. تحفظ التذكيرات في هذا المتصفح لهذا الحساب/المدرسة.</p></div><button class="button button-secondary" id="reminder-notifications" type="button">تفعيل إشعارات التذكير</button></div>
     <form class="reminder-form" id="reminder-form">
       <div><label for="reminder-title">عنوان التذكير</label><input id="reminder-title" required maxlength="120" placeholder="مثال: متابعة دفعة متأخرة"></div>
-      <div><label for="reminder-due">الموعد</label><input id="reminder-due" type="datetime-local" required></div>
+      <div><label for="reminder-due">الموعد</label><input id="reminder-due" type="text" inputmode="numeric" dir="ltr" autocomplete="off" placeholder="DD/MM/YYYY HH:MM" pattern="\d{2}/\d{2}/\d{4} \d{2}:\d{2}" aria-describedby="reminder-date-help" required><small id="reminder-date-help" class="muted">اكتب اليوم/الشهر/السنة ثم الساعة والدقيقة، مثال: 30/10/2026 14:30</small></div>
       <div><label for="reminder-priority">الأولوية</label><select id="reminder-priority"><option value="normal">عادية</option><option value="high">مهمة</option><option value="urgent">عاجلة</option></select></div>
       <div class="wide"><label for="reminder-notes">ملاحظات (اختياري)</label><textarea id="reminder-notes" rows="2" maxlength="1000" placeholder="تفاصيل تساعدك على تذكر المطلوب"></textarea></div>
       <div class="wide reminder-actions"><button class="button button-primary" type="submit">حفظ التذكير</button><span id="reminder-status" class="message" role="status"></span></div>
@@ -78,7 +78,7 @@ function saveReminders() {
 }
 function formatDate(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("ar-LY", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-GB", {calendar:"gregory",numberingSystem:"latn",timeZone:"Africa/Tripoli",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(date);
 }
 function renderReminders() {
   const list = $("reminder-list");
@@ -99,9 +99,12 @@ function renderReminders() {
 $("reminder-form")?.addEventListener("submit", event => {
   event.preventDefault();
   const title = $("reminder-title").value.trim();
-  const due = $("reminder-due").value;
-  if (!title || !due || Number.isNaN(new Date(due).getTime())) { status("أدخل عنوانًا وموعدًا صحيحين.", true); return; }
-  const updated = { title, due: new Date(due).toISOString(), priority: $("reminder-priority").value, notes: $("reminder-notes").value.trim() };
+  const dueText = $("reminder-due").value.trim();
+  const match=dueText.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+  if(!title||!match){status("أدخل الموعد بصيغة يوم/شهر/سنة ساعة:دقيقة.",true);return;}
+  const [,day,month,year,hour,minute]=match;const localDate=new Date(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute));
+  if(localDate.getFullYear()!==Number(year)||localDate.getMonth()!==Number(month)-1||localDate.getDate()!==Number(day)||localDate.getHours()!==Number(hour)||localDate.getMinutes()!==Number(minute)){status("التاريخ أو الوقت غير صحيح.",true);return;}
+  const updated = { title, due: localDate.toISOString(), priority: $("reminder-priority").value, notes: $("reminder-notes").value.trim() };
   if (editingReminderId) {
     const existing = reminders.find(r => r.id === editingReminderId);
     if (existing) Object.assign(existing, updated, { notified: false });
@@ -123,8 +126,7 @@ $("reminder-list")?.addEventListener("click", event => {
     if (confirm("هل تريد حذف هذا التذكير؟")) { reminders = reminders.filter(r => r.id !== id); saveReminders(); status("تم حذف التذكير."); }
   } else if (button.dataset.reminderEdit) {
     $("reminder-title").value = item.title;
-    $("reminder-due").value = new Date(item.due).getTime() - new Date(item.due).getTimezoneOffset() * 60000
-      ? new Date(new Date(item.due).getTime() - new Date(item.due).getTimezoneOffset() * 60000).toISOString().slice(0,16) : "";
+    const dueDate=new Date(item.due);$("reminder-due").value=Number.isNaN(dueDate.getTime())?"":new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Tripoli",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(dueDate).replace(",","");
     $("reminder-priority").value = item.priority || "normal";
     $("reminder-notes").value = item.notes || "";
     editingReminderId = id;
@@ -175,7 +177,7 @@ function enhanceAuditTable() {
     if (cells.length !== 5) continue;
     const action = cells[2].textContent.trim();
     cells[2].innerHTML = '<span class="audit-tag">' + escapeHtml(auditLabels[action] || action || "عملية") + '</span><br><span class="muted small">' + escapeHtml(action) + '</span>';
-    cells[0].textContent = formatDate(cells[0].textContent.trim());
+    /* app.js already formats the timestamp using the Tripoli timezone; do not parse the localized text again. */
     const raw = cells[4].textContent.trim();
     let parsed;
     try { parsed = JSON.parse(raw); } catch { parsed = raw; }

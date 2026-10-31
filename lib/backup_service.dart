@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cryptography/cryptography.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'local_backup_crypto.dart';
 import 'repository.dart';
 
 class DriveBackupResult {
@@ -17,6 +21,76 @@ class DriveBackupResult {
 }
 
 class BackupService {
+  static const String _localBackupKeyName =
+      'lamin.local_backup.encryption_key.v1';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  static Future<SecretKey> _localBackupKey() async {
+    final stored = await _secureStorage.read(key: _localBackupKeyName);
+    if (stored != null && stored.isNotEmpty) {
+      try {
+        final bytes = base64Decode(stored);
+        if (bytes.length != 32) {
+          throw const FormatException('Invalid local backup encryption key.');
+        }
+        return SecretKey(bytes);
+      } catch (_) {
+        throw Exception(
+          'تعذر قراءة مفتاح تشفير النسخ المحلية. لم تُحذف النسخ الموجودة.',
+        );
+      }
+    }
+
+    final generated = await AesGcm.with256bits().newSecretKey();
+    final bytes = await generated.extractBytes();
+    if (bytes.length != 32) {
+      throw Exception('تعذر إنشاء مفتاح تشفير صالح للنسخ المحلية.');
+    }
+    await _secureStorage.write(
+      key: _localBackupKeyName,
+      value: base64Encode(bytes),
+    );
+    return SecretKey(bytes);
+  }
+
+  static Future<File> _writeEncryptedLocalBackup({
+    required String path,
+    required String clearText,
+    required String schoolId,
+  }) async {
+    final key = await _localBackupKey();
+    final encrypted = await LocalBackupCrypto.encryptText(
+      clearText: clearText,
+      key: key,
+      schoolId: schoolId,
+    );
+    final temporary = File('$path.tmp');
+    await temporary.writeAsString(jsonEncode(encrypted), flush: true);
+
+    // Verify authentication and the school binding before replacing any
+    // previously saved backup. This also detects incomplete writes.
+    final verificationEnvelope = Map<String, dynamic>.from(
+      jsonDecode(await temporary.readAsString()) as Map,
+    );
+    final verified = await LocalBackupCrypto.decryptText(
+      envelope: verificationEnvelope,
+      key: key,
+      expectedSchoolId: schoolId,
+    );
+    if (verified != clearText) {
+      await temporary.delete();
+      throw Exception('تعذر التحقق من النسخة الاحتياطية المشفرة.');
+    }
+    // On Android/iOS rename replaces an existing file atomically after the
+    // temporary file has been fully written and authenticated.
+    try {
+      return await temporary.rename(path);
+    } catch (_) {
+      if (await temporary.exists()) await temporary.delete();
+      rethrow;
+    }
+  }
+
   /// Validates both the outer backup envelope and the school-scoped RPC payload.
   /// This is enforced in the service layer as well as in the UI.
   static Map<String, dynamic> validateBackupEnvelope(
@@ -51,12 +125,17 @@ class BackupService {
     if (!await backups.exists()) await backups.create(recursive: true);
     final year = await repo.activeAcademicYearName() ?? 'current';
     final school = await repo.school();
-    final schoolId = school?['id']?.toString() ?? 'unknown-school';
+    final schoolId = school?['id']?.toString();
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة؛ لم تُنشأ نسخة احتياطية غير مرتبطة بمدرسة.');
+    }
     final safeYear = year.replaceAll(
       RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
     );
-    final file = File('${backups.path}/lamin_${safeYear}_${schoolId}.json');
+    final baseName = 'lamin_${safeYear}_${schoolId}';
+    final legacyFile = File('${backups.path}/$baseName.json');
+    final encryptedFile = File('${backups.path}/$baseName.enc');
     final envelope = {
       'format': 'lamin-school-backup',
       'version': 2,
@@ -67,11 +146,14 @@ class BackupService {
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'data': data,
     };
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(envelope),
-      flush: true,
+    final clearText = const JsonEncoder.withIndent('  ').convert(envelope);
+    final saved = await _writeEncryptedLocalBackup(
+      path: encryptedFile.path,
+      clearText: clearText,
+      schoolId: schoolId,
     );
-    return file;
+    if (await legacyFile.exists()) await legacyFile.delete();
+    return saved;
   }
 
   static Future<Map<String, dynamic>?> readLatestLocalBackup(
@@ -83,17 +165,69 @@ class BackupService {
     final school = await repo.school();
     final schoolId = school?['id']?.toString();
     if (schoolId == null || schoolId.isEmpty) return null;
+
     final files = await backups
         .list()
         .where(
-          (entry) => entry is File && entry.path.endsWith('_${schoolId}.json'),
+          (entry) =>
+              entry is File &&
+              (entry.path.endsWith('_${schoolId}.enc') ||
+                  entry.path.endsWith('_${schoolId}.json')),
         )
         .cast<File>()
         .toList();
     if (files.isEmpty) return null;
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-    final decoded = jsonDecode(await files.first.readAsString());
-    return validateBackupEnvelope(decoded, expectedSchoolId: schoolId);
+
+    final selected = files.first;
+    final raw = await selected.readAsString();
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      throw Exception('ملف النسخة الاحتياطية المحلية غير صالح.');
+    }
+    final map = Map<String, dynamic>.from(decoded);
+
+    if (map['format'] == LocalBackupCrypto.format) {
+      final clearText = await LocalBackupCrypto.decryptText(
+        envelope: map,
+        key: await _localBackupKey(),
+        expectedSchoolId: schoolId,
+      );
+      return validateBackupEnvelope(
+        jsonDecode(clearText),
+        expectedSchoolId: schoolId,
+      );
+    }
+
+    // Older releases stored local backups as clear JSON. Validate the tenant
+    // before encrypting and removing that legacy file.
+    final validated = validateBackupEnvelope(
+      map,
+      expectedSchoolId: schoolId,
+    );
+    final encryptedPath = selected.path.endsWith('.json')
+        ? '${selected.path.substring(0, selected.path.length - 5)}.enc'
+        : '${selected.path}.enc';
+    final migrated = await _writeEncryptedLocalBackup(
+      path: encryptedPath,
+      clearText: raw,
+      schoolId: schoolId,
+    );
+    final migratedContent = await migrated.readAsString();
+    final migratedEnvelope = Map<String, dynamic>.from(
+      jsonDecode(migratedContent) as Map,
+    );
+    final verifiedClearText = await LocalBackupCrypto.decryptText(
+      envelope: migratedEnvelope,
+      key: await _localBackupKey(),
+      expectedSchoolId: schoolId,
+    );
+    validateBackupEnvelope(
+      jsonDecode(verifiedClearText),
+      expectedSchoolId: schoolId,
+    );
+    if (selected.existsSync()) await selected.delete();
+    return validated;
   }
 
   static Future<Map<String, dynamic>?> pickBackupFile({
