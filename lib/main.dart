@@ -895,6 +895,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Student> students = [];
   List<Teacher> teachers = [];
   double payments = 0, expenses = 0;
+  int pendingOperations = 0;
+  int attendanceReloadVersion = 0;
+  String? offlineSyncError;
 
   @override
   void initState() {
@@ -955,12 +958,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
+    String? syncFailureMessage;
+
     try {
-      try { online = await _hasInternetConnection(); } catch (_) { online = false; }
+      online = await _hasInternetConnection();
+
       if (online && db.auth.currentSession != null) {
-        try { final synced=await repo.syncPendingOfflineChanges(); if(synced>0)debugPrint('Lamīn synced $synced offline operations.'); }
-        catch(error){debugPrint('Pending offline sync will retry: $error');}
+        try {
+          final result = await repo.syncPendingOfflineChanges();
+          pendingOperations = result.pending;
+          if (result.synced > 0) attendanceReloadVersion++;
+          if (result.failedOperation != null) {
+            final operation = offlineOperationLabel(result.failedOperation);
+            final detail = friendlyError(
+              result.error ?? 'تعذر الاتصال بالخادم.',
+            );
+            syncFailureMessage =
+                'تعذرت مزامنة "$operation". بقيت العملية معلّقة. $detail';
+            offlineSyncError = syncFailureMessage;
+          } else {
+            offlineSyncError = null;
+          }
+        } catch (error) {
+          pendingOperations = await repo.pendingOfflineOperationCount();
+          syncFailureMessage =
+              'تعذر فحص العمليات المعلّقة: ' + friendlyError(error);
+          offlineSyncError = syncFailureMessage;
+        }
+      } else {
+        pendingOperations = await repo.pendingOfflineOperationCount();
       }
+
       if (!online || db.auth.currentSession == null) {
         online = false;
         profile = await repo.cachedProfile();
@@ -979,62 +1007,67 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           payments = 0;
           expenses = 0;
         }
-        if (mounted) setState(() => loading = false);
-        return;
-      }
-
-      await repo.ensureOwnerSchool();
-      profile = await repo.profile();
-      schoolInfo = await repo.school();
-
-      // Load each section independently so a role-restricted table does not
-      // prevent the rest of the dashboard from rendering.
-      try {
-        students = await repo.students();
-      } catch (_) {
-        students = [];
-      }
-
-      final role = profile?.role ?? '';
-      if (role == 'supervisor') {
-        // RLS intentionally restricts the teachers table for supervisors.
-        teachers = [];
       } else {
-        try {
-          teachers = await repo.teachers();
-        } catch (_) {
-          teachers = [];
-        }
-      }
+        await repo.ensureOwnerSchool();
+        profile = await repo.profile();
+        schoolInfo = await repo.school();
 
-      final canViewFinance =
-          role == 'admin' || role == 'owner' || role == 'accountant';
-      if (canViewFinance) {
         try {
-          payments = await repo.paymentsTotal();
+          students = await repo.students();
         } catch (_) {
-          payments = 0;
+          students = [];
         }
-        try {
-          expenses = await repo.expensesTotal();
-        } catch (_) {
+
+        final role = profile?.role ?? '';
+        if (role == 'supervisor') {
+          teachers = [];
+        } else {
+          try {
+            teachers = await repo.teachers();
+          } catch (_) {
+            teachers = [];
+          }
+        }
+
+        final canViewFinance =
+            role == 'admin' || role == 'owner' || role == 'accountant';
+        if (canViewFinance) {
+          try {
+            payments = await repo.paymentsTotal();
+          } catch (_) {
+            payments = 0;
+          }
+          try {
+            expenses = await repo.expensesTotal();
+          } catch (_) {
+            expenses = 0;
+          }
+        } else {
+          payments = 0;
           expenses = 0;
         }
-      } else {
-        payments = 0;
-        expenses = 0;
-      }
 
-      try {
-        final status = await Connectivity().checkConnectivity();
-        online = !status.contains(ConnectivityResult.none);
-      } catch (_) {
-        online = false;
+        try {
+          final status = await Connectivity().checkConnectivity();
+          online = !status.contains(ConnectivityResult.none);
+        } catch (_) {
+          online = false;
+        }
       }
-    } catch (_) {
-      // Keep the app usable even if profile/bootstrap loading temporarily fails.
+    } catch (error) {
+      debugPrint('Home refresh failed: $error');
+      try {
+        pendingOperations = await repo.pendingOfflineOperationCount();
+      } catch (_) {}
     }
+
     if (mounted) setState(() => loading = false);
+
+    if (syncFailureMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(syncFailureMessage)),
+      );
+    }
   }
 
   @override
@@ -1062,7 +1095,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           canSetFees: isAdmin,
         ),
       if (isAdmin || isSupervisor)
-        AttendanceView(repo: repo, students: students),
+        AttendanceView(
+          key: ValueKey(attendanceReloadVersion),
+          repo: repo,
+          students: students,
+        ),
       if (isAdmin || isAccountant)
         FinanceView(
           repo: repo,
@@ -1156,8 +1193,65 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة. لا تُحفظ التعديلات الجديدة حتى عودة الإنترنت.',
+                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة، وتُحفظ التعديلات محلياً لمزامنتها عند عودة الإنترنت.',
                               style: TextStyle(color: Color(0xFF624A13), fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (pendingOperations > 0)
+                  Material(
+                    color: const Color(0xFFE7F0EA),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(14, 5, 8, 5),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.sync_problem_outlined,
+                            color: brandGreen,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'عمليات معلّقة: $pendingOperations',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: brandGreen,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: loading ? null : refresh,
+                            icon: const Icon(Icons.sync, size: 18),
+                            label: const Text('إعادة المحاولة'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (offlineSyncError != null)
+                  Material(
+                    color: const Color(0xFFFFE8E6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              offlineSyncError!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -1632,7 +1726,11 @@ class _StudentsViewState extends State<StudentsView> {
 class AttendanceView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
-  const AttendanceView({super.key, required this.repo, required this.students});
+  const AttendanceView({
+    super.key,
+    required this.repo,
+    required this.students,
+  });
   @override
   State<AttendanceView> createState() => _AttendanceViewState();
 }
@@ -1640,6 +1738,7 @@ class AttendanceView extends StatefulWidget {
 class _AttendanceViewState extends State<AttendanceView> {
   final Map<String, String> status = {};
   DateTime day = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -1647,36 +1746,109 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 
   Future<void> load() async {
-    final rows = await widget.repo.attendance(day);
-    for (final r in rows) {
-      status[r.studentId] = r.status;
+    final requestedDay = day;
+    final rows = await widget.repo.attendance(requestedDay);
+    if (!mounted || requestedDay != day) return;
+    final loaded = <String, String>{};
+    for (final row in rows) {
+      loaded[row.studentId] = row.status;
     }
-    if (mounted) setState(() {});
+    setState(() {
+      status
+        ..clear()
+        ..addAll(loaded);
+    });
   }
 
-  Future<void> mark(Student s, String value) async {
-    setState(() => status[s.id] = value);
+  Future<void> mark(Student student, String value) async {
+    var minutesLate = 0;
+    if (value == 'late') {
+      final controller = TextEditingController();
+      final selectedMinutes = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('مدة التأخير — ${student.name}'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'عدد دقائق التأخير',
+              suffixText: 'دقيقة',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final parsed = int.tryParse(controller.text.trim());
+                if (parsed == null || parsed < 1) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('أدخل عدد دقائق صحيحاً أكبر من صفر.'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, parsed);
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (selectedMinutes == null) return;
+      minutesLate = selectedMinutes;
+    }
+
+    final previousStatus = status[student.id];
+    setState(() => status[student.id] = value);
     try {
       await widget.repo.saveAttendance(
-        studentId: s.id,
+        studentId: student.id,
         day: day,
         status: value,
+        minutesLate: minutesLate,
       );
-    } catch (_) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تعذر حفظ الحضور')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        if (previousStatus == null) {
+          status.remove(student.id);
+        } else {
+          status[student.id] = previousStatus;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyError(error, fallback: 'تعذر حفظ سجل الحضور.'),
+          ),
+        ),
+      );
     }
   }
 
-  String label(String v) => v == 'present'
-      ? 'حاضر'
-      : v == 'absent'
-      ? 'غائب'
-      : v == 'late'
-      ? 'متأخر'
-      : 'معذور';
+  String label(String? value) {
+    if (value == null) return 'غير مسجّل';
+    switch (value) {
+      case 'present':
+        return 'حاضر';
+      case 'absent':
+        return 'غائب';
+      case 'late':
+        return 'متأخر';
+      case 'excused':
+        return 'معذور';
+      default:
+        return 'غير مسجّل';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final date =
@@ -1689,24 +1861,23 @@ class _AttendanceViewState extends State<AttendanceView> {
             children: [
               Expanded(
                 child: Text(
-                  'حضور $date',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'سجل الحضور — $date',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               IconButton(
                 onPressed: () async {
-                  final d = await showDatePicker(
+                  final selected = await showDatePicker(
                     context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
                     initialDate: day,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
                   );
-                  if (d != null) {
-                    day = d;
-                    status.clear();
+                  if (selected != null) {
+                    setState(() {
+                      day = selected;
+                      status.clear();
+                    });
                     await load();
                   }
                 },
@@ -1718,15 +1889,19 @@ class _AttendanceViewState extends State<AttendanceView> {
         Expanded(
           child: ListView.builder(
             itemCount: widget.students.length,
-            itemBuilder: (_, i) {
-              final s = widget.students[i], v = status[s.id] ?? 'present';
+            itemBuilder: (_, index) {
+              final student = widget.students[index];
+              final value = status[student.id];
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: ListTile(
-                  title: Text(s.name),
-                  subtitle: Text(label(v)),
+                  title: Text(student.name),
+                  subtitle: Text(label(value)),
                   trailing: PopupMenuButton<String>(
-                    onSelected: (x) => mark(s, x),
+                    onSelected: (selected) => mark(student, selected),
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'present', child: Text('حاضر')),
                       PopupMenuItem(value: 'absent', child: Text('غائب')),
@@ -1744,7 +1919,7 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 }
 
-class FinanceView extends StatelessWidget {
+class FinanceView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
   final double payments, expenses;
@@ -1762,7 +1937,28 @@ class FinanceView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Column(
+  State<FinanceView> createState() => _FinanceViewState();
+}
+
+class _FinanceViewState extends State<FinanceView> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleStudents = query.isEmpty
+        ? <Student>[]
+        : widget.students
+            .where((student) => student.name.toLowerCase().contains(query))
+            .toList();
+
+    return Column(
     children: [
       Padding(
         padding: const EdgeInsets.all(12),
@@ -1772,7 +1968,7 @@ class FinanceView extends StatelessWidget {
               child: Card(
                 child: ListTile(
                   title: const Text('الداخل'),
-                  trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
+                  trailing: Text('${widget.payments.toStringAsFixed(2)} د.ل'),
                 ),
               ),
             ),
@@ -1781,14 +1977,14 @@ class FinanceView extends StatelessWidget {
               child: Card(
                 child: ListTile(
                   title: const Text('المصروف'),
-                  trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
+                  trailing: Text('${widget.expenses.toStringAsFixed(2)} د.ل'),
                 ),
               ),
             ),
           ],
         ),
       ),
-      if (canManageFees)
+      if (widget.canManageFees)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: SizedBox(
@@ -1797,7 +1993,7 @@ class FinanceView extends StatelessWidget {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ManagerRequestsView(repo: repo),
+                  builder: (_) => ManagerRequestsView(repo: widget.repo),
                 ),
               ),
               icon: const Icon(Icons.assignment_outlined),
@@ -1807,7 +2003,7 @@ class FinanceView extends StatelessWidget {
             ),
           ),
         ),
-      if (canManageFees)
+      if (widget.canManageFees)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: SizedBox(
@@ -1817,7 +2013,7 @@ class FinanceView extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) =>
-                      FeeManagementView(repo: repo, students: students),
+                      FeeManagementView(repo: widget.repo, students: widget.students),
                 ),
               ),
               icon: const Icon(Icons.price_change_outlined),
@@ -1826,13 +2022,43 @@ class FinanceView extends StatelessWidget {
           ),
         ),
       Expanded(
-        child: students.isEmpty
-            ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
-            : ListView.builder(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  labelText: 'ابحث عن طالب لعرض حسابه المالي',
+                  hintText: 'اكتب اسم الطالب',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          tooltip: 'مسح البحث',
+                          icon: const Icon(Icons.clear),
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: query.isEmpty
+                  ? const Center(
+                      child: Text('ابحث باسم الطالب لعرض بياناته المالية.'),
+                    )
+                  : visibleStudents.isEmpty
+                      ? const Center(child: Text('لا توجد نتائج مطابقة.'))
+                      : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                itemCount: students.length,
+                itemCount: visibleStudents.length,
                 itemBuilder: (_, i) {
-                  final s = students[i];
+                  final s = visibleStudents[i];
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(10),
@@ -1840,7 +2066,7 @@ class FinanceView extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           FutureBuilder<Map<String, dynamic>>(
-                            future: repo.studentFinancialSummary(s.id),
+                            future: widget.repo.studentFinancialSummary(s.id),
                             builder: (context, snapshot) {
                               final summary = snapshot.data;
                               final fees =
@@ -1917,9 +2143,9 @@ class FinanceView extends StatelessWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => StudentAccountView(
-                                        repo: repo,
+                                        repo: widget.repo,
                                         student: s,
-                                        canManageFees: canManageFees,
+                                        canManageFees: widget.widget.canManageFees,
                                       ),
                                     ),
                                   ),
@@ -1935,6 +2161,9 @@ class FinanceView extends StatelessWidget {
                   );
                 },
               ),
+            ),
+          ],
+        ),
       ),
     ],
   );
@@ -1961,7 +2190,7 @@ class FinanceView extends StatelessWidget {
     final noteController = TextEditingController();
     List<Map<String, dynamic>> assessments = [];
     try {
-      assessments = await repo.studentFeeAssessments(s.id);
+      assessments = await widget.repo.studentFeeAssessments(s.id);
     } catch (_) {}
     String? selectedFeeId = assessments.isEmpty
         ? null
@@ -2050,7 +2279,7 @@ class FinanceView extends StatelessWidget {
     final value = (result['amount'] as num).toDouble();
     final note = result['note']?.toString() ?? '';
     try {
-      await repo.addPayment(
+      await widget.repo.addPayment(
         studentId: s.id,
         amount: value,
         note: note,
@@ -2058,7 +2287,7 @@ class FinanceView extends StatelessWidget {
         feeAssessmentId: result['fee_assessment_id']?.toString(),
       );
       try {
-        await onChanged();
+        await widget.onChanged();
       } catch (_) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2103,7 +2332,7 @@ class FinanceView extends StatelessWidget {
     if (makeReceipt && context.mounted) {
       try {
         await LaminPdfService.printPaymentReceipt(
-          repo: repo,
+          repo: widget.repo,
           studentName: s.name,
           className: s.className,
           amount: value,
