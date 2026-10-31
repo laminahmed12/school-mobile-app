@@ -9,20 +9,58 @@ class SchoolRepository {
 
   Future<SchoolProfile?> profile() async {
     final u = db.auth.currentUser;
-    if (u == null) return null;
-    final row = await db
-        .from('profiles')
-        .select()
-        .eq('user_id', u.id)
-        .maybeSingle();
-    if (row == null) return null;
-    final profile = SchoolProfile.fromMap(row);
-    final schoolId = profile.schoolId;
-    if (schoolId != null && schoolId.isNotEmpty) {
-      // Cache tenant scope per authenticated user for offline reads only.
-      await prefs.setString('school_id_cache_${u.id}', schoolId);
+    final cacheKey = u == null
+        ? 'lamin_last_profile_cache'
+        : 'profile_cache_${u.id}';
+    try {
+      if (u == null) {
+        final cached = prefs.getString('lamin_last_profile_cache');
+        if (cached == null) return null;
+        return SchoolProfile.fromMap(
+          Map<String, dynamic>.from(jsonDecode(cached) as Map),
+        );
+      }
+      final row = await db
+          .from('profiles')
+          .select()
+          .eq('user_id', u.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+      if (row == null) return null;
+      final profile = SchoolProfile.fromMap(row);
+      final encoded = jsonEncode(Map<String, dynamic>.from(row));
+      await prefs.setString(cacheKey, encoded);
+      await prefs.setString('lamin_last_profile_cache', encoded);
+      final schoolId = profile.schoolId;
+      if (schoolId != null && schoolId.isNotEmpty) {
+        // Cache tenant scope per authenticated user for offline reads only.
+        await prefs.setString('school_id_cache_${u.id}', schoolId);
+      }
+      return profile;
+    } catch (_) {
+      final cached = prefs.getString(cacheKey);
+      if (cached == null) return null;
+      try {
+        return SchoolProfile.fromMap(
+          Map<String, dynamic>.from(jsonDecode(cached) as Map),
+        );
+      } catch (_) {
+        return null;
+      }
     }
-    return profile;
+  }
+
+  Future<bool> hasServerConnection() async {
+    try {
+      await db
+          .from('schools')
+          .select('id')
+          .limit(1)
+          .timeout(const Duration(seconds: 4));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<Map<String, dynamic>?> school() async {
@@ -105,6 +143,202 @@ class SchoolRepository {
     }
   }
 
+  Future<void> queueOfflineStudentUpdate({
+    required String schoolId,
+    required String studentId,
+    required String name,
+    required String className,
+    required String phone,
+  }) async {
+    final queueKey = 'lamin_offline_student_updates_$schoolId';
+    List<Map<String, dynamic>> queue = [];
+    final rawQueue = prefs.getString(queueKey);
+    if (rawQueue != null) {
+      try {
+        queue = (jsonDecode(rawQueue) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      } catch (_) {
+        queue = [];
+      }
+    }
+    queue.removeWhere((item) => item['student_id'] == studentId);
+    queue.add({
+      'student_id': studentId,
+      'name': name.trim(),
+      'class_name': className.trim(),
+      'phone': phone.trim(),
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    await prefs.setString(queueKey, jsonEncode(queue));
+
+    final cacheKey = 'students_cache_$schoolId';
+    final rawStudents = prefs.getString(cacheKey);
+    if (rawStudents != null) {
+      try {
+        final cached = (jsonDecode(rawStudents) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        final index = cached.indexWhere(
+          (item) => item['id']?.toString() == studentId,
+        );
+        if (index >= 0) {
+          cached[index] = {
+            ...cached[index],
+            'name': name.trim(),
+            'class_name': className.trim(),
+            'phone': phone.trim(),
+          };
+          await prefs.setString(cacheKey, jsonEncode(cached));
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<int> syncOfflineStudentUpdates() async {
+    if (db.auth.currentUser == null) return 0;
+    final currentProfile = await profile();
+    final schoolId = currentProfile?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    final queueKey = 'lamin_offline_student_updates_$schoolId';
+    final rawQueue = prefs.getString(queueKey);
+    if (rawQueue == null) return 0;
+
+    List<Map<String, dynamic>> queue;
+    try {
+      queue = (jsonDecode(rawQueue) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      return 0;
+    }
+    final pending = <Map<String, dynamic>>[];
+    var synced = 0;
+    for (var index = 0; index < queue.length; index++) {
+      final item = queue[index];
+      try {
+        final row = await db
+            .from('students')
+            .update({
+              'name': item['name'],
+              'class_name': item['class_name'],
+              'phone': item['phone'],
+            })
+            .eq('id', item['student_id'].toString())
+            .select('id')
+            .maybeSingle();
+        if (row == null) {
+          pending.add(item);
+        } else {
+          synced++;
+        }
+      } catch (_) {
+        pending.addAll(queue.skip(index));
+        break;
+      }
+    }
+    if (pending.isEmpty) {
+      await prefs.remove(queueKey);
+    } else {
+      await prefs.setString(queueKey, jsonEncode(pending));
+    }
+    return synced;
+  }
+
+  Future<void> queueOfflineFeeAssessment({
+    required String schoolId,
+    required String studentId,
+    required String term,
+    required double totalFee,
+    required double discount,
+    String? academicYearId,
+    required String academicYearLabel,
+    String note = '',
+  }) async {
+    if (totalFee < 0 || discount < 0 || discount > totalFee) {
+      throw Exception(
+        'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
+      );
+    }
+    final queueKey = 'lamin_offline_fee_updates_$schoolId';
+    List<Map<String, dynamic>> queue = [];
+    final raw = prefs.getString(queueKey);
+    if (raw != null) {
+      try {
+        queue = (jsonDecode(raw) as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      } catch (_) {
+        queue = [];
+      }
+    }
+    queue.removeWhere(
+      (item) =>
+          item['student_id'] == studentId &&
+          item['term'] == term &&
+          item['academic_year_id'] == academicYearId,
+    );
+    queue.add({
+      'student_id': studentId,
+      'term': term,
+      'total_fee': totalFee,
+      'discount': discount,
+      'academic_year_id': academicYearId,
+      'academic_year_label': academicYearLabel,
+      'note': note.trim(),
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    await prefs.setString(queueKey, jsonEncode(queue));
+  }
+
+  Future<int> syncOfflineFeeAssessments() async {
+    if (db.auth.currentUser == null) return 0;
+    final currentProfile = await profile();
+    final schoolId = currentProfile?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    if (!['admin', 'owner', 'accountant'].contains(currentProfile?.role)) {
+      return 0;
+    }
+    final queueKey = 'lamin_offline_fee_updates_$schoolId';
+    final raw = prefs.getString(queueKey);
+    if (raw == null) return 0;
+    List<Map<String, dynamic>> queue;
+    try {
+      queue = (jsonDecode(raw) as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      return 0;
+    }
+    final pending = <Map<String, dynamic>>[];
+    var synced = 0;
+    for (var index = 0; index < queue.length; index++) {
+      final item = queue[index];
+      try {
+        await saveStudentFeeAssessment(
+          studentId: item['student_id'].toString(),
+          term: item['term'].toString(),
+          totalFee: (item['total_fee'] as num).toDouble(),
+          discount: (item['discount'] as num).toDouble(),
+          academicYearId: item['academic_year_id']?.toString(),
+          academicYearLabel:
+              item['academic_year_label']?.toString() ?? 'غير محدد',
+          note: item['note']?.toString() ?? '',
+        );
+        synced++;
+      } catch (_) {
+        pending.addAll(queue.skip(index));
+        break;
+      }
+    }
+    if (pending.isEmpty) {
+      await prefs.remove(queueKey);
+    } else {
+      await prefs.setString(queueKey, jsonEncode(pending));
+    }
+    return synced;
+  }
+
   Future<Map<String, dynamic>?> parent(String studentId) async {
     try {
       final row = await db
@@ -184,16 +418,30 @@ class SchoolRepository {
   }
 
   Future<List<Map<String, dynamic>>> academicYears() async {
+    final schoolId = (await profile())?.schoolId;
+    final cacheKey = schoolId == null ? null : 'academic_years_cache_$schoolId';
     try {
-      return (await db
-                  .from('academic_years')
-                  .select()
-                  .order('created_at', ascending: false)
-              as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      final rows =
+          (await db
+                      .from('academic_years')
+                      .select()
+                      .order('created_at', ascending: false)
+                  as List)
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(rows));
+      return rows;
     } catch (_) {
-      return [];
+      if (cacheKey == null) return [];
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return [];
+      try {
+        return (jsonDecode(raw) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } catch (_) {
+        return [];
+      }
     }
   }
 

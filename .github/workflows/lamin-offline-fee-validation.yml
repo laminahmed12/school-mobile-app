@@ -1,0 +1,67 @@
+name: Lamin offline access and fee edit validation
+
+on:
+  push:
+    branches:
+      - fix/lamin-offline-access-and-fee-edit
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Format changed Dart files
+        run: dart format lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart
+      - name: Commit formatter output before validation
+        run: |
+          if ! git diff --quiet -- lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add lib/main.dart lib/repository.dart test/offline_home_page_test.dart test/offline_mutation_queue_test.dart
+            git commit -m "style: format offline access changes"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Static analysis
+        run: flutter analyze --no-pub --fatal-infos --fatal-warnings
+      - name: Automated tests
+        run: flutter test --no-pub
+      - name: Prepare Android platform
+        run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+      - name: Apply Arabic Lamin app label
+        run: sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
+      - name: Configure Android host for local authentication
+        run: |
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\\    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>' android/app/src/main/AndroidManifest.xml
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
+          mkdir -p android/app/src/main/kotlin/com/adreemk/school/lamin_school
+          cat > android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt <<'EOF'
+          package com.adreemk.school.lamin_school
+          import io.flutter.embedding.android.FlutterFragmentActivity
+          class MainActivity : FlutterFragmentActivity()
+          EOF
+      - name: Build Android debug candidate
+        run: flutter build apk --debug --no-tree-shake-icons
+      - name: Upload Android debug candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-offline-fee-candidate-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
+import 'dart:convert';
 import 'app_error.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,12 +21,11 @@ import 'auth_service.dart';
 import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
-import 'test_builder.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
 const brandInk = Color(0xFF20312C);
-const brandCanvas = Color(0xFFF3F6F3);
+const brandCanvas = Color(0xFFF6F7F4);
 
 DateTime? _schoolTrialEnd(Map<String, dynamic>? school) {
   final raw = school?['trial_started_at']?.toString();
@@ -73,7 +73,7 @@ String? _schoolTrialStatus(Map<String, dynamic>? school) {
   return 'فترة تجريبية لمدة شهر — متبقي $days يوم. تنتهي في $date';
 }
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
@@ -83,13 +83,190 @@ Future<void> main() async {
     debugPrintStack(stackTrace: stack);
     return true;
   };
+  runApp(const LaminBootstrapApp());
+}
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    publishableKey: supabasePublishableKey,
-  );
-  final prefs = await SharedPreferences.getInstance();
-  runApp(LaminApp(prefs: prefs));
+bool _hasCachedOfflineProfile(SharedPreferences prefs) {
+  final raw = prefs.getString('lamin_last_profile_cache');
+  if (raw == null) return false;
+  try {
+    final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    return cached['active'] != false &&
+        cached['must_change_password'] != true &&
+        (cached['school_id']?.toString().isNotEmpty ?? false);
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Render the app immediately, then initialize Supabase and local preferences.
+/// Startup failures remain recoverable inside the app instead of terminating
+/// before Flutter can render its first frame.
+class LaminBootstrapApp extends StatefulWidget {
+  const LaminBootstrapApp({super.key});
+
+  @override
+  State<LaminBootstrapApp> createState() => _LaminBootstrapAppState();
+}
+
+class _LaminBootstrapAppState extends State<LaminBootstrapApp> {
+  Future<Supabase>? _supabaseInitialization;
+  SharedPreferences? _prefs;
+  Object? _initializationError;
+  bool _loading = true;
+  bool _initializing = false;
+  bool _offlineBootstrap = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    if (_initializing) return;
+    _initializing = true;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _initializationError = null;
+      });
+    }
+
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 8),
+      );
+      if (mounted) setState(() => _prefs = prefs);
+      final initialization = _supabaseInitialization ??= Supabase.initialize(
+        url: supabaseUrl,
+        publishableKey: supabasePublishableKey,
+      );
+      // Keep a timed-out in-flight Future for retry. Clear it only if the
+      // underlying initialization actually fails.
+      initialization.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {
+          if (identical(_supabaseInitialization, initialization)) {
+            _supabaseInitialization = null;
+          }
+        },
+      );
+      await initialization.timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      setState(() {
+        _prefs = prefs;
+        _loading = false;
+        _initializationError = null;
+      });
+    } catch (error, stack) {
+      debugPrint('Lamīn startup initialization failed: $error');
+      debugPrintStack(stackTrace: stack);
+      if (mounted) {
+        setState(() {
+          _initializationError = error;
+          _offlineBootstrap = prefs != null && _hasCachedOfflineProfile(prefs);
+          _loading = false;
+        });
+      }
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = _prefs;
+    if (!_loading && _offlineBootstrap && prefs != null) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'لامين',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
+        ),
+        home: OfflineBootstrapGate(prefs: prefs),
+      );
+    }
+    if (!_loading && prefs != null) {
+      return LaminApp(prefs: prefs);
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'لامين',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
+        scaffoldBackgroundColor: brandCanvas,
+      ),
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: brandGreen,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      child: const Icon(
+                        Icons.school_rounded,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'لامين',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading) ...[
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'جارٍ تجهيز التطبيق...',
+                        textAlign: TextAlign.center,
+                      ),
+                    ] else ...[
+                      const Text(
+                        'تعذر بدء التطبيق. تحقق من اتصال الإنترنت ثم أعد المحاولة.',
+                        textAlign: TextAlign.center,
+                      ),
+                      if (_initializationError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _initializationError.toString(),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _initialize,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LaminApp extends StatelessWidget {
@@ -101,66 +278,13 @@ class LaminApp extends StatelessWidget {
     title: 'لامين',
     theme: ThemeData(
       useMaterial3: true,
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: brandGreen,
-            brightness: Brightness.light,
-          ).copyWith(
-            primary: brandGreen,
-            secondary: brandGold,
-            surface: Colors.white,
-            onPrimary: Colors.white,
-          ),
+      fontFamily: 'Cairo',
+      colorScheme: ColorScheme.fromSeed(seedColor: brandGreen),
       scaffoldBackgroundColor: brandCanvas,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: brandCanvas,
-        foregroundColor: brandInk,
-        centerTitle: false,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      cardTheme: CardThemeData(
-        color: Colors.white,
-        elevation: 1.5,
-        shadowColor: brandInk.withValues(alpha: 0.10),
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFFE7F0EA),
-        indicatorColor: const Color(0xFFCBE8DA),
-        labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
-                : FontWeight.w500,
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFD7E1DA)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: brandGreen, width: 1.8),
-        ),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: brandGreen,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-      snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
       ),
     ),
     home: AuthGate(prefs: prefs),
@@ -179,6 +303,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool locked = false;
   bool checking = true;
   bool mustChangePassword = false;
+  bool offlineAvailable = false;
 
   @override
   void initState() {
@@ -207,6 +332,26 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<void> _refreshLock() async {
     final session = db.auth.currentSession;
     final enabled = await security.enabled;
+    var hasNetwork = true;
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      hasNetwork = connectivity.any((item) => item != ConnectivityResult.none);
+    } catch (_) {
+      hasNetwork = false;
+    }
+    var canOpenOffline = false;
+    if (!hasNetwork) {
+      final raw = widget.prefs.getString('lamin_last_profile_cache');
+      if (raw != null) {
+        try {
+          final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          canOpenOffline =
+              cached['active'] != false &&
+              cached['must_change_password'] != true &&
+              (cached['school_id']?.toString().isNotEmpty ?? false);
+        } catch (_) {}
+      }
+    }
     bool forcePassword = false;
     if (session != null) {
       try {
@@ -214,18 +359,32 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
             .from('profiles')
             .select('role,must_change_password,active')
             .eq('user_id', session.user.id)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 4));
         forcePassword =
             row?['active'] == true &&
             row?['role'] != 'owner' &&
             row?['must_change_password'] == true;
-      } catch (_) {}
+      } catch (_) {
+        hasNetwork = false;
+        final raw = widget.prefs.getString('lamin_last_profile_cache');
+        if (raw != null) {
+          try {
+            final cached = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+            canOpenOffline =
+                cached['active'] != false &&
+                cached['must_change_password'] != true &&
+                (cached['school_id']?.toString().isNotEmpty ?? false);
+          } catch (_) {}
+        }
+      }
     }
     if (!mounted) return;
     setState(() {
       checking = false;
-      locked = session != null && enabled;
+      locked = enabled && (session != null || canOpenOffline);
       mustChangePassword = forcePassword;
+      offlineAvailable = canOpenOffline;
     });
   }
 
@@ -237,13 +396,470 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
+      if (checking) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      if (locked) return DeviceLockPage(onAuthenticated: _unlock);
+      if (offlineAvailable) return OfflineHomePage(prefs: widget.prefs);
       if (db.auth.currentSession == null) return LoginPage(prefs: widget.prefs);
-      if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
       return HomePage(prefs: widget.prefs);
     },
   );
+}
+
+class OfflineBootstrapGate extends StatefulWidget {
+  final SharedPreferences prefs;
+  const OfflineBootstrapGate({super.key, required this.prefs});
+
+  @override
+  State<OfflineBootstrapGate> createState() => _OfflineBootstrapGateState();
+}
+
+class _OfflineBootstrapGateState extends State<OfflineBootstrapGate> {
+  bool checking = true;
+  bool locked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDeviceLock();
+  }
+
+  Future<void> _checkDeviceLock() async {
+    var enabled = false;
+    try {
+      enabled = await DeviceSecurityService().enabled;
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      locked = enabled;
+      checking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (checking) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (locked) {
+      return DeviceLockPage(
+        onAuthenticated: () {
+          if (mounted) setState(() => locked = false);
+        },
+      );
+    }
+    return OfflineHomePage(prefs: widget.prefs);
+  }
+}
+
+class OfflineHomePage extends StatelessWidget {
+  final SharedPreferences prefs;
+  const OfflineHomePage({super.key, required this.prefs});
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, dynamic>? profile;
+    List<Student> students = [];
+    List<Map<String, dynamic>> academicYears = [];
+    try {
+      final rawProfile = prefs.getString('lamin_last_profile_cache');
+      if (rawProfile != null) {
+        profile = Map<String, dynamic>.from(jsonDecode(rawProfile) as Map);
+      }
+      final schoolId = profile?['school_id']?.toString();
+      if (schoolId != null && schoolId.isNotEmpty) {
+        final rawYears = prefs.getString('academic_years_cache_$schoolId');
+        if (rawYears != null) {
+          academicYears = (jsonDecode(rawYears) as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        }
+        final rawStudents = prefs.getString('students_cache_$schoolId');
+        if (rawStudents != null) {
+          students = (jsonDecode(rawStudents) as List)
+              .map(
+                (item) =>
+                    Student.fromMap(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList();
+        }
+      }
+    } catch (_) {
+      students = [];
+    }
+
+    final schoolId = profile?['school_id']?.toString() ?? '';
+    final repository = SchoolRepository(prefs);
+
+    Future<void> reconnect() async {
+      if (db.auth.currentSession == null) {
+        final connected = await repository.hasServerConnection();
+        if (!context.mounted) return;
+        if (connected) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => LoginPage(prefs: prefs)),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا يزال الاتصال بالخادم غير متاح.')),
+          );
+        }
+        return;
+      }
+      final connected = await repository.hasServerConnection();
+      if (!context.mounted) return;
+      if (!connected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يزال الاتصال بالخادم غير متاح.')),
+        );
+        return;
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => HomePage(prefs: prefs)),
+      );
+    }
+
+    StateSetter? updateOfflineState;
+
+    Future<void> editCachedStudent(Student student) async {
+      final name = TextEditingController(text: student.name);
+      final className = TextEditingController(text: student.className);
+      final phone = TextEditingController(text: student.phone);
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('تعديل بيانات الطالب دون إنترنت'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'اسم الطالب'),
+                ),
+                TextField(
+                  controller: className,
+                  decoration: const InputDecoration(labelText: 'الصف / الفصل'),
+                ),
+                TextField(
+                  controller: phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'هاتف ولي الأمر',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حفظ على الجهاز'),
+            ),
+          ],
+        ),
+      );
+      if (saved != true ||
+          name.text.trim().length < 2 ||
+          className.text.trim().isEmpty ||
+          schoolId.isEmpty) {
+        return;
+      }
+      await repository.queueOfflineStudentUpdate(
+        schoolId: schoolId,
+        studentId: student.id,
+        name: name.text,
+        className: className.text,
+        phone: phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+      );
+      final index = students.indexWhere((item) => item.id == student.id);
+      if (index >= 0) {
+        students[index] = Student(
+          id: student.id,
+          name: name.text.trim(),
+          className: className.text.trim(),
+          phone: phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
+        );
+      }
+      updateOfflineState?.call(() {});
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'حُفظ التعديل على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.',
+            ),
+          ),
+        );
+      }
+    }
+
+    Future<void> editCachedFee(Student student) async {
+      if (schoolId.isEmpty) return;
+      final activeYears = academicYears
+          .where((year) => year['active'] == true)
+          .toList();
+      final activeYear = activeYears.isEmpty ? null : activeYears.first;
+      final fee = TextEditingController();
+      final discount = TextEditingController(text: '0');
+      final note = TextEditingController();
+      String selectedTerm = 'الفصل الأول';
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: Text('تعديل رسوم ${student.name} دون إنترنت'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedTerm,
+                    decoration: const InputDecoration(
+                      labelText: 'الفصل الدراسي',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'الفصل الأول',
+                        child: Text('الفصل الأول'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'الفصل الثاني',
+                        child: Text('الفصل الثاني'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'الفصل الثالث',
+                        child: Text('الفصل الثالث'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null)
+                        setDialogState(() => selectedTerm = value);
+                    },
+                  ),
+                  TextField(
+                    controller: fee,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'قيمة الرسوم'),
+                  ),
+                  TextField(
+                    controller: discount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'الخصم'),
+                  ),
+                  TextField(
+                    controller: note,
+                    decoration: const InputDecoration(
+                      labelText: 'ملاحظة (اختياري)',
+                    ),
+                  ),
+                  if (activeYear == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'لم تُحفظ سنة دراسية نشطة على الجهاز. ستُسجل الرسوم دون ربط بسنة محددة.',
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'السنة الدراسية: ${activeYear['name'] ?? 'غير محدد'}',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('حفظ على الجهاز'),
+              ),
+            ],
+          ),
+        ),
+      );
+      final totalFee = double.tryParse(fee.text.trim());
+      final discountValue = double.tryParse(discount.text.trim()) ?? 0;
+      if (saved != true ||
+          totalFee == null ||
+          totalFee < 0 ||
+          discountValue < 0 ||
+          discountValue > totalFee) {
+        if (saved == true && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تحقق من قيمة الرسوم والخصم.')),
+          );
+        }
+        return;
+      }
+      await repository.queueOfflineFeeAssessment(
+        schoolId: schoolId,
+        studentId: student.id,
+        term: selectedTerm,
+        totalFee: totalFee,
+        discount: discountValue,
+        academicYearId: activeYear?['id']?.toString(),
+        academicYearLabel: activeYear?['name']?.toString() ?? 'غير محدد',
+        note: note.text,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'حُفظ تعديل الرسوم على الجهاز وسيُزامن بعد تسجيل الدخول عند عودة الإنترنت.',
+            ),
+          ),
+        );
+      }
+    }
+
+    String query = '';
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        updateOfflineState = setLocalState;
+        final normalizedQuery = query.trim().toLowerCase();
+        final visibleStudents = normalizedQuery.isEmpty
+            ? <Student>[]
+            : students.where((student) {
+                return student.name.toLowerCase().contains(normalizedQuery) ||
+                    student.className.toLowerCase().contains(normalizedQuery) ||
+                    student.phone.toLowerCase().contains(normalizedQuery);
+              }).toList();
+        return Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: const Text('لامين'),
+            actions: [
+              IconButton(
+                tooltip: 'التحقق من عودة الاتصال',
+                onPressed: reconnect,
+                icon: const Icon(Icons.cloud_sync_outlined),
+              ),
+              const Padding(
+                padding: EdgeInsetsDirectional.only(end: 8),
+                child: Center(
+                  child: Chip(
+                    avatar: Icon(Icons.cloud_off, size: 16),
+                    label: Text('دون اتصال'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                color: brandGreen,
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'وضع العمل المحلي',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'مرحباً ${profile?['username']?.toString().isNotEmpty == true ? profile!['username'] : 'بك'}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'تم فتح التطبيق باستخدام بيانات الدخول المحفوظة على هذا الجهاز. بعض البيانات قد لا تكون محدثة.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                onChanged: (value) => setLocalState(() => query = value),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'ابحث عن طالب بالاسم أو الصف أو الهاتف',
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (normalizedQuery.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'بيانات الطلاب مخفية. اكتب في البحث لعرض النتائج المحفوظة.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else if (visibleStudents.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('لا توجد نتائج مطابقة للبحث.'),
+                )
+              else
+                ...visibleStudents.map(
+                  (student) => Card(
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.school_outlined),
+                      ),
+                      title: Text(student.name),
+                      subtitle: Text(student.className),
+                      trailing: Wrap(
+                        spacing: 2,
+                        children: [
+                          IconButton(
+                            tooltip: 'تعديل بيانات الطالب',
+                            onPressed: () => editCachedStudent(student),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          if ([
+                            'admin',
+                            'owner',
+                            'accountant',
+                          ].contains(profile?['role']))
+                            IconButton(
+                              tooltip: 'تعديل الرسوم',
+                              onPressed: () => editCachedFee(student),
+                              icon: const Icon(Icons.price_change_outlined),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text(
+                  'يمكن تعديل بيانات الطالب والرسوم المحفوظة محلياً. تُرسل التعديلات بعد عودة الإنترنت وتسجيل الدخول. تسجيل الدفعات يبقى متصلاً لحماية السجلات من التكرار.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class ForcePasswordChangePage extends StatefulWidget {
@@ -442,6 +1058,8 @@ class _LoginPageState extends State<LoginPage> {
       password = TextEditingController();
   final auth = LaminAuthService();
   bool loading = false, hide = true, schoolLocked = false;
+  bool rememberMe = false;
+  static const _rememberedUsernameKey = 'lamin.remembered.username';
   String? error;
   int _ownerTaps = 0;
   DateTime? _lastOwnerTap;
@@ -450,6 +1068,36 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadSchool();
+    _loadRememberedUsername();
+  }
+
+  Future<void> _loadRememberedUsername() async {
+    final saved = widget.prefs.getString(_rememberedUsernameKey);
+    if (!mounted || saved == null || saved.trim().isEmpty) return;
+    username.text = saved;
+    setState(() => rememberMe = true);
+  }
+
+  Future<void> _setRememberMe(bool value) async {
+    setState(() => rememberMe = value);
+    if (value) {
+      final valueToSave = username.text.trim();
+      if (valueToSave.isNotEmpty) {
+        await widget.prefs.setString(_rememberedUsernameKey, valueToSave);
+      }
+    } else {
+      await widget.prefs.remove(_rememberedUsernameKey);
+    }
+  }
+
+  Future<void> _saveUsernameIfRemembered(String value) async {
+    if (!rememberMe) return;
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      await widget.prefs.remove(_rememberedUsernameKey);
+    } else {
+      await widget.prefs.setString(_rememberedUsernameKey, normalized);
+    }
   }
 
   Future<void> _loadSchool() async {
@@ -478,7 +1126,21 @@ class _LoginPageState extends State<LoginPage> {
         username: username.text,
         password: password.text,
       );
+      if (!rememberMe) {
+        await widget.prefs.remove(_rememberedUsernameKey);
+      } else {
+        await _saveUsernameIfRemembered(username.text);
+      }
       if (!mounted) return;
+      if (r.ok) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => AuthGate(prefs: widget.prefs),
+          ),
+          (route) => false,
+        );
+        return;
+      }
       setState(
         () => error = r.ok
             ? null
@@ -514,7 +1176,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: const Icon(
-                    Icons.school,
+                    Icons.school_rounded,
                     color: Colors.white,
                     size: 46,
                   ),
@@ -555,12 +1217,23 @@ class _LoginPageState extends State<LoginPage> {
                 TextField(
                   controller: username,
                   autocorrect: false,
+                  onChanged: _saveUsernameIfRemembered,
                   decoration: const InputDecoration(
                     labelText: 'اسم المستخدم',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.trailing,
+                  title: const Text('تذكرني'),
+                  value: rememberMe,
+                  onChanged: loading
+                      ? null
+                      : (value) => _setRememberMe(value ?? false),
+                ),
+                const SizedBox(height: 4),
                 TextField(
                   controller: password,
                   obscureText: hide,
@@ -575,6 +1248,22 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
+                if (_hasCachedOfflineProfile(widget.prefs))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: OutlinedButton.icon(
+                      onPressed: loading
+                          ? null
+                          : () => Navigator.of(context).pushReplacement(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    OfflineHomePage(prefs: widget.prefs),
+                              ),
+                            ),
+                      icon: const Icon(Icons.cloud_off),
+                      label: const Text('الدخول بالبيانات المحفوظة دون إنترنت'),
+                    ),
+                  ),
                 if (error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
@@ -602,12 +1291,6 @@ class _LoginPageState extends State<LoginPage> {
                         : const Icon(Icons.login),
                     label: Text(loading ? 'جارِ الدخول...' : 'دخول'),
                   ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'سيتم حفظ رمز المدرسة بأمان على هذا الجهاز بعد أول دخول ناجح.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 22),
                 GestureDetector(
@@ -764,6 +1447,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> logout() async {
+    final userId = db.auth.currentUser?.id;
     try {
       await db.auth
           .signOut(scope: SignOutScope.local)
@@ -772,6 +1456,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         throw Exception(
           'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
         );
+      }
+      await widget.prefs.remove('lamin_last_profile_cache');
+      if (userId != null) {
+        await widget.prefs.remove('profile_cache_$userId');
+        await widget.prefs.remove('school_id_cache_$userId');
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -794,8 +1483,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> refresh() async {
     if (mounted) setState(() => loading = true);
     try {
+      var hasNetwork = false;
+      try {
+        final connectivity = await Connectivity().checkConnectivity();
+        hasNetwork = connectivity.any(
+          (item) => item != ConnectivityResult.none,
+        );
+      } catch (_) {}
+      if (hasNetwork) {
+        hasNetwork = await repo.hasServerConnection();
+      }
+      online = hasNetwork;
+      if (!hasNetwork && _hasCachedOfflineProfile(widget.prefs)) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => OfflineHomePage(prefs: widget.prefs),
+            ),
+          );
+        }
+        return;
+      }
       await repo.ensureOwnerSchool();
       profile = await repo.profile();
+      try {
+        await repo.syncOfflineStudentUpdates();
+        await repo.syncOfflineFeeAssessments();
+      } catch (_) {}
+      try {
+        await repo.academicYears();
+      } catch (_) {}
       schoolInfo = await repo.school();
 
       // Load each section independently so a role-restricted table does not
@@ -834,13 +1551,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } else {
         payments = 0;
         expenses = 0;
-      }
-
-      try {
-        final status = await Connectivity().checkConnectivity();
-        online = !status.contains(ConnectivityResult.none);
-      } catch (_) {
-        online = false;
       }
     } catch (_) {
       // Keep the app usable even if profile/bootstrap loading temporarily fails.
@@ -1552,182 +2262,292 @@ class FinanceView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
+  Widget build(BuildContext context) {
+    String query = '';
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        final normalizedQuery = query.trim().toLowerCase();
+        final filteredStudents = normalizedQuery.isEmpty
+            ? <Student>[]
+            : students.where((student) {
+                return student.name.toLowerCase().contains(normalizedQuery) ||
+                    student.className.toLowerCase().contains(normalizedQuery) ||
+                    student.phone.toLowerCase().contains(normalizedQuery);
+              }).toList();
+        return Column(
           children: [
-            Expanded(
-              child: Card(
-                child: ListTile(
-                  title: const Text('الداخل'),
-                  trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Card(
-                child: ListTile(
-                  title: const Text('المصروف'),
-                  trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      if (canManageFees)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ManagerRequestsView(repo: repo),
-                ),
-              ),
-              icon: const Icon(Icons.assignment_outlined),
-              label: const Text(
-                'متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل',
-              ),
-            ),
-          ),
-        ),
-      if (canManageFees)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      FeeManagementView(repo: repo, students: students),
-                ),
-              ),
-              icon: const Icon(Icons.price_change_outlined),
-              label: const Text('إدارة الرسوم الدراسية حسب الفصل'),
-            ),
-          ),
-        ),
-      Expanded(
-        child: students.isEmpty
-            ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                itemCount: students.length,
-                itemBuilder: (_, i) {
-                  final s = students[i];
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FutureBuilder<Map<String, dynamic>>(
-                            future: repo.studentFinancialSummary(s.id),
-                            builder: (context, snapshot) {
-                              final summary = snapshot.data;
-                              final fees =
-                                  (summary?['fees'] as num?)?.toDouble() ?? 0;
-                              final discount =
-                                  (summary?['discount'] as num?)?.toDouble() ??
-                                  0;
-                              final paid =
-                                  (summary?['paid'] as num?)?.toDouble() ?? 0;
-                              final remaining =
-                                  (summary?['remaining'] as num?)?.toDouble() ??
-                                  0;
-                              final hasCredit = remaining < -0.009;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const CircleAvatar(
-                                      child: Icon(Icons.school_outlined),
-                                    ),
-                                    title: Text(
-                                      s.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      '${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}',
-                                    ),
-                                  ),
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting)
-                                    const LinearProgressIndicator(minHeight: 2)
-                                  else if (snapshot.hasError)
-                                    const Text(
-                                      'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
-                                      style: TextStyle(color: Colors.red),
-                                    )
-                                  else
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _moneyChip('الرسوم', fees),
-                                        _moneyChip('الخصم', discount),
-                                        _moneyChip('المدفوع', paid),
-                                        _moneyChip(
-                                          hasCredit ? 'رصيد دائن' : 'المتبقي',
-                                          hasCredit ? -remaining : remaining,
-                                          emphasis:
-                                              !hasCredit && remaining > 0.009,
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton.tonalIcon(
-                                  onPressed: () => payment(context, s),
-                                  icon: const Icon(Icons.payments_outlined),
-                                  label: const Text('تسجيل دفعة'),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 14,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('الداخل', textAlign: TextAlign.center),
+                            const SizedBox(height: 6),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${payments.toStringAsFixed(2)} د.ل',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => StudentAccountView(
-                                        repo: repo,
-                                        student: s,
-                                        canManageFees: canManageFees,
-                                      ),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.receipt_long_outlined),
-                                  label: const Text('كشف الحساب'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 14,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('المصروف', textAlign: TextAlign.center),
+                            const SizedBox(height: 6),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${expenses.toStringAsFixed(2)} د.ل',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-      ),
-    ],
-  );
+            ),
+            if (canManageFees)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ManagerRequestsView(repo: repo),
+                      ),
+                    ),
+                    icon: const Icon(Icons.assignment_outlined),
+                    label: const Text(
+                      'متطلبات الإدارة: المعلمون والرسوم وخطط التحصيل',
+                    ),
+                  ),
+                ),
+              ),
+            if (canManageFees)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            FeeManagementView(repo: repo, students: students),
+                      ),
+                    ),
+                    icon: const Icon(Icons.price_change_outlined),
+                    label: const Text('إدارة الرسوم الدراسية حسب الفصل'),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: TextField(
+                onChanged: (value) => setLocalState(() => query = value),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'ابحث باسم الطالب أو الصف أو الهاتف',
+                ),
+              ),
+            ),
+            Expanded(
+              child: students.isEmpty
+                  ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
+                  : normalizedQuery.isEmpty
+                  ? const Center(
+                      child: Text('بيانات الطلاب والدفعات مخفية. ابحث لعرضها.'),
+                    )
+                  : filteredStudents.isEmpty
+                  ? const Center(child: Text('لا توجد نتائج مطابقة للبحث.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                      itemCount: filteredStudents.length,
+                      itemBuilder: (_, i) {
+                        final s = filteredStudents[i];
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                FutureBuilder<Map<String, dynamic>>(
+                                  future: repo.studentFinancialSummary(s.id),
+                                  builder: (context, snapshot) {
+                                    final summary = snapshot.data;
+                                    final fees =
+                                        (summary?['fees'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final discount =
+                                        (summary?['discount'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final paid =
+                                        (summary?['paid'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final remaining =
+                                        (summary?['remaining'] as num?)
+                                            ?.toDouble() ??
+                                        0;
+                                    final hasCredit = remaining < -0.009;
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const CircleAvatar(
+                                            child: Icon(Icons.school_outlined),
+                                          ),
+                                          title: Text(
+                                            s.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            '${s.className} • السنة: ${summary?['academic_year'] ?? 'جارِ التحميل'}',
+                                          ),
+                                          trailing: canManageFees
+                                              ? IconButton(
+                                                  tooltip:
+                                                      'تعديل رسوم هذا الطالب',
+                                                  icon: const Icon(
+                                                    Icons.edit_note_outlined,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              FeeManagementView(
+                                                                repo: repo,
+                                                                students:
+                                                                    students,
+                                                                initialStudentId:
+                                                                    s.id,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                )
+                                              : null,
+                                        ),
+                                        if (snapshot.connectionState ==
+                                            ConnectionState.waiting)
+                                          const LinearProgressIndicator(
+                                            minHeight: 2,
+                                          )
+                                        else if (snapshot.hasError)
+                                          const Text(
+                                            'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
+                                            style: TextStyle(color: Colors.red),
+                                          )
+                                        else
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: [
+                                              _moneyChip('الرسوم', fees),
+                                              _moneyChip('الخصم', discount),
+                                              _moneyChip('المدفوع', paid),
+                                              _moneyChip(
+                                                hasCredit
+                                                    ? 'رصيد دائن'
+                                                    : 'المتبقي',
+                                                hasCredit
+                                                    ? -remaining
+                                                    : remaining,
+                                                emphasis:
+                                                    !hasCredit &&
+                                                    remaining > 0.009,
+                                              ),
+                                            ],
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: () => payment(context, s),
+                                        icon: const Icon(
+                                          Icons.payments_outlined,
+                                        ),
+                                        label: const Text('تسجيل دفعة'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => StudentAccountView(
+                                              repo: repo,
+                                              student: s,
+                                              canManageFees: canManageFees,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.receipt_long_outlined,
+                                        ),
+                                        label: const Text('كشف الحساب'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _moneyChip(String label, double value, {bool emphasis = false}) =>
       Container(
@@ -3607,21 +4427,6 @@ class MoreView extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => ReportsView(repo: repo)),
-              ),
-            ),
-          ),
-        if (isAdmin || isSupervisor)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.quiz_outlined),
-              title: const Text('منشئ الاختبارات والتدريبات'),
-              subtitle: const Text(
-                'إنشاء الأسئلة، نماذج متعددة، تصحيح تلقائي وتصدير النتائج',
-              ),
-              trailing: const Icon(Icons.chevron_left),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TestBuilderView()),
               ),
             ),
           ),

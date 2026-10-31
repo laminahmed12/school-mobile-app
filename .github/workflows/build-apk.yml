@@ -76,7 +76,16 @@ jobs:
           </adaptive-icon>
           EOF
       - run: |
-          sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text(encoding="utf-8")
+          content, count = re.subn(r'android:label="[^"]*"', 'android:label="لامين"', content, count=1)
+          if count != 1 or 'android:label="لامين"' not in content:
+              raise SystemExit("Could not enforce Arabic app label in AndroidManifest.xml")
+          manifest.write_text(content, encoding="utf-8")
+          PY
           grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>' android/app/src/main/AndroidManifest.xml
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
@@ -97,6 +106,13 @@ jobs:
         env:
           GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
+      - name: Verify Arabic launcher label in APK
+        shell: bash
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          "$AAPT" dump badging "$APK" | grep -F "application-label:'لامين'"
       - name: Upload candidate APK for validation
         uses: actions/upload-artifact@v4
         with:
