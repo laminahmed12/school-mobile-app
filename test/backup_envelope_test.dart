@@ -24,6 +24,43 @@ void main() {
       expect(result['data']['school_filter'], schoolId);
     });
 
+    test('accepts a cache-only snapshot for the current school', () {
+      final backup = validEnvelope();
+      backup['data'] = {
+        'format': 'lamin-school-backup-v2',
+        'school_filter': schoolId,
+        'local_cache_snapshot': true,
+        'local_cache_version': 1,
+        'local_user_id': 'user-a',
+        'local_cache': <String, String>{},
+        'pending_offline_operations': <dynamic>[],
+      };
+      final result = BackupService.validateBackupEnvelope(
+        backup,
+        expectedSchoolId: schoolId,
+      );
+      expect(result['data']['local_cache_snapshot'], isTrue);
+    });
+
+    test('rejects incomplete cache-only snapshots', () {
+      final backup = validEnvelope();
+      backup['data'] = {
+        'format': 'lamin-school-backup-v2',
+        'school_filter': schoolId,
+        'local_cache_snapshot': true,
+        'local_cache_version': 1,
+        'local_user_id': 'user-a',
+        'pending_offline_operations': <dynamic>[],
+      };
+      expect(
+        () => BackupService.validateBackupEnvelope(
+          backup,
+          expectedSchoolId: schoolId,
+        ),
+        throwsException,
+      );
+    });
+
     test('rejects an envelope belonging to another school', () {
       expect(
         () => BackupService.validateBackupEnvelope(
