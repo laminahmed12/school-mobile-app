@@ -6,6 +6,37 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'models.dart';
 import 'supabase_config.dart';
 
+class OfflineSyncResult {
+  final int synced;
+  final int pending;
+  final String? failedOperation;
+  final String? error;
+
+  const OfflineSyncResult({
+    required this.synced,
+    required this.pending,
+    this.failedOperation,
+    this.error,
+  });
+}
+
+String offlineOperationLabel(String? type) {
+  switch (type) {
+    case 'create_student':
+      return 'إنشاء طالب';
+    case 'update_student':
+      return 'تعديل بيانات طالب';
+    case 'save_fee':
+      return 'حفظ الرسوم الدراسية';
+    case 'add_payment':
+      return 'تسجيل دفعة مالية';
+    case 'attendance':
+      return 'تسجيل الحضور';
+    default:
+      return 'عملية محلية غير معروفة';
+  }
+}
+
 class SchoolRepository {
   final SharedPreferences prefs;
   SchoolRepository(this.prefs);
@@ -206,51 +237,220 @@ class SchoolRepository {
     await db.from('students').update({'name':name.trim(),'class_name':className.trim(),'phone':cleanPhone}).eq('id',studentId);
     await _cacheStudent(schoolId,id:studentId,name:name,className:className,phone:cleanPhone);
   }
-  Future<int> syncPendingOfflineChanges() async {
-    if(db.auth.currentSession==null)return 0;
-    final p=await profile();final schoolId=p?.schoolId;
-    if(schoolId==null||schoolId.isEmpty||!await _serverAvailable())return 0;
-    final queue=await _readOfflineOperations(schoolId);if(queue.isEmpty)return 0;
-    final mapKey='lamin_offline_id_map_v1_$schoolId';Map<String,dynamic> idMap={};
-    try{final raw=await _readCacheString(mapKey);if(raw!=null)idMap=Map<String,dynamic>.from(jsonDecode(raw));}catch(_){}
-    String resolve(dynamic value){final id=value?.toString()??'';return idMap[id]?.toString()??id;}
-    var synced=0;
-    while(queue.isNotEmpty){
-      final item=queue.first;
-      try{
-        final type=item['type']?.toString();
-        if(type=='create_student'){
-          final result=await db.rpc('create_student_with_fee_idempotent',params:{'p_operation_id':item['operation_id'],'p_name':item['name'],'p_class_name':item['class_name'],'p_phone':item['phone']??'','p_term_fee':item['term_fee']??0,'p_term':item['term']??'الفصل الأول'}).timeout(const Duration(seconds:15));
-          final remote=result?.toString()??'';if(remote.isEmpty)throw Exception('لم يؤكد الخادم إنشاء الطالب.');
-          final local=item['local_id'].toString();idMap[local]=remote;await _writeCacheString(mapKey,jsonEncode(idMap));
-          final students=await _cachedStudentMaps(schoolId);final ix=students.indexWhere((x)=>x['id']?.toString()==local);
-          if(ix>=0){students[ix]['id']=remote;await _writeCacheString('students_cache_$schoolId',jsonEncode(students));}
-        }else if(type=='update_student'){
-          await db.from('students').update({'name':item['name'],'class_name':item['class_name'],'phone':item['phone']??''}).eq('id',resolve(item['student_id'])).timeout(const Duration(seconds:15));
-        }else if(type=='save_fee'){
-          final studentId=resolve(item['student_id']);final yearId=item['academic_year_id'];
-          final payload={'school_id':schoolId,'student_id':studentId,'academic_year_id':yearId,'academic_year_label':item['academic_year_label']??'غير محدد','term':item['term'],'total_fee':item['total_fee'],'discount':item['discount']??0,'note':item['note']??'','created_by':db.auth.currentUser?.id};
-          final base=db.from('student_fee_assessments').select('id').eq('school_id',schoolId).eq('student_id',studentId).eq('term',item['term']);
-          final existing=yearId==null?await base.isFilter('academic_year_id',null).eq('academic_year_label',item['academic_year_label']??'غير محدد').maybeSingle():await base.eq('academic_year_id',yearId).maybeSingle();
-          final saved=existing?['id']!=null
-              ?await db.from('student_fee_assessments').update(payload).eq('id',existing!['id']).select('id').single()
-              :await db.from('student_fee_assessments').insert(payload).select('id').single();
-          final localFee=item['local_id']?.toString();final remoteFee=saved['id']?.toString();
-          if(localFee!=null&&remoteFee!=null){idMap[localFee]=remoteFee;await _writeCacheString(mapKey,jsonEncode(idMap));}
-          final rows=await _cachedRows(schoolId,'fees_$studentId');final ix=rows.indexWhere((x)=>x['term']==item['term']&&x['academic_year_id']?.toString()==yearId?.toString());
-          final cached={...payload,'id':remoteFee??localFee??''};if(ix>=0)rows[ix]=cached;else rows.add(cached);await _saveRows(schoolId,'fees_$studentId',rows);
-        }else if(type=='add_payment'){
-          final result=await db.rpc('record_student_payment',params:{'p_student_id':resolve(item['student_id']),'p_amount':item['amount'],'p_note':item['note']??'','p_term':item['term']??'غير محدد','p_fee_assessment_id':item['fee_assessment_id']==null?null:resolve(item['fee_assessment_id']),'p_idempotency_key':item['idempotency_key']}).timeout(const Duration(seconds:20));
-          if(result==null||result.toString().isEmpty)throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
-          const secure=FlutterSecureStorage();final pendingKey='lamin.pending_payments.v1_$schoolId';
-          try{final raw=await secure.read(key:pendingKey);if(raw!=null){final pending=Map<String,dynamic>.from(jsonDecode(raw));pending.remove(item['fingerprint']);if(pending.isEmpty)await secure.delete(key:pendingKey);else await secure.write(key:pendingKey,value:jsonEncode(pending));}}catch(_){}
-        }else if(type=='attendance'){
-          await _writeAttendanceRemote(studentId:resolve(item['student_id']),date:item['attendance_date'].toString(),status:item['status'].toString(),minutesLate:(item['minutes_late'] as num?)?.toInt()??0).timeout(const Duration(seconds:15));
-        }else{throw Exception('نوع عملية محلية غير معروف: $type');}
-        queue.removeAt(0);await _writeOfflineOperations(schoolId,queue);synced++;
-      }catch(error){debugPrint('Offline sync paused at ${item['type']}: $error');break;}
+  Future<int> pendingOfflineOperationCount() async {
+    final cached = await cachedProfile();
+    final schoolId = cached?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return 0;
+    return (await _readOfflineOperations(schoolId)).length;
+  }
+
+  Future<OfflineSyncResult> syncPendingOfflineChanges() async {
+    if (db.auth.currentSession == null) {
+      return OfflineSyncResult(
+        synced: 0,
+        pending: await pendingOfflineOperationCount(),
+      );
     }
-    return synced;
+
+    final p = await profile();
+    final schoolId = p?.schoolId;
+    if (schoolId == null || schoolId.isEmpty || !await _serverAvailable()) {
+      return OfflineSyncResult(
+        synced: 0,
+        pending: await pendingOfflineOperationCount(),
+      );
+    }
+
+    final queue = await _readOfflineOperations(schoolId);
+    if (queue.isEmpty) {
+      return const OfflineSyncResult(synced: 0, pending: 0);
+    }
+
+    final mapKey = 'lamin_offline_id_map_v1_$schoolId';
+    Map<String, dynamic> idMap = {};
+    try {
+      final raw = await _readCacheString(mapKey);
+      if (raw != null) idMap = Map<String, dynamic>.from(jsonDecode(raw));
+    } catch (_) {}
+
+    String resolve(dynamic value) {
+      final id = value?.toString() ?? '';
+      return idMap[id]?.toString() ?? id;
+    }
+
+    var synced = 0;
+    while (queue.isNotEmpty) {
+      final item = queue.first;
+      final type = item['type']?.toString();
+      try {
+        if (type == 'create_student') {
+          final result = await db.rpc(
+            'create_student_with_fee_idempotent',
+            params: {
+              'p_operation_id': item['operation_id'],
+              'p_name': item['name'],
+              'p_class_name': item['class_name'],
+              'p_phone': item['phone'] ?? '',
+              'p_term_fee': item['term_fee'] ?? 0,
+              'p_term': item['term'] ?? 'الفصل الأول',
+            },
+          ).timeout(const Duration(seconds: 15));
+          final remote = result?.toString() ?? '';
+          if (remote.isEmpty) {
+            throw Exception('لم يؤكد الخادم إنشاء الطالب.');
+          }
+
+          final local = item['local_id'].toString();
+          idMap[local] = remote;
+          await _writeCacheString(mapKey, jsonEncode(idMap));
+          final students = await _cachedStudentMaps(schoolId);
+          final index = students.indexWhere(
+            (row) => row['id']?.toString() == local,
+          );
+          if (index >= 0) {
+            students[index]['id'] = remote;
+            await _writeCacheString(
+              'students_cache_$schoolId',
+              jsonEncode(students),
+            );
+          }
+        } else if (type == 'update_student') {
+          await db
+              .from('students')
+              .update({
+                'name': item['name'],
+                'class_name': item['class_name'],
+                'phone': item['phone'] ?? '',
+              })
+              .eq('id', resolve(item['student_id']))
+              .timeout(const Duration(seconds: 15));
+        } else if (type == 'save_fee') {
+          final studentId = resolve(item['student_id']);
+          final yearId = item['academic_year_id'];
+          final payload = {
+            'school_id': schoolId,
+            'student_id': studentId,
+            'academic_year_id': yearId,
+            'academic_year_label':
+                item['academic_year_label'] ?? 'غير محدد',
+            'term': item['term'],
+            'total_fee': item['total_fee'],
+            'discount': item['discount'] ?? 0,
+            'note': item['note'] ?? '',
+            'created_by': db.auth.currentUser?.id,
+          };
+          final base = db
+              .from('student_fee_assessments')
+              .select('id')
+              .eq('school_id', schoolId)
+              .eq('student_id', studentId)
+              .eq('term', item['term']);
+          final existing = yearId == null
+              ? await base
+                  .isFilter('academic_year_id', null)
+                  .eq(
+                    'academic_year_label',
+                    item['academic_year_label'] ?? 'غير محدد',
+                  )
+                  .maybeSingle()
+              : await base.eq('academic_year_id', yearId).maybeSingle();
+          final saved = existing?['id'] != null
+              ? await db
+                    .from('student_fee_assessments')
+                    .update(payload)
+                    .eq('id', existing!['id'])
+                    .select('id')
+                    .single()
+              : await db
+                    .from('student_fee_assessments')
+                    .insert(payload)
+                    .select('id')
+                    .single();
+
+          final localFee = item['local_id']?.toString();
+          final remoteFee = saved['id']?.toString();
+          if (localFee != null && remoteFee != null) {
+            idMap[localFee] = remoteFee;
+            await _writeCacheString(mapKey, jsonEncode(idMap));
+          }
+
+          final rows = await _cachedRows(schoolId, 'fees_$studentId');
+          final index = rows.indexWhere(
+            (row) =>
+                row['term'] == item['term'] &&
+                row['academic_year_id']?.toString() == yearId?.toString(),
+          );
+          final cached = {
+            ...payload,
+            'id': remoteFee ?? localFee ?? '',
+          };
+          if (index >= 0) {
+            rows[index] = cached;
+          } else {
+            rows.add(cached);
+          }
+          await _saveRows(schoolId, 'fees_$studentId', rows);
+        } else if (type == 'add_payment') {
+          final result = await db.rpc(
+            'record_student_payment',
+            params: {
+              'p_student_id': resolve(item['student_id']),
+              'p_amount': item['amount'],
+              'p_note': item['note'] ?? '',
+              'p_term': item['term'] ?? 'غير محدد',
+              'p_fee_assessment_id': item['fee_assessment_id'] == null
+                  ? null
+                  : resolve(item['fee_assessment_id']),
+              'p_idempotency_key': item['idempotency_key'],
+            },
+          ).timeout(const Duration(seconds: 20));
+          if (result == null || result.toString().isEmpty) {
+            throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+          }
+
+          const secure = FlutterSecureStorage();
+          final pendingKey = 'lamin.pending_payments.v1_$schoolId';
+          try {
+            final raw = await secure.read(key: pendingKey);
+            if (raw != null) {
+              final pending = Map<String, dynamic>.from(jsonDecode(raw));
+              pending.remove(item['fingerprint']);
+              if (pending.isEmpty) {
+                await secure.delete(key: pendingKey);
+              } else {
+                await secure.write(
+                  key: pendingKey,
+                  value: jsonEncode(pending),
+                );
+              }
+            }
+          } catch (_) {}
+        } else if (type == 'attendance') {
+          await _writeAttendanceRemote(
+            studentId: resolve(item['student_id']),
+            date: item['attendance_date'].toString(),
+            status: item['status'].toString(),
+            minutesLate: (item['minutes_late'] as num?)?.toInt() ?? 0,
+          ).timeout(const Duration(seconds: 15));
+        } else {
+          throw Exception('نوع عملية محلية غير معروف: $type');
+        }
+
+        queue.removeAt(0);
+        await _writeOfflineOperations(schoolId, queue);
+        synced++;
+      } catch (error) {
+        debugPrint('Offline sync paused at $type: $error');
+        return OfflineSyncResult(
+          synced: synced,
+          pending: queue.length,
+          failedOperation: type,
+          error: error.toString(),
+        );
+      }
+    }
+
+    return OfflineSyncResult(synced: synced, pending: queue.length);
   }
 
   Future<SchoolProfile?> cachedProfile() async {
