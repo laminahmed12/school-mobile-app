@@ -22,6 +22,11 @@ class SchoolRepository {
       final value = await _cacheStorage.read(key: secureKey);
       if (value != null) return value;
     } catch (error) {
+      // Fail closed: discard an older plaintext fallback if secure storage itself
+      // is unavailable, rather than exposing school data in SharedPreferences.
+      try {
+        await prefs.remove(key);
+      } catch (_) {}
       debugPrint('Secure cache read failed for $key: $error');
       return null;
     }
