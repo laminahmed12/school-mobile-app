@@ -96,7 +96,12 @@ jobs:
           test -n "$AAPT"
           "$APKSIGNER" verify --verbose "$APK"
           BADGING="$("$AAPT" dump badging "$APK")"
-          grep -q "package: name='com.adreemk.school.lamin_school' versionCode='12' versionName='2.0.3'" <<< "$BADGING"
+          APP_VERSION="$(awk '/^version:/ {print $2; exit}' pubspec.yaml | tr -d '"')"
+          IFS='+' read -r VERSION_NAME VERSION_CODE <<< "$APP_VERSION"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          EXPECTED_BADGING="package: name='com.adreemk.school.lamin_school' versionCode='${VERSION_CODE}' versionName='${VERSION_NAME}'"
+          grep -Fq "$EXPECTED_BADGING" <<< "$BADGING"
           sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
       - name: Package Android signing toolchain for release signing
         shell: bash
