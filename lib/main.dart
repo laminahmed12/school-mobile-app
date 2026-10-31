@@ -2687,8 +2687,10 @@ class _FeeManagementViewState extends State<FeeManagementView> {
       if (studentId != null) {
         final selected = widget.students
             .where((student) => student.id == studentId)
-            .firstOrNull;
-        if (selected != null) studentSearchController.text = selected.name;
+            .toList();
+        if (selected.isNotEmpty) {
+          studentSearchController.text = selected.first.name;
+        }
       }
       final activeYears = years.where((y) => y['active'] == true).toList();
       final active = activeYears.isEmpty ? null : activeYears.first;
@@ -2816,6 +2818,10 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                         enabled: !saving,
                         onChanged: (_) => setState(() {
                           studentId = null;
+                          feeController.clear();
+                          discountController.text = '0';
+                          noteController.clear();
+                          error = null;
                         }),
                         decoration: InputDecoration(
                           labelText: 'ابحث عن الطالب بالاسم',
@@ -2868,13 +2874,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                         ListTile(
                           dense: true,
                           leading: const Icon(Icons.person_pin_circle_outlined),
-                          title: Text(
-                            widget.students
-                                .where((student) => student.id == studentId)
-                                .map((student) => student.name)
-                                .firstOrNull ??
-                                studentSearchController.text,
-                          ),
+                          title: Text(studentSearchController.text),
                           subtitle: const Text('الطالب المحدد'),
                           trailing: IconButton(
                             tooltip: 'تغيير الطالب',
