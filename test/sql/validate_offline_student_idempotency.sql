@@ -39,6 +39,12 @@ BEGIN
   END IF;
   SELECT count(*) INTO total FROM public.students WHERE id=first_id;
   IF total <> 1 THEN RAISE EXCEPTION 'offline create replay did not remain exactly-once'; END IF;
+  IF (SELECT class_name FROM public.students WHERE id=first_id) <> 'الصف الأول' THEN
+    RAISE EXCEPTION 'student class was not stored in class_name';
+  END IF;
+  IF (SELECT phone FROM public.students WHERE id=first_id) <> '0910000000' THEN
+    RAISE EXCEPTION 'student phone was not stored correctly';
+  END IF;
 END
 $$;
 RESET ROLE;
