@@ -2145,7 +2145,7 @@ class _FinanceViewState extends State<FinanceView> {
                                       builder: (_) => StudentAccountView(
                                         repo: widget.repo,
                                         student: s,
-                                        canManageFees: widget.widget.canManageFees,
+                                        canManageFees: widget.canManageFees,
                                       ),
                                     ),
                                   ),
