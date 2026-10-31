@@ -82,8 +82,20 @@ class BackupService {
       await temporary.delete();
       throw Exception('تعذر التحقق من النسخة الاحتياطية المشفرة.');
     }
-    if (await target.exists()) await target.delete();
-    return temporary.rename(path);
+    final previous = File('$path.previous');
+    if (await previous.exists()) await previous.delete();
+    final hadPrevious = await target.exists();
+    if (hadPrevious) await target.rename(previous.path);
+    try {
+      final saved = await temporary.rename(path);
+      if (await previous.exists()) await previous.delete();
+      return saved;
+    } catch (_) {
+      if (hadPrevious && await previous.exists() && !await target.exists()) {
+        await previous.rename(path);
+      }
+      rethrow;
+    }
   }
 
   /// Validates both the outer backup envelope and the school-scoped RPC payload.
@@ -125,7 +137,7 @@ class BackupService {
       throw Exception('تعذر تحديد المدرسة؛ لم تُنشأ نسخة احتياطية غير مرتبطة بمدرسة.');
     }
     final safeYear = year.replaceAll(
-      RegExp(r'[^0-9A-Za-z\\u0600-\\u06FF_-]+'),
+      RegExp(r'[^0-9A-Za-z\u0600-\u06FF_-]+'),
       '_',
     );
     final baseName = 'lamin_${safeYear}_${schoolId}';
