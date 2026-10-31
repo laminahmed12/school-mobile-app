@@ -74,6 +74,9 @@ Future<void> main() async {
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: LaminAuthLocalStorage(),
+    ),
   );
   final prefs = await SharedPreferences.getInstance();
   runApp(LaminApp(prefs: prefs));
