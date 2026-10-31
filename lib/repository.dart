@@ -10,6 +10,62 @@ class SchoolRepository {
   final SharedPreferences prefs;
   SchoolRepository(this.prefs);
 
+  // Offline application data is encrypted at rest through Android Keystore /
+  // iOS Keychain. SharedPreferences is used only as a one-time legacy source.
+  static const FlutterSecureStorage _cacheStorage = FlutterSecureStorage();
+
+  String _secureCacheKey(String key) => 'lamin.cache.v1.$key';
+
+  Future<String?> _readCacheString(String key) async {
+    final secureKey = _secureCacheKey(key);
+    try {
+      final value = await _cacheStorage.read(key: secureKey);
+      if (value != null) return value;
+    } catch (error) {
+      debugPrint('Secure cache read failed for $key: $error');
+      return null;
+    }
+
+    final legacy = prefs.getString(key);
+    if (legacy == null) return null;
+    try {
+      await _cacheStorage.write(key: secureKey, value: legacy);
+      await prefs.remove(key);
+      return legacy;
+    } catch (error) {
+      // Never leave a readable plaintext copy after a failed migration.
+      await prefs.remove(key);
+      debugPrint('Legacy cache migration discarded for $key: $error');
+      return null;
+    }
+  }
+
+  Future<void> _writeCacheString(String key, String value) async {
+    await _cacheStorage.write(key: _secureCacheKey(key), value: value);
+    await prefs.remove(key);
+  }
+
+  Future<void> _removeCache(String key) async {
+    await _cacheStorage.delete(key: _secureCacheKey(key));
+    await prefs.remove(key);
+  }
+
+  Future<int?> _readCacheInt(String key) async {
+    final value = await _readCacheString(key);
+    return value == null ? null : int.tryParse(value);
+  }
+
+  Future<void> _writeCacheInt(String key, int value) =>
+      _writeCacheString(key, value.toString());
+
+  Future<double?> _readCacheDouble(String key) async {
+    final value = await _readCacheString(key);
+    return value == null ? null : double.tryParse(value);
+  }
+
+  Future<void> _writeCacheDouble(String key, double value) =>
+      _writeCacheString(key, value.toString());
+
   Future<String?> _userId() async {
     final currentUserId = db.auth.currentUser?.id;
     if (currentUserId != null && currentUserId.isNotEmpty) return currentUserId;
@@ -21,26 +77,26 @@ class SchoolRepository {
   String _tenantCacheKey(String schoolId, String table) => 'lamin_data_cache_v1_${schoolId}_$table';
 
   Future<List<Map<String, dynamic>>> _cachedRows(String schoolId, String key) async {
-    final raw = prefs.getString(_tenantCacheKey(schoolId, key));
+    final raw = await _readCacheString(_tenantCacheKey(schoolId, key));
     if (raw == null) return [];
     try {
       return (jsonDecode(raw) as List)
           .map((item) => Map<String, dynamic>.from(item as Map))
           .toList();
     } catch (_) {
-      await prefs.remove(_tenantCacheKey(schoolId, key));
+      await _removeCache(_tenantCacheKey(schoolId, key));
       return [];
     }
   }
 
   Future<void> _saveRows(String schoolId, String key, List rows) async {
-    await prefs.setString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
+    await _writeCacheString(_tenantCacheKey(schoolId, key), jsonEncode(rows));
   }
 
   Future<String?> _schoolId() async {
     final userId = await _userId();
     if (userId == null) return null;
-    return prefs.getString('school_id_cache_$userId') ??
+    return await _readCacheString('school_id_cache_$userId') ??
         (await cachedProfile())?.schoolId;
   }
 
@@ -114,7 +170,7 @@ class SchoolRepository {
     }
   }
   Future<List<Map<String,dynamic>>> _cachedStudentMaps(String schoolId) async {
-    final raw=prefs.getString('students_cache_$schoolId');
+    final raw=await _readCacheString('students_cache_$schoolId');
     if(raw==null)return [];
     try{return (jsonDecode(raw) as List).map((x)=>Map<String,dynamic>.from(x as Map)).toList();}
     catch(_){return [];}
@@ -124,7 +180,7 @@ class SchoolRepository {
     final index=rows.indexWhere((x)=>x['id']?.toString()==id);
     final value={'id':id,'name':name.trim(),'class_name':className.trim(),'phone':phone.trim()};
     if(index<0)rows.insert(0,value);else rows[index]={...rows[index],...value};
-    await prefs.setString('students_cache_$schoolId',jsonEncode(rows));
+    await _writeCacheString('students_cache_$schoolId',jsonEncode(rows));
   }
   Future<void> updateStudent({required String studentId,required String name,required String className,required String phone}) async {
     if(name.trim().length<2||className.trim().isEmpty)throw Exception('أدخل اسم الطالب والصف بصورة صحيحة.');
@@ -151,7 +207,7 @@ class SchoolRepository {
     if(schoolId==null||schoolId.isEmpty||!await _serverAvailable())return 0;
     final queue=await _readOfflineOperations(schoolId);if(queue.isEmpty)return 0;
     final mapKey='lamin_offline_id_map_v1_$schoolId';Map<String,dynamic> idMap={};
-    try{final raw=prefs.getString(mapKey);if(raw!=null)idMap=Map<String,dynamic>.from(jsonDecode(raw));}catch(_){}
+    try{final raw=await _readCacheString(mapKey);if(raw!=null)idMap=Map<String,dynamic>.from(jsonDecode(raw));}catch(_){}
     String resolve(dynamic value){final id=value?.toString()??'';return idMap[id]?.toString()??id;}
     var synced=0;
     while(queue.isNotEmpty){
@@ -161,9 +217,9 @@ class SchoolRepository {
         if(type=='create_student'){
           final result=await db.rpc('create_student_with_fee_idempotent',params:{'p_operation_id':item['operation_id'],'p_name':item['name'],'p_class_name':item['class_name'],'p_phone':item['phone']??'','p_term_fee':item['term_fee']??0,'p_term':item['term']??'الفصل الأول'}).timeout(const Duration(seconds:15));
           final remote=result?.toString()??'';if(remote.isEmpty)throw Exception('لم يؤكد الخادم إنشاء الطالب.');
-          final local=item['local_id'].toString();idMap[local]=remote;await prefs.setString(mapKey,jsonEncode(idMap));
+          final local=item['local_id'].toString();idMap[local]=remote;await _writeCacheString(mapKey,jsonEncode(idMap));
           final students=await _cachedStudentMaps(schoolId);final ix=students.indexWhere((x)=>x['id']?.toString()==local);
-          if(ix>=0){students[ix]['id']=remote;await prefs.setString('students_cache_$schoolId',jsonEncode(students));}
+          if(ix>=0){students[ix]['id']=remote;await _writeCacheString('students_cache_$schoolId',jsonEncode(students));}
         }else if(type=='update_student'){
           await db.from('students').update({'name':item['name'],'class_name':item['class_name'],'phone':item['phone']??''}).eq('id',resolve(item['student_id'])).timeout(const Duration(seconds:15));
         }else if(type=='save_fee'){
@@ -175,7 +231,7 @@ class SchoolRepository {
               ?await db.from('student_fee_assessments').update(payload).eq('id',existing!['id']).select('id').single()
               :await db.from('student_fee_assessments').insert(payload).select('id').single();
           final localFee=item['local_id']?.toString();final remoteFee=saved['id']?.toString();
-          if(localFee!=null&&remoteFee!=null){idMap[localFee]=remoteFee;await prefs.setString(mapKey,jsonEncode(idMap));}
+          if(localFee!=null&&remoteFee!=null){idMap[localFee]=remoteFee;await _writeCacheString(mapKey,jsonEncode(idMap));}
           final rows=await _cachedRows(schoolId,'fees_$studentId');final ix=rows.indexWhere((x)=>x['term']==item['term']&&x['academic_year_id']?.toString()==yearId?.toString());
           final cached={...payload,'id':remoteFee??localFee??''};if(ix>=0)rows[ix]=cached;else rows.add(cached);await _saveRows(schoolId,'fees_$studentId',rows);
         }else if(type=='add_payment'){
@@ -195,7 +251,7 @@ class SchoolRepository {
   Future<SchoolProfile?> cachedProfile() async {
     final userId = await _userId();
     if (userId == null) return null;
-    final raw = prefs.getString(_profileCacheKey(userId));
+    final raw = await _readCacheString(_profileCacheKey(userId));
     if (raw == null) return null;
     try { return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw))); }
     catch (_) { return null; }
@@ -204,7 +260,7 @@ class SchoolRepository {
   Future<Map<String, dynamic>?> cachedSchool() async {
     final p = await cachedProfile();
     if (p?.schoolId == null) return null;
-    final raw = prefs.getString(_schoolCacheKey(p!.schoolId!));
+    final raw = await _readCacheString(_schoolCacheKey(p!.schoolId!));
     if (raw == null) return null;
     try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
   }
@@ -217,14 +273,14 @@ class SchoolRepository {
           .maybeSingle().timeout(const Duration(seconds: 6));
       if (row == null) return null;
       final profile = SchoolProfile.fromMap(row);
-      await prefs.setString(_profileCacheKey(u.id), jsonEncode(Map<String, dynamic>.from(row)));
+      await _writeCacheString(_profileCacheKey(u.id), jsonEncode(Map<String, dynamic>.from(row)));
       final schoolId = profile.schoolId;
       if (schoolId != null && schoolId.isNotEmpty) {
-        await prefs.setString('school_id_cache_${u.id}', schoolId);
+        await _writeCacheString('school_id_cache_${u.id}', schoolId);
       }
       return profile;
     } catch (_) {
-      final raw = prefs.getString(_profileCacheKey(u.id));
+      final raw = await _readCacheString(_profileCacheKey(u.id));
       if (raw == null) return null;
       try {
         return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw)));
@@ -243,10 +299,10 @@ class SchoolRepository {
           .maybeSingle().timeout(const Duration(seconds: 6));
       if (row == null) return null;
       final data = Map<String, dynamic>.from(row);
-      await prefs.setString(_schoolCacheKey(id), jsonEncode(data));
+      await _writeCacheString(_schoolCacheKey(id), jsonEncode(data));
       return data;
     } catch (_) {
-      final raw = prefs.getString(_schoolCacheKey(id));
+      final raw = await _readCacheString(_schoolCacheKey(id));
       if (raw == null) return null;
       try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
     }
@@ -278,7 +334,7 @@ class SchoolRepository {
     try {
       schoolId = (await profile())?.schoolId;
     } catch (_) {
-      schoolId = prefs.getString('school_id_cache_${userId}');
+      schoolId = await _readCacheString('school_id_cache_${userId}');
     }
     if (schoolId == null || schoolId.isEmpty) return [];
     final cacheKey = 'students_cache_${schoolId}';
@@ -303,17 +359,17 @@ class SchoolRepository {
         }
       }
       merged.sort((a,b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
-      await prefs.setString(cacheKey, jsonEncode(merged));
+      await _writeCacheString(cacheKey, jsonEncode(merged));
       return merged.map((row) => Student.fromMap(row)).toList();
     } catch (_) {
-      final raw = prefs.getString(cacheKey);
+      final raw = await _readCacheString(cacheKey);
       if (raw == null) return [];
       try {
         return (jsonDecode(raw) as List)
             .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
             .toList();
       } catch (_) {
-        await prefs.remove(cacheKey);
+        await _removeCache(cacheKey);
         return [];
       }
     }
@@ -331,17 +387,17 @@ class SchoolRepository {
           .maybeSingle()
           .timeout(const Duration(seconds: 6));
       if (row == null) {
-        await prefs.remove(key);
+        await _removeCache(key);
         return null;
       }
       final data = Map<String, dynamic>.from(row);
-      await prefs.setString(key, jsonEncode(data));
+      await _writeCacheString(key, jsonEncode(data));
       return data;
     } catch (_) {
-      final raw = prefs.getString(key);
+      final raw = await _readCacheString(key);
       if (raw == null) return null;
       try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
-        await prefs.remove(key);
+        await _removeCache(key);
         return null;
       }
     }
@@ -406,14 +462,14 @@ class SchoolRepository {
       result['payroll_salaries'] = salaryTotal;
       result['payroll_advances'] = advanceTotal;
       result['expenses'] = expenseTotal + salaryTotal + advanceTotal;
-      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(result));
+      if (cacheKey != null) await _writeCacheString(cacheKey, jsonEncode(result));
       return result;
     } catch (_) {
       if (cacheKey == null) return result;
-      final raw = prefs.getString(cacheKey);
+      final raw = await _readCacheString(cacheKey);
       if (raw == null) return result;
       try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
-        await prefs.remove(cacheKey);
+        await _removeCache(cacheKey);
         return result;
       }
     }
@@ -450,11 +506,11 @@ class SchoolRepository {
           .timeout(const Duration(seconds: 6));
       final name = row?['name']?.toString();
       if (cacheKey != null && name != null) {
-        await prefs.setString(cacheKey, name);
+        await _writeCacheString(cacheKey, name);
       }
       return name;
     } catch (_) {
-      return cacheKey == null ? null : prefs.getString(cacheKey);
+      return cacheKey == null ? null : await _readCacheString(cacheKey);
     }
   }
 
@@ -520,7 +576,7 @@ class SchoolRepository {
 
   Future<List<Teacher>> teachers() async {
     final userId = await _userId();
-    final schoolId = userId == null ? null : (prefs.getString('school_id_cache_${userId}') ?? (await cachedProfile())?.schoolId);
+    final schoolId = userId == null ? null : (await _readCacheString('school_id_cache_${userId}') ?? (await cachedProfile())?.schoolId);
     if (schoolId == null || schoolId.isEmpty) return [];
     try {
       final rows = await db.from('teachers').select().order('name').timeout(const Duration(seconds: 6));
@@ -643,10 +699,10 @@ class SchoolRepository {
     final cacheKey = _tenantCacheKey(schoolId, 'count_$table');
     try {
       final value = await _countRowsPaged(table);
-      await prefs.setInt(cacheKey, value);
+      await _writeCacheInt(cacheKey, value);
       return value;
     } catch (_) {
-      return prefs.getInt(cacheKey) ?? 0;
+      return await _readCacheInt(cacheKey) ?? 0;
     }
   }
 
@@ -656,10 +712,10 @@ class SchoolRepository {
     final cacheKey = 'lamin_payments_total_${schoolId}';
     try {
       final total = await _sumColumnPaged('payments', 'amount');
-      await prefs.setDouble(cacheKey, total);
+      await _writeCacheDouble(cacheKey, total);
       return total;
     } catch (_) {
-      return prefs.getDouble(cacheKey) ?? 0;
+      return await _readCacheDouble(cacheKey) ?? 0;
     }
   }
 
@@ -671,10 +727,10 @@ class SchoolRepository {
       final expenseTotal = await _sumColumnPaged('expenses', 'amount');
       final payrollTotal = await _sumColumnPaged('payroll_transactions', 'amount');
       final total = expenseTotal + payrollTotal;
-      await prefs.setDouble(cacheKey, total);
+      await _writeCacheDouble(cacheKey, total);
       return total;
     } catch (_) {
-      return prefs.getDouble(cacheKey) ?? 0;
+      return await _readCacheDouble(cacheKey) ?? 0;
     }
   }
 
@@ -897,14 +953,14 @@ class SchoolRepository {
         'paid': paid, 'remaining': due - paid,
         'assessments': fees, 'payments': paymentRows,
       };
-      if (cacheKey != null) await prefs.setString(cacheKey, jsonEncode(summary));
+      if (cacheKey != null) await _writeCacheString(cacheKey, jsonEncode(summary));
       return summary;
     } catch (_) {
       if (cacheKey != null) {
-        final raw = prefs.getString(cacheKey);
+        final raw = await _readCacheString(cacheKey);
         if (raw != null) {
           try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) {
-            await prefs.remove(cacheKey);
+            await _removeCache(cacheKey);
           }
         }
       }
@@ -955,8 +1011,8 @@ class SchoolRepository {
       await _queueOfflineOperation(schoolId,{'type':'save_fee','local_id':localId.startsWith('offline-')?localId:null,'student_id':studentId,'term':term,'total_fee':totalFee,'discount':discount,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'note':note.trim()},dedupeType:'save_fee',dedupeKey:dedupe);
       final row={'id':localId,'student_id':studentId,'school_id':schoolId,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'term':term,'total_fee':totalFee,'discount':discount,'note':note.trim()};
       if(ix>=0)rows[ix]=row;else rows.add(row);await _saveRows(schoolId,'fees_$studentId',rows);
-      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final summaryRaw=prefs.getString(summaryKey);
-      if(summaryRaw!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(summaryRaw));summary['assessments']=rows;summary['fees']=rows.fold<double>(0,(s,x)=>s+((x['total_fee'] as num?)?.toDouble()??0));summary['discount']=rows.fold<double>(0,(s,x)=>s+((x['discount'] as num?)?.toDouble()??0));summary['remaining']=(summary['fees'] as num).toDouble()-(summary['discount'] as num).toDouble()-((summary['paid'] as num?)?.toDouble()??0);await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final summaryRaw=await _readCacheString(summaryKey);
+      if(summaryRaw!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(summaryRaw));summary['assessments']=rows;summary['fees']=rows.fold<double>(0,(s,x)=>s+((x['total_fee'] as num?)?.toDouble()??0));summary['discount']=rows.fold<double>(0,(s,x)=>s+((x['discount'] as num?)?.toDouble()??0));summary['remaining']=(summary['fees'] as num).toDouble()-(summary['discount'] as num).toDouble()-((summary['paid'] as num?)?.toDouble()??0);await _writeCacheString(summaryKey,jsonEncode(summary));}catch(_){}}
       return;
     }
     final existingForYear = academicYearId == null
@@ -1063,8 +1119,8 @@ class SchoolRepository {
         rows.insert(0,{'id':localId,'student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'payment_date':DateTime.now().toIso8601String().substring(0,10),'created_at':DateTime.now().toUtc().toIso8601String(),'pending_sync':true});
         await _saveRows(schoolId,'payments_$studentId',rows);
         final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');
-        final rawSummary=prefs.getString(summaryKey);
-        if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await prefs.setString(summaryKey,jsonEncode(summary));}catch(_){}}
+        final rawSummary=await _readCacheString(summaryKey);
+        if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await _writeCacheString(summaryKey,jsonEncode(summary));}catch(_){}}
       }
       return;
     }
@@ -1135,19 +1191,19 @@ class SchoolRepository {
           .maybeSingle()
           .timeout(const Duration(seconds: 6));
       if (row == null) {
-        await prefs.remove(cacheKey);
+        await _removeCache(cacheKey);
         return null;
       }
       final data = Map<String, dynamic>.from(row);
-      await prefs.setString(cacheKey, jsonEncode(data));
+      await _writeCacheString(cacheKey, jsonEncode(data));
       return data;
     } catch (_) {
-      final raw = prefs.getString(cacheKey);
+      final raw = await _readCacheString(cacheKey);
       if (raw == null) return null;
       try {
         return Map<String, dynamic>.from(jsonDecode(raw));
       } catch (_) {
-        await prefs.remove(cacheKey);
+        await _removeCache(cacheKey);
         return null;
       }
     }
@@ -1178,7 +1234,7 @@ class SchoolRepository {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     await db.from('school_branding').upsert(payload);
-    await prefs.setString(
+    await _writeCacheString(
       _tenantCacheKey(schoolId, 'school_branding'),
       jsonEncode(payload),
     );
@@ -1194,7 +1250,7 @@ class SchoolRepository {
       throw Exception('حذف شعار المدرسة متاح لمدير المدرسة فقط.');
     }
     await db.from('school_branding').delete().eq('school_id', schoolId);
-    await prefs.remove(_tenantCacheKey(schoolId, 'school_branding'));
+    await _removeCache(_tenantCacheKey(schoolId, 'school_branding'));
   }
 
   Future<void> deleteSchoolUser(String userId) async {
