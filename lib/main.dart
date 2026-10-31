@@ -525,22 +525,64 @@ class _LoginPageState extends State<LoginPage> {
     _loadRememberedUsername();
   }
 
+  static const _secureSavedUsernameKey = 'lamin.login.saved_username.v1';
+
   Future<void> _loadRememberedUsername() async {
     final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
-    final saved = enabled ? widget.prefs.getString(_savedUsernameKey) : null;
+    String? saved;
+    const secureStorage = FlutterSecureStorage();
+    try {
+      if (enabled) {
+        saved = await secureStorage.read(key: _secureSavedUsernameKey);
+        if (saved == null) {
+          final legacy = widget.prefs.getString(_savedUsernameKey);
+          if (legacy != null && legacy.isNotEmpty) {
+            await secureStorage.write(
+              key: _secureSavedUsernameKey,
+              value: legacy,
+            );
+            saved = legacy;
+          }
+        }
+      } else {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      }
+      // Remove the old plaintext username once secure storage has been checked.
+      await widget.prefs.remove(_savedUsernameKey);
+    } catch (storageError) {
+      debugPrint('Remembered username secure-storage migration failed: $storageError');
+      saved = null;
+      await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, false);
+    }
     if (!mounted) return;
     setState(() {
-      rememberUsername = enabled;
+      rememberUsername = enabled && saved != null;
       if (saved != null) username.text = saved;
     });
   }
 
   Future<void> _saveUsernamePreference() async {
-    await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
-    if (rememberUsername) {
-      await widget.prefs.setString(_savedUsernameKey, username.text.trim());
-    } else {
+    const secureStorage = FlutterSecureStorage();
+    try {
+      if (rememberUsername) {
+        await secureStorage.write(
+          key: _secureSavedUsernameKey,
+          value: username.text.trim(),
+        );
+      } else {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      }
       await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
+    } catch (storageError) {
+      debugPrint('Remembered username secure-storage write failed: $storageError');
+      try {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      } catch (_) {}
+      await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, false);
+      if (mounted) setState(() => rememberUsername = false);
     }
   }
 
