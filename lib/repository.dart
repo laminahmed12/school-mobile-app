@@ -900,16 +900,59 @@ class SchoolRepository {
     }
   }
 
-  Future<void> saveAttendance({required String studentId,required DateTime day,required String status,int minutesLate=0}) async {
-    final schoolId=await _schoolId();if(schoolId==null||schoolId.isEmpty)throw Exception('تعذر تحديد المدرسة الحالية.');
-    final date=day.toIso8601String().substring(0,10);
-    if(studentId.startsWith('offline-')||!await _serverAvailable()){
-      await _queueOfflineOperation(schoolId,{'type':'attendance','student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate},dedupeType:'attendance',dedupeKey:'$studentId:$date');
-      final rows=await _cachedRows(schoolId,'attendance_$date');rows.removeWhere((x)=>x['student_id']?.toString()==studentId);
-      rows.add({'id':_newOfflineId('attendance'),'student_id':studentId,'attendance_date':date,'status':status,'minutes_late':minutesLate});
-      await _saveRows(schoolId,'attendance_$date',rows);return;
+  Future<void> saveAttendance({
+    required String studentId,
+    required DateTime day,
+    required String status,
+    int minutesLate = 0,
+  }) async {
+    final schoolId = await _schoolId();
+    if (schoolId == null || schoolId.isEmpty) {
+      throw Exception('تعذر تحديد المدرسة الحالية.');
     }
-    await _writeAttendanceRemote(studentId:studentId,date:date,status:status,minutesLate:minutesLate);
+    final date = day.toIso8601String().substring(0, 10);
+
+    Future<void> queueLocally() async {
+      await _queueOfflineOperation(
+        schoolId,
+        {
+          'type': 'attendance',
+          'student_id': studentId,
+          'attendance_date': date,
+          'status': status,
+          'minutes_late': minutesLate,
+        },
+        dedupeType: 'attendance',
+        dedupeKey: '$studentId:$date',
+      );
+      final rows = await _cachedRows(schoolId, 'attendance_$date');
+      rows.removeWhere((row) => row['student_id']?.toString() == studentId);
+      rows.add({
+        'id': _newOfflineId('attendance'),
+        'student_id': studentId,
+        'school_id': schoolId,
+        'attendance_date': date,
+        'status': status,
+        'minutes_late': minutesLate,
+      });
+      await _saveRows(schoolId, 'attendance_$date', rows);
+    }
+
+    if (studentId.startsWith('offline-') || !await _serverAvailable()) {
+      await queueLocally();
+      return;
+    }
+    try {
+      await _writeAttendanceRemote(
+        studentId: studentId,
+        date: date,
+        status: status,
+        minutesLate: minutesLate,
+      ).timeout(const Duration(seconds: 5));
+    } catch (error) {
+      if (!_isNetworkFailure(error)) rethrow;
+      await queueLocally();
+    }
   }
 
   Future<List<ResultItem>> results(String studentId) async =>
@@ -1328,6 +1371,149 @@ class SchoolRepository {
     }
   }
 
+  Future<void> _queueStudentFeeAssessment({
+    required String schoolId,
+    required String studentId,
+    required String term,
+    required double totalFee,
+    required double discount,
+    required String? academicYearId,
+    required String academicYearLabel,
+    required String note,
+  }) async {
+    final dedupe =
+        '$studentId:$term:${academicYearId ?? academicYearLabel}';
+    final rows = await _cachedRows(schoolId, 'fees_$studentId');
+    final index = rows.indexWhere(
+      (row) =>
+          row['term'] == term &&
+          row['academic_year_id']?.toString() ==
+              academicYearId?.toString() &&
+          (academicYearId != null ||
+              row['academic_year_label']?.toString() == academicYearLabel),
+    );
+    final localId = index >= 0
+        ? rows[index]['id'].toString()
+        : _newOfflineId('fee');
+
+    await _queueOfflineOperation(
+      schoolId,
+      {
+        'type': 'save_fee',
+        'local_id': localId.startsWith('offline-') ? localId : null,
+        'student_id': studentId,
+        'term': term,
+        'total_fee': totalFee,
+        'discount': discount,
+        'academic_year_id': academicYearId,
+        'academic_year_label': academicYearLabel,
+        'note': note.trim(),
+      },
+      dedupeType: 'save_fee',
+      dedupeKey: dedupe,
+    );
+
+    final row = {
+      'id': localId,
+      'student_id': studentId,
+      'school_id': schoolId,
+      'academic_year_id': academicYearId,
+      'academic_year_label': academicYearLabel,
+      'term': term,
+      'total_fee': totalFee,
+      'discount': discount,
+      'note': note.trim(),
+    };
+    if (index >= 0) {
+      rows[index] = row;
+    } else {
+      rows.add(row);
+    }
+    await _saveRows(schoolId, 'fees_$studentId', rows);
+
+    final summaryKey =
+        _tenantCacheKey(schoolId, 'financial_summary_$studentId');
+    final summaryRaw = await _readCacheString(summaryKey);
+    if (summaryRaw == null) return;
+    try {
+      final summary = Map<String, dynamic>.from(jsonDecode(summaryRaw));
+      summary['assessments'] = rows;
+      summary['fees'] = rows.fold<double>(
+        0,
+        (sum, item) =>
+            sum + ((item['total_fee'] as num?)?.toDouble() ?? 0),
+      );
+      summary['discount'] = rows.fold<double>(
+        0,
+        (sum, item) =>
+            sum + ((item['discount'] as num?)?.toDouble() ?? 0),
+      );
+      summary['remaining'] =
+          (summary['fees'] as num).toDouble() -
+          (summary['discount'] as num).toDouble() -
+          ((summary['paid'] as num?)?.toDouble() ?? 0);
+      await _writeCacheString(summaryKey, jsonEncode(summary));
+    } catch (_) {}
+  }
+
+  Future<void> _queueOfflinePayment({
+    required String schoolId,
+    required String studentId,
+    required double amount,
+    required String note,
+    required String term,
+    required String? feeAssessmentId,
+    required String idempotencyKey,
+    required String fingerprint,
+  }) async {
+    final localId = 'offline-payment-$idempotencyKey';
+    await _queueOfflineOperation(
+      schoolId,
+      {
+        'type': 'add_payment',
+        'student_id': studentId,
+        'amount': amount,
+        'note': note,
+        'term': term,
+        'fee_assessment_id': feeAssessmentId,
+        'idempotency_key': idempotencyKey,
+        'fingerprint': fingerprint,
+      },
+      dedupeType: 'add_payment',
+      dedupeKey: idempotencyKey,
+    );
+
+    final rows = await _cachedRows(schoolId, 'payments_$studentId');
+    if (rows.any((row) => row['id'] == localId)) return;
+    rows.insert(0, {
+      'id': localId,
+      'student_id': studentId,
+      'school_id': schoolId,
+      'amount': amount,
+      'note': note,
+      'term': term,
+      'fee_assessment_id': feeAssessmentId,
+      'payment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'pending_sync': true,
+    });
+    await _saveRows(schoolId, 'payments_$studentId', rows);
+
+    final summaryKey =
+        _tenantCacheKey(schoolId, 'financial_summary_$studentId');
+    final rawSummary = await _readCacheString(summaryKey);
+    if (rawSummary == null) return;
+    try {
+      final summary = Map<String, dynamic>.from(jsonDecode(rawSummary));
+      summary['payments'] = rows;
+      summary['paid'] =
+          ((summary['paid'] as num?)?.toDouble() ?? 0) + amount;
+      summary['remaining'] =
+          ((summary['remaining'] as num?)?.toDouble() ?? 0) - amount;
+      await _writeCacheString(summaryKey, jsonEncode(summary));
+    } catch (_) {}
+  }
+
   Future<void> saveStudentFeeAssessment({
     required String studentId,
     required String term,
@@ -1342,26 +1528,30 @@ class SchoolRepository {
         'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
       );
     }
-    final p = await profile();
+    final p = await cachedProfile() ?? await profile();
     final schoolId = p?.schoolId;
     if (schoolId == null ||
         (p?.role != 'admin' && p?.role != 'owner' && p?.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
-    if (!await _serverAvailable() || studentId.startsWith('offline-')) {
-      final dedupe='$studentId:$term:${academicYearId??academicYearLabel}';
-      final rows=await _cachedRows(schoolId,'fees_$studentId');
-      final ix=rows.indexWhere((x)=>x['term']==term&&x['academic_year_id']?.toString()==academicYearId?.toString()&&(academicYearId!=null||x['academic_year_label']?.toString()==academicYearLabel));
-      final localId=ix>=0?rows[ix]['id'].toString():_newOfflineId('fee');
-      await _queueOfflineOperation(schoolId,{'type':'save_fee','local_id':localId.startsWith('offline-')?localId:null,'student_id':studentId,'term':term,'total_fee':totalFee,'discount':discount,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'note':note.trim()},dedupeType:'save_fee',dedupeKey:dedupe);
-      final row={'id':localId,'student_id':studentId,'school_id':schoolId,'academic_year_id':academicYearId,'academic_year_label':academicYearLabel,'term':term,'total_fee':totalFee,'discount':discount,'note':note.trim()};
-      if(ix>=0)rows[ix]=row;else rows.add(row);await _saveRows(schoolId,'fees_$studentId',rows);
-      final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');final summaryRaw=await _readCacheString(summaryKey);
-      if(summaryRaw!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(summaryRaw));summary['assessments']=rows;summary['fees']=rows.fold<double>(0,(s,x)=>s+((x['total_fee'] as num?)?.toDouble()??0));summary['discount']=rows.fold<double>(0,(s,x)=>s+((x['discount'] as num?)?.toDouble()??0));summary['remaining']=(summary['fees'] as num).toDouble()-(summary['discount'] as num).toDouble()-((summary['paid'] as num?)?.toDouble()??0);await _writeCacheString(summaryKey,jsonEncode(summary));}catch(_){}}
+
+    if (studentId.startsWith('offline-') || !await _serverAvailable()) {
+      await _queueStudentFeeAssessment(
+        schoolId: schoolId,
+        studentId: studentId,
+        term: term,
+        totalFee: totalFee,
+        discount: discount,
+        academicYearId: academicYearId,
+        academicYearLabel: academicYearLabel,
+        note: note,
+      );
       return;
     }
-    final existingForYear = academicYearId == null
-        ? await db
+
+    try {
+      final existingForYear = academicYearId == null
+          ? await db
               .from('student_fee_assessments')
               .select('id')
               .eq('school_id', schoolId)
@@ -1370,16 +1560,20 @@ class SchoolRepository {
               .isFilter('academic_year_id', null)
               .eq('academic_year_label', academicYearLabel)
               .maybeSingle()
-        : await db
+              .timeout(const Duration(seconds: 5))
+          : await db
               .from('student_fee_assessments')
               .select('id')
               .eq('school_id', schoolId)
               .eq('student_id', studentId)
               .eq('term', term)
               .eq('academic_year_id', academicYearId)
-              .maybeSingle();
-    final existingUnassigned = existingForYear == null && academicYearId != null
-        ? await db
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+
+      final existingUnassigned =
+          existingForYear == null && academicYearId != null
+          ? await db
               .from('student_fee_assessments')
               .select('id')
               .eq('school_id', schoolId)
@@ -1387,26 +1581,45 @@ class SchoolRepository {
               .eq('term', term)
               .isFilter('academic_year_id', null)
               .maybeSingle()
-        : null;
-    final existing = existingForYear ?? existingUnassigned;
-    final payload = {
-      'school_id': schoolId,
-      'student_id': studentId,
-      'academic_year_id': academicYearId,
-      'academic_year_label': academicYearLabel,
-      'term': term,
-      'total_fee': totalFee,
-      'discount': discount,
-      'note': note.trim(),
-      'created_by': db.auth.currentUser?.id,
-    };
-    if (existing?['id'] != null) {
-      await db
-          .from('student_fee_assessments')
-          .update(payload)
-          .eq('id', existing!['id']);
-    } else {
-      await db.from('student_fee_assessments').insert(payload);
+              .timeout(const Duration(seconds: 5))
+          : null;
+
+      final existing = existingForYear ?? existingUnassigned;
+      final payload = {
+        'school_id': schoolId,
+        'student_id': studentId,
+        'academic_year_id': academicYearId,
+        'academic_year_label': academicYearLabel,
+        'term': term,
+        'total_fee': totalFee,
+        'discount': discount,
+        'note': note.trim(),
+        'created_by': db.auth.currentUser?.id,
+      };
+      if (existing?['id'] != null) {
+        await db
+            .from('student_fee_assessments')
+            .update(payload)
+            .eq('id', existing!['id'])
+            .timeout(const Duration(seconds: 5));
+      } else {
+        await db
+            .from('student_fee_assessments')
+            .insert(payload)
+            .timeout(const Duration(seconds: 5));
+      }
+    } catch (error) {
+      if (!_isNetworkFailure(error)) rethrow;
+      await _queueStudentFeeAssessment(
+        schoolId: schoolId,
+        studentId: studentId,
+        term: term,
+        totalFee: totalFee,
+        discount: discount,
+        academicYearId: academicYearId,
+        academicYearLabel: academicYearLabel,
+        note: note,
+      );
     }
   }
 
@@ -1456,33 +1669,47 @@ class SchoolRepository {
     }
 
     if (!await _serverAvailable() || studentId.startsWith('offline-')) {
-      final localId='offline-payment-$idempotencyKey';
-      await _queueOfflineOperation(schoolId,{'type':'add_payment','student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'idempotency_key':idempotencyKey,'fingerprint':fingerprint},dedupeType:'add_payment',dedupeKey:idempotencyKey);
-      final rows=await _cachedRows(schoolId,'payments_$studentId');
-      final alreadyQueued=rows.any((x)=>x['id']==localId);
-      if(!alreadyQueued){
-        rows.insert(0,{'id':localId,'student_id':studentId,'amount':amount,'note':note.trim(),'term':term,'fee_assessment_id':feeAssessmentId,'payment_date':DateTime.now().toIso8601String().substring(0,10),'created_at':DateTime.now().toUtc().toIso8601String(),'pending_sync':true});
-        await _saveRows(schoolId,'payments_$studentId',rows);
-        final summaryKey=_tenantCacheKey(schoolId,'financial_summary_$studentId');
-        final rawSummary=await _readCacheString(summaryKey);
-        if(rawSummary!=null){try{final summary=Map<String,dynamic>.from(jsonDecode(rawSummary));summary['payments']=rows;summary['paid']=((summary['paid'] as num?)?.toDouble()??0)+amount;summary['remaining']=((summary['remaining'] as num?)?.toDouble()??0)-amount;await _writeCacheString(summaryKey,jsonEncode(summary));}catch(_){}}
-      }
+      await _queueOfflinePayment(
+        schoolId: schoolId,
+        studentId: studentId,
+        amount: amount,
+        note: note.trim(),
+        term: term,
+        feeAssessmentId: feeAssessmentId,
+        idempotencyKey: idempotencyKey,
+        fingerprint: fingerprint,
+      );
       return;
     }
 
-    final result = await db.rpc('record_student_payment', params: {
-      'p_student_id': studentId,
-      'p_amount': amount,
-      'p_note': note.trim(),
-      'p_term': term,
-      'p_fee_assessment_id':
-          feeAssessmentId == null || feeAssessmentId.isEmpty
-              ? null
-              : feeAssessmentId,
-      'p_idempotency_key': idempotencyKey,
-    });
-    if (result == null || result.toString().isEmpty) {
-      throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+    try {
+      final result = await db.rpc('record_student_payment', params: {
+        'p_student_id': studentId,
+        'p_amount': amount,
+        'p_note': note.trim(),
+        'p_term': term,
+        'p_fee_assessment_id':
+            feeAssessmentId == null || feeAssessmentId.isEmpty
+                ? null
+                : feeAssessmentId,
+        'p_idempotency_key': idempotencyKey,
+      }).timeout(const Duration(seconds: 5));
+      if (result == null || result.toString().isEmpty) {
+        throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
+      }
+    } catch (error) {
+      if (!_isNetworkFailure(error)) rethrow;
+      await _queueOfflinePayment(
+        schoolId: schoolId,
+        studentId: studentId,
+        amount: amount,
+        note: note.trim(),
+        term: term,
+        feeAssessmentId: feeAssessmentId,
+        idempotencyKey: idempotencyKey,
+        fingerprint: fingerprint,
+      );
+      return;
     }
 
     pending.remove(fingerprint);
