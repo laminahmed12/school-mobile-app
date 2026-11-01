@@ -812,7 +812,7 @@ class SchoolRepository {
       'parent_name': parentName.trim(),
       'phone': phone.replaceAll(RegExp(r'[^0-9]'), '').trim(),
       'relation': relation.trim(),
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<Map<String, dynamic>> dailySummary(DateTime day) async {
@@ -885,7 +885,7 @@ class SchoolRepository {
     await db.from('academic_years').insert({
       'name': name.trim(),
       'active': false,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<String?> activeAcademicYearName() async {
@@ -926,7 +926,7 @@ class SchoolRepository {
         'p_migrate_students': true,
         'p_migrate_staff': true,
       },
-    );
+    ).timeout(const Duration(seconds: 8));
     return result?.toString();
   }
 
@@ -942,7 +942,7 @@ class SchoolRepository {
         'p_target_class_id': targetClassId,
         'p_status': status,
       },
-    );
+    ).timeout(const Duration(seconds: 5));
   }
 
   Future<void> addClass({
@@ -958,18 +958,21 @@ class SchoolRepository {
           .eq('active', true)
           .order('created_at', ascending: false)
           .limit(1)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 4));
       yearId = active?['id']?.toString();
     }
     await db.from('classes').insert({
       'name': name.trim(),
       'section': section.trim(),
       if (yearId != null && yearId.isNotEmpty) 'academic_year_id': yearId,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<void> addSubject(String name) async {
-    await db.from('subjects').insert({'name': name.trim()});
+    await db.from('subjects')
+        .insert({'name': name.trim()})
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<List<Teacher>> teachers({bool cacheOnly = false}) async {
@@ -1114,7 +1117,7 @@ class SchoolRepository {
       'exam_name': exam,
       'score': score,
       'max_score': maxScore,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<double> _sumColumnPaged(String table, String column) async {
@@ -1221,7 +1224,7 @@ class SchoolRepository {
       'phone': phone.trim(),
       'salary': salary,
       'active': true,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<void> updateTeacher({
@@ -1245,7 +1248,9 @@ class SchoolRepository {
           'name': name.trim(),
           'subject': subject.trim(),          'phone': normalizedPhone,
           'salary': salary,
-        })        .eq('id', teacherId);
+        })
+        .eq('id', teacherId)
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<void> updateStaffMember({
@@ -1271,15 +1276,18 @@ class SchoolRepository {
           'phone': normalizedPhone,
           'salary': salary,
         })
-        .eq('id', staffId);
+        .eq('id', staffId)
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<void> setTeacherSalary(String teacherId, double salary) async {
-    await db.from('teachers').update({'salary': salary}).eq('id', teacherId);
+    await db.from('teachers').update({'salary': salary}).eq('id', teacherId)
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<void> setStaffSalary(String staffId, double salary) async {
-    await db.from('staff').update({'salary': salary}).eq('id', staffId);
+    await db.from('staff').update({'salary': salary}).eq('id', staffId)
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<List<Map<String, dynamic>>> payrollTransactions() => _readRows(
@@ -1304,7 +1312,7 @@ class SchoolRepository {
       'amount': amount,
       'payment_date': paymentDate.toIso8601String().substring(0, 10),
       'note': note.trim(),
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<String> addStudent({
@@ -1407,7 +1415,7 @@ class SchoolRepository {
       'subject': subject.trim(),
       'phone': normalizedPhone,
       'salary': salary,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<List<Map<String, dynamic>>> studentFeeAssessments(
@@ -2061,7 +2069,8 @@ class SchoolRepository {
       'logo_mime_type': mimeType,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
-    await db.from('school_branding').upsert(payload);
+    await db.from('school_branding').upsert(payload)
+        .timeout(const Duration(seconds: 5));
     await _writeCacheString(
       _tenantCacheKey(schoolId, 'school_branding'),
       jsonEncode(payload),
@@ -2077,12 +2086,14 @@ class SchoolRepository {
     if (p?.role != 'admin' && p?.role != 'owner') {
       throw Exception('حذف شعار المدرسة متاح لمدير المدرسة فقط.');
     }
-    await db.from('school_branding').delete().eq('school_id', schoolId);
+    await db.from('school_branding').delete().eq('school_id', schoolId)
+        .timeout(const Duration(seconds: 5));
     await _removeCache(_tenantCacheKey(schoolId, 'school_branding'));
   }
 
   Future<void> deleteSchoolUser(String userId) async {
-    await db.rpc('delete_school_user', params: {'p_user_id': userId});
+    await db.rpc('delete_school_user', params: {'p_user_id': userId})
+        .timeout(const Duration(seconds: 5));
   }
 
   Future<void> grantOneDriveAccess(
@@ -2169,7 +2180,7 @@ class SchoolRepository {
       'amount': amount,
       'category': category.trim(),
       'note': note.trim(),
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<void> queueWhatsApp({
@@ -2183,7 +2194,7 @@ class SchoolRepository {
       'phone': phone,
       'kind': kind,
       'message': message,
-    });
+    }).timeout(const Duration(seconds: 5));
   }
 
   Future<void> signOut() => db.auth.signOut();
