@@ -329,6 +329,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> _tryOfflineAccess() async {
+    await _refreshLock();
+    return offlineAccess;
+  }
+
   void _unlock() {
     if (mounted) setState(() => locked = false);
   }
@@ -337,7 +342,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null && !offlineAccess) return LoginPage(prefs: widget.prefs);
+      if (db.auth.currentSession == null && !offlineAccess) {
+        return LoginPage(
+          prefs: widget.prefs,
+          onOfflineAccess: _tryOfflineAccess,
+        );
+      }
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
@@ -531,7 +541,12 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
 
 class LoginPage extends StatefulWidget {
   final SharedPreferences prefs;
-  const LoginPage({super.key, required this.prefs});
+  final Future<bool> Function() onOfflineAccess;
+  const LoginPage({
+    super.key,
+    required this.prefs,
+    required this.onOfflineAccess,
+  });
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -542,6 +557,7 @@ class _LoginPageState extends State<LoginPage> {
       password = TextEditingController();
   final auth = LaminAuthService();
   bool loading = false, hide = true, schoolLocked = false;
+  bool checkingOffline = false;
   bool rememberUsername = false;
   static const _rememberUsernameKey = 'lamin_remember_username';
   static const _savedUsernameKey = 'lamin_saved_username';
@@ -623,6 +639,28 @@ class _LoginPageState extends State<LoginPage> {
     if (saved != null && saved.isNotEmpty) {
       school.text = saved;
       setState(() => schoolLocked = true);
+    }
+  }
+
+  Future<void> continueOffline() async {
+    if (loading || checkingOffline) return;
+    setState(() {
+      checkingOffline = true;
+      error = null;
+    });
+    try {
+      final allowed = await widget.onOfflineAccess();
+      if (!allowed && mounted) {
+        setState(() => error =
+            'لا توجد جلسة محلية صالحة أو أن بيانات المدرسة غير مكتملة. سجّل الدخول بالإنترنت أولًا.');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => error =
+            friendlyError(e, fallback: 'تعذّر استعادة الدخول دون اتصال.'));
+      }
+    } finally {
+      if (mounted) setState(() => checkingOffline = false);
     }
   }
 
@@ -800,6 +838,23 @@ class _LoginPageState extends State<LoginPage> {
                           )
                         : const Icon(Icons.login),
                     label: Text(loading ? 'جارِ الدخول...' : 'دخول'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: checkingOffline || loading ? null : continueOffline,
+                    icon: checkingOffline
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_off_outlined),
+                    label: Text(checkingOffline
+                        ? 'جارٍ التحقق من الدخول المحفوظ...'
+                        : 'متابعة دون اتصال'),
                   ),
                 ),
                 const SizedBox(height: 14),
