@@ -76,6 +76,10 @@ Future<void> main() async {
     publishableKey: supabasePublishableKey,
     authOptions: FlutterAuthClientOptions(
       localStorage: LaminAuthLocalStorage(),
+      // Restore the persisted session without attempting a network refresh
+      // before runApp. Expired sessions are refreshed later, after cached data
+      // has been displayed and internet access is confirmed.
+      autoRefreshToken: false,
     ),
   );
   final prefs = await SharedPreferences.getInstance();
@@ -1205,6 +1209,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (refreshingRemote || !mounted || !online) return;
     refreshingRemote = true;
     try {
+      // With autoRefreshToken disabled, an expired session remains available
+      // locally at startup. Refresh it only now, after the cached home screen
+      // is visible and a real internet connection has been detected.
+      final session = db.auth.currentSession;
+      if (session != null && session.isExpired) {
+        try {
+          await db.auth.refreshSession().timeout(
+            const Duration(seconds: 5),
+          );
+        } catch (error) {
+          debugPrint('Background Supabase session refresh failed: $error');
+          return;
+        }
+        if (db.auth.currentSession == null ||
+            db.auth.currentSession!.isExpired) {
+          return;
+        }
+      }
       // Resolve and cache the signed-in profile first. All tenant-scoped
       // requests below then use the correct school ID from the secure cache.
       var refreshedProfile = await repo.profile().timeout(
@@ -1260,6 +1282,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         expenses = 0;
       }
       setState(() {});
+      // Queue replay starts only after the session has been refreshed.
+      unawaited(_syncPendingInBackground());
     } catch (error) {
       debugPrint('Remote dashboard refresh failed: $error');
     } finally {
@@ -1301,7 +1325,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Remote refresh and queue replay run after the cached screen is visible.
       if (online && db.auth.currentSession != null) {
         unawaited(_refreshRemoteSnapshot());
-        unawaited(_syncPendingInBackground());
       }
     } catch (error) {
       debugPrint('Home local refresh failed: $error');
