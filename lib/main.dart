@@ -1205,20 +1205,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (refreshingRemote || !mounted || !online) return;
     refreshingRemote = true;
     try {
-      if (profile == null) {
+      // Resolve and cache the signed-in profile first. All tenant-scoped
+      // requests below then use the correct school ID from the secure cache.
+      var refreshedProfile = await repo.profile().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => repo.cachedProfile(),
+      );
+      if (refreshedProfile?.schoolId == null) {
         await repo.ensureOwnerSchool().timeout(
           const Duration(seconds: 3),
           onTimeout: () => null,
         );
-      }
-
-      // Independent Supabase reads run together. Every call has a bounded
-      // deadline and falls back to the encrypted device cache.
-      final values = await Future.wait<Object?>([
-        repo.profile().timeout(
+        refreshedProfile = await repo.profile().timeout(
           const Duration(seconds: 4),
           onTimeout: () => repo.cachedProfile(),
-        ),
+        );
+      }
+      if (!mounted) return;
+      profile = refreshedProfile;
+
+      final values = await Future.wait<Object?>([
         repo.school().timeout(
           const Duration(seconds: 4),
           onTimeout: () => repo.cachedSchool(),
@@ -1242,14 +1248,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ]);
 
       if (!mounted) return;
-      profile = values[0] as SchoolProfile?;
-      schoolInfo = values[1] as Map<String, dynamic>?;
-      students = values[2] as List<Student>;
-      teachers = values[3] as List<Teacher>;
+      schoolInfo = values[0] as Map<String, dynamic>?;
+      students = values[1] as List<Student>;
+      teachers = values[2] as List<Teacher>;
       final role = profile?.role ?? '';
       if (role == 'admin' || role == 'owner' || role == 'accountant') {
-        payments = values[4] as double;
-        expenses = values[5] as double;
+        payments = values[3] as double;
+        expenses = values[4] as double;
       } else {
         payments = 0;
         expenses = 0;
