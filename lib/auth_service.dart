@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'app_error.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,11 +9,27 @@ class LaminAuthResult {
   final bool ok;
   final String message;
   final bool trialExpired;
+  final bool networkFailure;
   const LaminAuthResult({
     required this.ok,
     required this.message,
     this.trialExpired = false,
+    this.networkFailure = false,
   });
+}
+
+bool _isAuthNetworkFailure(Object error) {
+  if (error is TimeoutException) return true;
+  final value = error.toString().toLowerCase();
+  return value.contains('socketexception') ||
+      value.contains('failed host lookup') ||
+      value.contains('no address associated with hostname') ||
+      value.contains('network is unreachable') ||
+      value.contains('connection refused') ||
+      value.contains('connection reset') ||
+      value.contains('connection timed out') ||
+      value.contains('timed out') ||
+      value.contains('clientexception');
 }
 
 class LaminAuthService {
@@ -46,7 +63,7 @@ class LaminAuthService {
               'password': password,
             },
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 6));
       final data = Map<String, dynamic>.from(res.data as Map);
       final refresh = data['refresh_token']?.toString() ?? '';
       if (refresh.isEmpty)
@@ -68,17 +85,20 @@ class LaminAuthService {
           ok: false,
           message: msg,
           trialExpired: code == 'TRIAL_EXPIRED',
+          networkFailure: _isAuthNetworkFailure(e),
         );
       }
       return LaminAuthResult(
         ok: false,
         message: friendlyError(e, fallback: 'تعذر تسجيل الدخول.'),
+        networkFailure: _isAuthNetworkFailure(e),
       );
     } catch (e) {
       debugPrint('login error: ' + e.toString());
       return LaminAuthResult(
         ok: false,
         message: friendlyError(e, fallback: 'تعذر تسجيل الدخول.'),
+        networkFailure: _isAuthNetworkFailure(e),
       );
     }
   }
