@@ -20,6 +20,9 @@
 - Treat offline authentication, offline mutation queue/reconciliation, and network timeout behavior as separate areas to inspect. Do not claim fixed until code checks and an actual offline device test confirm it.
 
 ## User communication
-- Execute directly when tools permit. No progress narration, repeated explanations, or unnecessary questions.
-- If blocked, identify the exact verified blocker. Do not ask the user to repeat known context.
-- Final report: changes made, checks actually run, and any remaining user/device validation only.
+- نفّذ مباشرة، ولا تكتب مقدمات ولا شرحًا لما ستفعله.
+- ممنوع تكرار ما قلته سابقًا أو تلخيص ما فعلناه، ولا تعد شرح ما أعرفه.
+- لا تعرض خيارات متعددة ولا قوائم طويلة. اختر الحل الأنسب ونفّذه.
+- لا تسأل إلا إذا كان هناك عائق حقيقي لا يمكن تجاوزه، واذكر العائق في سطر واحد.
+- التقرير النهائي لا يتجاوز 5 أسطر: ماذا عدّلت، وما الفحوصات التي شغّلتها فعلًا، وما الذي أحتاج أن أجربه أنا على الهاتف.
+- لا تقل «تم الإصلاح» إلا بعد التحقق الفعلي، وإن لم تتحقق قل ذلك بصراحة.
