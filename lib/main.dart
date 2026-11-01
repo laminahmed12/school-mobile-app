@@ -1179,10 +1179,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
+      final offlineUserId = db.auth.currentUser?.id ??
+          await const FlutterSecureStorage().read(
+            key: 'lamin.offline.user.id',
+          );
+      if (offlineUserId != null && offlineUserId.isNotEmpty) {
+        await LaminOfflineCredentialStore().remove(offlineUserId);
+      }
       await const FlutterSecureStorage().delete(key: 'lamin.offline.user.id');
       await db.auth
           .signOut(scope: SignOutScope.local)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 5));
       if (db.auth.currentSession != null) {
         throw Exception(
           'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
