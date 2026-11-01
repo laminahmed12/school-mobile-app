@@ -140,12 +140,16 @@ class SchoolRepository {
 
   Future<List<Map<String, dynamic>>> _readRows(
     String key,
-    Future<dynamic> Function() request,
-  ) async {
+    Future<dynamic> Function() request, {
+    bool cacheOnly = false,
+  }) async {
     final schoolId = await _schoolId();
     if (schoolId == null || schoolId.isEmpty) return [];
+    if (cacheOnly || !await _serverAvailable()) {
+      return _cachedRows(schoolId, key);
+    }
     try {
-      final result = await request().timeout(const Duration(seconds: 7));
+      final result = await request().timeout(const Duration(seconds: 4));
       final rows = (result as List)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
@@ -155,7 +159,6 @@ class SchoolRepository {
       return _cachedRows(schoolId, key);
     }
   }
-
 
   String _newOfflineId(String prefix) {
     final random = math.Random.secure();
@@ -223,29 +226,57 @@ class SchoolRepository {
         message.contains('no address associated with hostname');
   }
 
+  DateTime? _serverProbeAt;
+  bool? _serverProbeResult;
+  Future<bool>? _serverProbeInFlight;
+
   Future<bool> _serverAvailable() async {
     final user = db.auth.currentUser;
     if (user == null) return false;
-    try {
-      final connections = await Connectivity()
-          .checkConnectivity()
-          .timeout(const Duration(milliseconds: 700));
-      if (connections.contains(ConnectivityResult.none)) return false;
-    } catch (_) {
-      // The authenticated server probe below remains the authoritative check.
+
+    final now = DateTime.now();
+    if (_serverProbeAt != null &&
+        _serverProbeResult != null &&
+        now.difference(_serverProbeAt!) < const Duration(seconds: 2)) {
+      return _serverProbeResult!;
     }
+    final inFlight = _serverProbeInFlight;
+    if (inFlight != null) return inFlight;
+
+    final probe = () async {
+      try {
+        final connections = await Connectivity().checkConnectivity().timeout(
+          const Duration(milliseconds: 400),
+        );
+        if (connections.contains(ConnectivityResult.none)) return false;
+      } catch (_) {
+        return false;
+      }
+
+      try {
+        final row = await db
+            .from('profiles')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 1));
+        return row != null;
+      } catch (_) {
+        return false;
+      }
+    }();
+
+    _serverProbeInFlight = probe;
     try {
-      final row = await db
-          .from('profiles')
-          .select('user_id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-          .timeout(const Duration(seconds: 2));
-      return row != null;
-    } catch (_) {
-      return false;
+      final available = await probe;
+      _serverProbeAt = DateTime.now();
+      _serverProbeResult = available;
+      return available;
+    } finally {
+      _serverProbeInFlight = null;
     }
   }
+
   Future<List<Map<String,dynamic>>> _cachedStudentMaps(String schoolId) async {
     final raw=await _readCacheString('students_cache_$schoolId');
     if(raw==null)return [];
@@ -532,125 +563,209 @@ class SchoolRepository {
   }
 
   Future<SchoolProfile?> profile() async {
-    final u = db.auth.currentUser;
-    if (u == null) return cachedProfile();
+    final user = db.auth.currentUser;
+    if (user == null) return cachedProfile();
+
+    final cached = await cachedProfileForUser(user.id);
+    if (!await _serverAvailable()) return cached;
     try {
-      final row = await db.from('profiles').select().eq('user_id', u.id)
-          .maybeSingle().timeout(const Duration(seconds: 6));
-      if (row == null) return null;
+      final row = await db
+          .from('profiles')
+          .select()
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 4));
+      if (row == null) return cached;
+
       final profile = SchoolProfile.fromMap(row);
       await _writeCacheString(
-        _profileCacheKey(u.id),
+        _profileCacheKey(user.id),
         jsonEncode(Map<String, dynamic>.from(row)),
       );
-      try {
-        await const FlutterSecureStorage().write(
-          key: 'lamin.offline.user.id',
-          value: u.id,
-        );
-      } catch (error) {
-        debugPrint('Offline identity persistence failed: $error');
-      }
+      await const FlutterSecureStorage().write(
+        key: 'lamin.offline.user.id',
+        value: user.id,
+      );
       final schoolId = profile.schoolId;
       if (schoolId != null && schoolId.isNotEmpty) {
-        await _writeCacheString('school_id_cache_${u.id}', schoolId);
+        await _writeCacheString('school_id_cache_${user.id}', schoolId);
       }
       return profile;
     } catch (_) {
-      final raw = await _readCacheString(_profileCacheKey(u.id));
-      if (raw == null) return null;
-      try {
-        return SchoolProfile.fromMap(Map<String, dynamic>.from(jsonDecode(raw)));
-      } catch (_) {
-        return null;
-      }
+      return cached;
     }
   }
 
   Future<Map<String, dynamic>?> school() async {
-    final p = await profile();
-    if (p?.schoolId == null) return null;
-    final id = p!.schoolId!;
+    final cachedProfile = await this.cachedProfile();
+    final p = cachedProfile ?? await profile();
+    final id = p?.schoolId;
+    if (id == null || id.isEmpty) return null;
+
+    final cached = await cachedSchoolForId(id);
+    if (!await _serverAvailable()) return cached;
     try {
-      final row = await db.from('schools').select().eq('id', id)
-          .maybeSingle().timeout(const Duration(seconds: 6));
-      if (row == null) return null;
+      final row = await db
+          .from('schools')
+          .select()
+          .eq('id', id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 4));
+      if (row == null) return cached;
       final data = Map<String, dynamic>.from(row);
       await _writeCacheString(_schoolCacheKey(id), jsonEncode(data));
       return data;
     } catch (_) {
-      final raw = await _readCacheString(_schoolCacheKey(id));
-      if (raw == null) return null;
-      try { return Map<String, dynamic>.from(jsonDecode(raw)); } catch (_) { return null; }
+      return cached;
     }
   }
+
+
 
   Future<String?> ensureOwnerSchool({
     String code = 'lamin',
     String name = 'مدرسة لامين التجريبية',
   }) async {
     try {
-      final p = await profile();
-      if (p?.schoolId != null) return p!.schoolId;
-      final result = await db.rpc(
-        'bootstrap_owner_school',
-        params: {'p_code': code, 'p_name': name},
+      final p = await (cachedProfile() ?? profile()).timeout(
+        const Duration(seconds: 4),
       );
+      if (p?.schoolId != null) return p!.schoolId;
+      if (!await _serverAvailable()) return null;
+      final result = await db
+          .rpc(
+            'bootstrap_owner_school',
+            params: {'p_code': code, 'p_name': name},
+          )
+          .timeout(const Duration(seconds: 4));
       return result?.toString();
     } catch (_) {
       return null;
     }
   }
 
-  Future<List<Student>> students() async {
-    // Never read a shared unscoped cache: devices can be used by multiple
-    // school accounts. Offline data is isolated by the authenticated tenant.
+
+
+  Future<List<Student>> students({bool cacheOnly = false}) async {
     final userId = await _userId();
-    if (userId == null) return [];
-    String? schoolId;
-    try {
-      schoolId = (await profile())?.schoolId;
-    } catch (_) {
-      schoolId = await _readCacheString('school_id_cache_${userId}');
-    }
+    if (userId == null || userId.isEmpty) return [];
+
+    final schoolId =
+        await _readCacheString('school_id_cache_$userId') ??
+        (await cachedProfileForUser(userId))?.schoolId;
     if (schoolId == null || schoolId.isEmpty) return [];
-    final cacheKey = 'students_cache_${schoolId}';
-    try {
-      final rows = await db.from('students').select().order('name');
-      final list = (rows as List)
-          .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
-          .toList();
-      final merged = list.map((s) => {
-        'id': s.id, 'name': s.name, 'class_name': s.className, 'phone': s.phone,
-      }).toList();
-      final pending = await _readOfflineOperations(schoolId);
-      for (final op in pending) {
-        if (op['type'] == 'create_student') {
-          merged.removeWhere((x) => x['id'] == op['local_id']);
-          merged.add({'id': op['local_id'], 'name': op['name'],
-            'class_name': op['class_name'], 'phone': op['phone'] ?? ''});
-        } else if (op['type'] == 'update_student') {
-          final ix = merged.indexWhere((x) => x['id']?.toString() == op['student_id']?.toString());
-          if (ix >= 0) merged[ix] = {...merged[ix], 'name': op['name'],
-            'class_name': op['class_name'], 'phone': op['phone'] ?? ''};
-        }
-      }
-      merged.sort((a,b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
-      await _writeCacheString(cacheKey, jsonEncode(merged));
-      return merged.map((row) => Student.fromMap(row)).toList();
-    } catch (_) {
+
+    final cacheKey = 'students_cache_$schoolId';
+
+    Future<List<Student>> fromCache() async {
       final raw = await _readCacheString(cacheKey);
       if (raw == null) return [];
       try {
-        return (jsonDecode(raw) as List)
-            .map((e) => Student.fromMap(Map<String, dynamic>.from(e)))
+        final merged = (jsonDecode(raw) as List)
+            .map((row) => Map<String, dynamic>.from(row as Map))
             .toList();
+        final pending = await _readOfflineOperations(schoolId);
+        for (final operation in pending) {
+          if (operation['type'] == 'create_student') {
+            merged.removeWhere(
+              (row) => row['id']?.toString() == operation['local_id']?.toString(),
+            );
+            merged.add({
+              'id': operation['local_id'],
+              'name': operation['name'],
+              'class_name': operation['class_name'],
+              'phone': operation['phone'] ?? '',
+            });
+          } else if (operation['type'] == 'update_student') {
+            final index = merged.indexWhere(
+              (row) =>
+                  row['id']?.toString() ==
+                  operation['student_id']?.toString(),
+            );
+            if (index >= 0) {
+              merged[index] = {
+                ...merged[index],
+                'name': operation['name'],
+                'class_name': operation['class_name'],
+                'phone': operation['phone'] ?? '',
+              };
+            }
+          }
+        }
+        merged.sort(
+          (a, b) => (a['name'] ?? '')
+              .toString()
+              .compareTo((b['name'] ?? '').toString()),
+        );
+        return merged.map(Student.fromMap).toList();
       } catch (_) {
-        await _removeCache(cacheKey);
         return [];
       }
     }
+
+    if (cacheOnly || !await _serverAvailable()) return fromCache();
+
+    try {
+      final rows = await db
+          .from('students')
+          .select()
+          .order('name')
+          .timeout(const Duration(seconds: 4));
+      final list = (rows as List)
+          .map((row) => Student.fromMap(Map<String, dynamic>.from(row)))
+          .toList();
+      final merged = list
+          .map(
+            (student) => {
+              'id': student.id,
+              'name': student.name,
+              'class_name': student.className,
+              'phone': student.phone,
+            },
+          )
+          .toList();
+
+      final pending = await _readOfflineOperations(schoolId);
+      for (final operation in pending) {
+        if (operation['type'] == 'create_student') {
+          merged.removeWhere(
+            (row) => row['id']?.toString() == operation['local_id']?.toString(),
+          );
+          merged.add({
+            'id': operation['local_id'],
+            'name': operation['name'],
+            'class_name': operation['class_name'],
+            'phone': operation['phone'] ?? '',
+          });
+        } else if (operation['type'] == 'update_student') {
+          final index = merged.indexWhere(
+            (row) =>
+                row['id']?.toString() ==
+                operation['student_id']?.toString(),
+          );
+          if (index >= 0) {
+            merged[index] = {
+              ...merged[index],
+              'name': operation['name'],
+              'class_name': operation['class_name'],
+              'phone': operation['phone'] ?? '',
+            };
+          }
+        }
+      }
+      merged.sort(
+        (a, b) => (a['name'] ?? '')
+            .toString()
+            .compareTo((b['name'] ?? '').toString()),
+      );
+      await _writeCacheString(cacheKey, jsonEncode(merged));
+      return merged.map(Student.fromMap).toList();
+    } catch (_) {
+      return fromCache();
+    }
   }
+
+
 
   Future<Map<String, dynamic>?> parent(String studentId) async {
     final schoolId = await _schoolId();
@@ -851,19 +966,37 @@ class SchoolRepository {
     await db.from('subjects').insert({'name': name.trim()});
   }
 
-  Future<List<Teacher>> teachers() async {
+  Future<List<Teacher>> teachers({bool cacheOnly = false}) async {
     final userId = await _userId();
-    final schoolId = userId == null ? null : (await _readCacheString('school_id_cache_${userId}') ?? (await cachedProfile())?.schoolId);
+    if (userId == null || userId.isEmpty) return [];
+    final schoolId =
+        await _readCacheString('school_id_cache_$userId') ??
+        (await cachedProfileForUser(userId))?.schoolId;
     if (schoolId == null || schoolId.isEmpty) return [];
+
+    Future<List<Teacher>> fromCache() async =>
+        (await _cachedRows(schoolId, 'teachers'))
+            .map(Teacher.fromMap)
+            .toList();
+
+    if (cacheOnly || !await _serverAvailable()) return fromCache();
     try {
-      final rows = await db.from('teachers').select().order('name').timeout(const Duration(seconds: 6));
-      final raw = (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+      final rows = await db
+          .from('teachers')
+          .select()
+          .order('name')
+          .timeout(const Duration(seconds: 4));
+      final raw = (rows as List)
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
       await _saveRows(schoolId, 'teachers', raw);
       return raw.map(Teacher.fromMap).toList();
     } catch (_) {
-      return (await _cachedRows(schoolId, 'teachers')).map(Teacher.fromMap).toList();
+      return fromCache();
     }
   }
+
+
 
   Future<List<SubjectItem>> subjects() async =>
       (await _readRows('subjects', () => db.from('subjects').select().order('name')))
@@ -1026,33 +1159,44 @@ class SchoolRepository {
     }
   }
 
-  Future<double> paymentsTotal() async {
+  Future<double> paymentsTotal({bool cacheOnly = false}) async {
     final schoolId = await _schoolId();
     if (schoolId == null || schoolId.isEmpty) return 0;
-    final cacheKey = 'lamin_payments_total_${schoolId}';
+    final cacheKey = 'lamin_payments_total_$schoolId';
+    final cached = await _readCacheDouble(cacheKey) ?? 0;
+    if (cacheOnly || !await _serverAvailable()) return cached;
     try {
-      final total = await _sumColumnPaged('payments', 'amount');
+      final total = await _sumColumnPaged('payments', 'amount')
+          .timeout(const Duration(seconds: 5));
       await _writeCacheDouble(cacheKey, total);
       return total;
     } catch (_) {
-      return await _readCacheDouble(cacheKey) ?? 0;
+      return cached;
     }
   }
 
-  Future<double> expensesTotal() async {
+  Future<double> expensesTotal({bool cacheOnly = false}) async {
     final schoolId = await _schoolId();
     if (schoolId == null || schoolId.isEmpty) return 0;
-    final cacheKey = 'lamin_expenses_total_${schoolId}';
+    final cacheKey = 'lamin_expenses_total_$schoolId';
+    final cached = await _readCacheDouble(cacheKey) ?? 0;
+    if (cacheOnly || !await _serverAvailable()) return cached;
     try {
-      final expenseTotal = await _sumColumnPaged('expenses', 'amount');
-      final payrollTotal = await _sumColumnPaged('payroll_transactions', 'amount');
-      final total = expenseTotal + payrollTotal;
+      final totals = await Future.wait<double>([
+        _sumColumnPaged('expenses', 'amount')
+            .timeout(const Duration(seconds: 5)),
+        _sumColumnPaged('payroll_transactions', 'amount')
+            .timeout(const Duration(seconds: 5)),
+      ]);
+      final total = totals[0] + totals[1];
       await _writeCacheDouble(cacheKey, total);
       return total;
     } catch (_) {
-      return await _readCacheDouble(cacheKey) ?? 0;
+      return cached;
     }
   }
+
+
 
   Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
     'staff',
