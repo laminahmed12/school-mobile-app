@@ -627,9 +627,15 @@ class SchoolRepository {
     String name = 'مدرسة لامين التجريبية',
   }) async {
     try {
-      final p = await (cachedProfile() ?? profile()).timeout(
-        const Duration(seconds: 4),
+      var p = await cachedProfile().timeout(
+        const Duration(seconds: 2),
       );
+      if (p?.schoolId == null) {
+        p = await profile().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => cachedProfile(),
+        );
+      }
       if (p?.schoolId != null) return p!.schoolId;
       if (!await _serverAvailable()) return null;
       final result = await db
