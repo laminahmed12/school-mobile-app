@@ -289,21 +289,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         }
       }
 
-      final validTrial =
-          schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
-          false;
-      final licensed = cachedSchool?['licensed'] == true;
-      final canOpenOffline = session == null &&
-          rememberedId != null &&
-          rememberedId.isNotEmpty &&
-          cached != null &&
-          cached.active &&
-          cached.schoolId != null &&
-          cached.schoolId!.isNotEmpty &&
-          cachedSchool != null &&
-          cachedSchool['active'] != false &&
-          (cached.role == 'owner' || cached.mustChangePassword != true) &&
-          (licensed || validTrial);
+      // Do not auto-open a cached account without a password proof.
+      // LoginPage verifies the PBKDF2 credential before enabling offline access.
+      const canOpenOffline = false;
 
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
@@ -464,6 +452,28 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
       final data = response.data;
       if (data is Map && data['error'] != null) {
         throw Exception(data['error'].toString());
+      }
+
+      final userId = db.auth.currentUser?.id;
+      if (userId != null && userId.isNotEmpty) {
+        final repo = SchoolRepository(widget.prefs);
+        final profile = await repo.profile().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.cachedProfileForUser(userId),
+        );
+        final schoolId = profile?.schoolId;
+        if (profile != null && schoolId != null && schoolId.isNotEmpty) {
+          final school = await repo.cachedSchoolForId(schoolId);
+          final schoolCode = school?['code']?.toString();
+          if (schoolCode != null && schoolCode.isNotEmpty) {
+            await LaminOfflineCredentialStore().save(
+              userId: userId,
+              schoolCode: schoolCode,
+              username: profile.username,
+              password: p,
+            ).timeout(const Duration(seconds: 10));
+          }
+        }
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -730,7 +740,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (!allowed && mounted) {
         setState(() => error =
-            'لا توجد جلسة محلية صالحة أو أن بيانات المدرسة غير مكتملة. سجّل الدخول بالإنترنت أولًا.');
+            'تحقق من رمز المدرسة واسم المستخدم وكلمة المرور، أو سجّل الدخول بالإنترنت مرة واحدة لحفظ اعتماد الدخول المحلي.');
       }
     } catch (e) {
       if (mounted) {
@@ -788,7 +798,7 @@ class _LoginPageState extends State<LoginPage> {
         }
         if (mounted) {
           setState(() => error =
-              'لا يوجد اتصال بالخادم، وبيانات هذا المستخدم غير محفوظة للدخول دون اتصال. سجّل الدخول بالإنترنت مرة واحدة على هذا الجهاز.');
+              'لا يوجد اتصال بالخادم، أو لم يُحفظ اعتماد كلمة المرور محلياً بعد. سجّل الدخول بالإنترنت مرة واحدة بعد تثبيت هذه النسخة.');
         }
         return;
       }
@@ -832,7 +842,7 @@ class _LoginPageState extends State<LoginPage> {
           await _saveUsernamePreference();
           return;
         }
-        error = 'تعذر الاتصال بخادم الدخول، ولا توجد بيانات محلية مطابقة لهذا المستخدم.';
+        error = 'تعذر الاتصال بخادم الدخول، أو لا توجد كلمة مرور محلية مطابقة لهذا الحساب.';
       }
 
       if (mounted && error == null) {
