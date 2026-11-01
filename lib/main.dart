@@ -24,6 +24,7 @@ import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
 import 'trial_policy.dart';
+import 'offline_credentials.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -336,10 +337,15 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Future<bool> _tryOfflineAccess({
     required String schoolCode,
     required String username,
+    required String password,
   }) async {
     final normalizedSchool = schoolCode.trim().toLowerCase();
     final normalizedUsername = username.trim().toLowerCase();
-    if (normalizedSchool.isEmpty || normalizedUsername.isEmpty) return false;
+    if (normalizedSchool.isEmpty ||
+        normalizedUsername.isEmpty ||
+        password.isEmpty) {
+      return false;
+    }
 
     try {
       final userId = db.auth.currentUser?.id ??
@@ -373,6 +379,16 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
           false;
       if (!licensed && !validTrial) return false;
+
+      // Local access requires a password verifier created after a successful
+      // online login. The password itself is never saved on the device.
+      final passwordValid = await LaminOfflineCredentialStore().verify(
+        userId: userId,
+        schoolCode: normalizedSchool,
+        username: normalizedUsername,
+        password: password,
+      ).timeout(const Duration(seconds: 8), onTimeout: () => false);
+      if (!passwordValid) return false;
 
       final enabled = await security.enabled;
       if (!mounted) return false;
@@ -598,6 +614,7 @@ class LoginPage extends StatefulWidget {
   final Future<bool> Function({
     required String schoolCode,
     required String username,
+    required String password,
   }) onOfflineAccess;
   const LoginPage({
     super.key,
@@ -709,6 +726,7 @@ class _LoginPageState extends State<LoginPage> {
       final allowed = await widget.onOfflineAccess(
         schoolCode: school.text,
         username: username.text,
+        password: password.text,
       );
       if (!allowed && mounted) {
         setState(() => error =
@@ -728,6 +746,7 @@ class _LoginPageState extends State<LoginPage> {
     return widget.onOfflineAccess(
       schoolCode: school.text,
       username: username.text,
+      password: password.text,
     );
   }
 
@@ -796,6 +815,16 @@ class _LoginPageState extends State<LoginPage> {
         if (schoolData == null) {
           throw StateError('تعذر حفظ بيانات المدرسة محليًا.');
         }
+        final authenticatedUserId = db.auth.currentUser?.id;
+        if (authenticatedUserId == null || authenticatedUserId.isEmpty) {
+          throw StateError('تعذر تحديد حساب المستخدم لحفظ الدخول المحلي.');
+        }
+        await LaminOfflineCredentialStore().save(
+          userId: authenticatedUserId,
+          schoolCode: schoolData['code']?.toString() ?? school.text,
+          username: profile.username,
+          password: password.text,
+        ).timeout(const Duration(seconds: 10));
         await _saveUsernamePreference();
       } else if (r.networkFailure) {
         final opened = await _openCachedAccount();
