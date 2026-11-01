@@ -39,7 +39,7 @@ Future<bool> _hasInternetConnection() async {
     final uri = Uri.parse('$base/auth/v1/health');
     final response = await http
         .get(uri, headers: {'apikey': supabasePublishableKey})
-        .timeout(const Duration(seconds: 3));
+        .timeout(const Duration(milliseconds: 1500));
     return response.statusCode < 500;
   } catch (_) {
     return false;
@@ -1102,6 +1102,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double payments = 0, expenses = 0;
   int pendingOperations = 0;
   int attendanceReloadVersion = 0;
+  bool syncingPending = false;
+  bool refreshingRemote = false;
   String? offlineSyncError;
 
   @override
@@ -1161,117 +1163,147 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> refresh() async {
-    if (mounted) setState(() => loading = true);
-    String? syncFailureMessage;
-
+  Future<void> _syncPendingInBackground() async {
+    if (syncingPending || !mounted || db.auth.currentSession == null) return;
+    syncingPending = true;
     try {
-      online = await _hasInternetConnection();
-
-      if (online && db.auth.currentSession != null) {
-        try {
-          final result = await repo.syncPendingOfflineChanges();
-          pendingOperations = result.pending;
-          if (result.synced > 0) attendanceReloadVersion++;
-          if (result.failedOperation != null) {
-            final operation = offlineOperationLabel(result.failedOperation);
-            final detail = friendlyError(
-              result.error ?? 'تعذر الاتصال بالخادم.',
-            );
-            syncFailureMessage =
-                'تعذرت مزامنة "$operation". بقيت العملية معلّقة. $detail';
-            offlineSyncError = syncFailureMessage;
-          } else {
-            offlineSyncError = null;
-          }
-        } catch (error) {
-          pendingOperations = await repo.pendingOfflineOperationCount();
-          syncFailureMessage =
-              'تعذر فحص العمليات المعلّقة: ' + friendlyError(error);
-          offlineSyncError = syncFailureMessage;
-        }
-      } else {
-        pendingOperations = await repo.pendingOfflineOperationCount();
+      final result = await repo.syncPendingOfflineChanges();
+      pendingOperations = result.pending;
+      if (result.synced > 0) {
+        attendanceReloadVersion++;
+        students = await repo.students(cacheOnly: true);
       }
-
-      if (!online || db.auth.currentSession == null) {
-        online = false;
-        profile = await repo.cachedProfile();
-        schoolInfo = await repo.cachedSchool();
-        students = await repo.students();
-        final role = profile?.role ?? '';
-        if (role == 'supervisor') {
-          teachers = [];
-        } else {
-          teachers = await repo.teachers();
-        }
-        if (role == 'admin' || role == 'owner' || role == 'accountant') {
-          payments = await repo.paymentsTotal();
-          expenses = await repo.expensesTotal();
-        } else {
-          payments = 0;
-          expenses = 0;
-        }
+      if (result.failedOperation != null) {
+        final operation = offlineOperationLabel(result.failedOperation);
+        offlineSyncError =
+            'تعذرت مزامنة "$operation". بقيت العملية محفوظة لإعادة المحاولة. '
+            '${friendlyError(result.error ?? 'تعذر الاتصال بالخادم.')}';
       } else {
-        await repo.ensureOwnerSchool();
-        profile = await repo.profile();
-        schoolInfo = await repo.school();
-
-        try {
-          students = await repo.students();
-        } catch (_) {
-          students = [];
-        }
-
-        final role = profile?.role ?? '';
-        if (role == 'supervisor') {
-          teachers = [];
-        } else {
-          try {
-            teachers = await repo.teachers();
-          } catch (_) {
-            teachers = [];
-          }
-        }
-
-        final canViewFinance =
-            role == 'admin' || role == 'owner' || role == 'accountant';
-        if (canViewFinance) {
-          try {
-            payments = await repo.paymentsTotal();
-          } catch (_) {
-            payments = 0;
-          }
-          try {
-            expenses = await repo.expensesTotal();
-          } catch (_) {
-            expenses = 0;
-          }
-        } else {
-          payments = 0;
-          expenses = 0;
-        }
-
-        try {
-          final status = await Connectivity().checkConnectivity();
-          online = !status.contains(ConnectivityResult.none);
-        } catch (_) {
-          online = false;
-        }
+        offlineSyncError = null;
       }
     } catch (error) {
-      debugPrint('Home refresh failed: $error');
+      debugPrint('Background offline sync failed: $error');
       try {
         pendingOperations = await repo.pendingOfflineOperationCount();
       } catch (_) {}
+      offlineSyncError =
+          'تعذرت مزامنة العمليات المحفوظة. ستبقى على الجهاز حتى إعادة المحاولة.';
+    } finally {
+      syncingPending = false;
+      if (mounted) {
+        setState(() {});
+        if (offlineSyncError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(offlineSyncError!)),
+          );
+        }
+      }
     }
+  }
 
-    if (mounted) setState(() => loading = false);
+  Future<void> _refreshRemoteSnapshot() async {
+    if (refreshingRemote || !mounted || !online) return;
+    refreshingRemote = true;
+    try {
+      if (profile == null) {
+        await repo.ensureOwnerSchool().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
+      }
 
-    if (syncFailureMessage != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(syncFailureMessage)),
-      );
+      // Independent Supabase reads run together. Every call has a bounded
+      // deadline and falls back to the encrypted device cache.
+      final values = await Future.wait<Object?>([
+        repo.profile().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => repo.cachedProfile(),
+        ),
+        repo.school().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => repo.cachedSchool(),
+        ),
+        repo.students().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.students(cacheOnly: true),
+        ),
+        repo.teachers().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.teachers(cacheOnly: true),
+        ),
+        repo.paymentsTotal().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.paymentsTotal(cacheOnly: true),
+        ),
+        repo.expensesTotal().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.expensesTotal(cacheOnly: true),
+        ),
+      ]);
+
+      if (!mounted) return;
+      profile = values[0] as SchoolProfile?;
+      schoolInfo = values[1] as Map<String, dynamic>?;
+      students = values[2] as List<Student>;
+      teachers = values[3] as List<Teacher>;
+      final role = profile?.role ?? '';
+      if (role == 'admin' || role == 'owner' || role == 'accountant') {
+        payments = values[4] as double;
+        expenses = values[5] as double;
+      } else {
+        payments = 0;
+        expenses = 0;
+      }
+      setState(() {});
+    } catch (error) {
+      debugPrint('Remote dashboard refresh failed: $error');
+    } finally {
+      refreshingRemote = false;
+    }
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() => loading = true);
+    try {
+      // Render the latest encrypted local snapshot first. No Supabase call is
+      // needed to populate the home screen or the queued-operation counter.
+      online = await _hasInternetConnection();
+      profile = await repo.cachedProfile();
+      schoolInfo = await repo.cachedSchool();
+      final role = profile?.role ?? '';
+
+      final cachedValues = await Future.wait<Object?>([
+        repo.students(cacheOnly: true),
+        role == 'supervisor'
+            ? Future<List<Teacher>>.value([])
+            : repo.teachers(cacheOnly: true),
+        (role == 'admin' || role == 'owner' || role == 'accountant')
+            ? repo.paymentsTotal(cacheOnly: true)
+            : Future<double>.value(0),
+        (role == 'admin' || role == 'owner' || role == 'accountant')
+            ? repo.expensesTotal(cacheOnly: true)
+            : Future<double>.value(0),
+        repo.pendingOfflineOperationCount(),
+      ]);
+      students = cachedValues[0] as List<Student>;
+      teachers = cachedValues[1] as List<Teacher>;
+      payments = cachedValues[2] as double;
+      expenses = cachedValues[3] as double;
+      pendingOperations = cachedValues[4] as int;
+
+      if (mounted) setState(() => loading = false);
+
+      // Remote refresh and queue replay run after the cached screen is visible.
+      if (online && db.auth.currentSession != null) {
+        unawaited(_refreshRemoteSnapshot());
+        unawaited(_syncPendingInBackground());
+      }
+    } catch (error) {
+      debugPrint('Home local refresh failed: $error');
+      try {
+        pendingOperations = await repo.pendingOfflineOperationCount();
+      } catch (_) {}
+      if (mounted) setState(() => loading = false);
     }
   }
 
