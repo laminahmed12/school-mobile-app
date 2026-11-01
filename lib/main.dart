@@ -329,9 +329,59 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> _tryOfflineAccess() async {
-    await _refreshLock();
-    return offlineAccess;
+  Future<bool> _tryOfflineAccess({
+    required String schoolCode,
+    required String username,
+  }) async {
+    final normalizedSchool = schoolCode.trim().toLowerCase();
+    final normalizedUsername = username.trim().toLowerCase();
+    if (normalizedSchool.isEmpty || normalizedUsername.isEmpty) return false;
+
+    try {
+      final userId = db.auth.currentUser?.id ??
+          await const FlutterSecureStorage().read(
+            key: 'lamin.offline.user.id',
+          );
+      if (userId == null || userId.isEmpty) return false;
+
+      final repo = SchoolRepository(widget.prefs);
+      final cachedProfile = await repo.cachedProfileForUser(userId);
+      final schoolId = cachedProfile?.schoolId;
+      if (cachedProfile == null ||
+          schoolId == null ||
+          schoolId.isEmpty ||
+          !cachedProfile.active ||
+          cachedProfile.mustChangePassword ||
+          cachedProfile.username.trim().toLowerCase() != normalizedUsername) {
+        return false;
+      }
+
+      final cachedSchool = await repo.cachedSchoolForId(schoolId);
+      if (cachedSchool == null ||
+          cachedSchool['code']?.toString().trim().toLowerCase() !=
+              normalizedSchool ||
+          cachedSchool['active'] == false) {
+        return false;
+      }
+
+      final licensed = cachedSchool['licensed'] == true;
+      final validTrial =
+          schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
+          false;
+      if (!licensed && !validTrial) return false;
+
+      final enabled = await security.enabled;
+      if (!mounted) return false;
+      setState(() {
+        offlineAccess = true;
+        locked = enabled;
+        mustChangePassword = false;
+      });
+      return true;
+    } catch (error) {
+      debugPrint('Offline identity check failed: $error');
+      return false;
+    }
   }
 
   void _unlock() {
@@ -541,7 +591,10 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
 
 class LoginPage extends StatefulWidget {
   final SharedPreferences prefs;
-  final Future<bool> Function() onOfflineAccess;
+  final Future<bool> Function({
+    required String schoolCode,
+    required String username,
+  }) onOfflineAccess;
   const LoginPage({
     super.key,
     required this.prefs,
@@ -649,7 +702,10 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     try {
-      final allowed = await widget.onOfflineAccess();
+      final allowed = await widget.onOfflineAccess(
+        schoolCode: school.text,
+        username: username.text,
+      );
       if (!allowed && mounted) {
         setState(() => error =
             'لا توجد جلسة محلية صالحة أو أن بيانات المدرسة غير مكتملة. سجّل الدخول بالإنترنت أولًا.');
@@ -661,6 +717,28 @@ class _LoginPageState extends State<LoginPage> {
       }
     } finally {
       if (mounted) setState(() => checkingOffline = false);
+    }
+  }
+
+  Future<bool> _openCachedAccount() async {
+    return widget.onOfflineAccess(
+      schoolCode: school.text,
+      username: username.text,
+    );
+  }
+
+  Future<bool> _canReachLoginService() async {
+    try {
+      final network = await Connectivity().checkConnectivity().timeout(
+        const Duration(milliseconds: 500),
+      );
+      if (network.contains(ConnectivityResult.none)) return false;
+      return await _hasInternetConnection().timeout(
+        const Duration(milliseconds: 1500),
+        onTimeout: () => false,
+      );
+    } catch (_) {
+      return false;
     }
   }
 
@@ -676,6 +754,22 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     try {
+      // Never wait for the remote auth function when the device has no
+      // internet. Try the encrypted, school-bound offline identity first.
+      final hasInternet = await _canReachLoginService();
+      if (!hasInternet) {
+        final opened = await _openCachedAccount();
+        if (opened) {
+          await _saveUsernamePreference();
+          return;
+        }
+        if (mounted) {
+          setState(() => error =
+              'لا يوجد اتصال بالخادم، وبيانات هذا المستخدم غير محفوظة للدخول دون اتصال. سجّل الدخول بالإنترنت مرة واحدة على هذا الجهاز.');
+        }
+        return;
+      }
+
       final r = await auth.login(
         school: school.text,
         username: username.text,
@@ -687,31 +781,42 @@ class _LoginPageState extends State<LoginPage> {
         // can leave the online session and later start the app offline.
         final repo = SchoolRepository(widget.prefs);
         final profile = await repo.profile().timeout(
-          const Duration(seconds: 12),
+          const Duration(seconds: 5),
         );
         if (profile?.schoolId == null || profile!.schoolId!.isEmpty) {
           throw StateError('تعذر حفظ بيانات المستخدم محليًا.');
         }
         final schoolData = await repo.school().timeout(
-          const Duration(seconds: 12),
+          const Duration(seconds: 5),
         );
         if (schoolData == null) {
           throw StateError('تعذر حفظ بيانات المدرسة محليًا.');
         }
         await _saveUsernamePreference();
+      } else if (r.networkFailure) {
+        final opened = await _openCachedAccount();
+        if (opened) {
+          await _saveUsernamePreference();
+          return;
+        }
+        error = 'تعذر الاتصال بخادم الدخول، ولا توجد بيانات محلية مطابقة لهذا المستخدم.';
       }
-      setState(
-        () => error = r.ok
-            ? null
-            : (r.trialExpired
-                  ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
-                  : r.message),
-      );
+
+      if (mounted && error == null) {
+        setState(
+          () => error = r.ok
+              ? null
+              : (r.trialExpired
+                    ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
+                    : r.message),
+        );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = friendlyError(e, fallback: 'تعذر تسجيل الدخول.'),
         );
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
