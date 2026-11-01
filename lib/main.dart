@@ -644,7 +644,24 @@ class _LoginPageState extends State<LoginPage> {
         password: password.text,
       );
       if (!mounted) return;
-      if (r.ok) await _saveUsernamePreference();
+      if (r.ok) {
+        // Prime the encrypted identity/profile/school cache before the user
+        // can leave the online session and later start the app offline.
+        final repo = SchoolRepository(widget.prefs);
+        final profile = await repo.profile().timeout(
+          const Duration(seconds: 12),
+        );
+        if (profile?.schoolId == null || profile!.schoolId!.isEmpty) {
+          throw StateError('تعذر حفظ بيانات المستخدم محليًا.');
+        }
+        final schoolData = await repo.school().timeout(
+          const Duration(seconds: 12),
+        );
+        if (schoolData == null) {
+          throw StateError('تعذر حفظ بيانات المدرسة محليًا.');
+        }
+        await _saveUsernamePreference();
+      }
       setState(
         () => error = r.ok
             ? null
