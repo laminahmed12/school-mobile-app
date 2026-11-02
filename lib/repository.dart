@@ -232,7 +232,9 @@ class SchoolRepository {
 
   Future<bool> _serverAvailable() async {
     final user = db.auth.currentUser;
-    if (user == null) return false;
+    // After a cold-start offline login there is no Supabase access token yet.
+    // Do not make a profiles probe: local queue writes can proceed immediately.
+    if (user == null || db.auth.currentSession == null) return false;
 
     final now = DateTime.now();
     if (_serverProbeAt != null &&
