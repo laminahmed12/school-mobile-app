@@ -1480,8 +1480,11 @@ class SchoolRepository {
         studentFeeAssessments(studentId),
         studentPayments(studentId),
         db.from('academic_years').select('id,name')
-            .eq('active', true).order('created_at', ascending: false)
-            .limit(1).maybeSingle().timeout(const Duration(seconds: 6)),
+            .eq('active', true)
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 6)),
       ]);
       final fees = details[0] as List<Map<String, dynamic>>;
       final paymentRows = details[1] as List<Map<String, dynamic>>;
