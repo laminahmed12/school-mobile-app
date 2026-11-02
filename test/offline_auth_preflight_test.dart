@@ -1,7 +1,27 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lamin_school/offline_credentials.dart';
 
 void main() {
   group('cold-start offline authentication contract', () {
+    test('online auth event does not hide login form before verifier is saved', () {
+      expect(
+        shouldShowLoginForm(
+          hasAuthenticatedSession: true,
+          offlineAccess: false,
+          preparingOnlineLogin: true,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldShowLoginForm(
+          hasAuthenticatedSession: true,
+          offlineAccess: false,
+          preparingOnlineLogin: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('offline access remains password-gated', () {
       // Regression invariant: restoring cached identity must never grant
       // access by itself; the PBKDF2 verifier is checked only on form submit.
