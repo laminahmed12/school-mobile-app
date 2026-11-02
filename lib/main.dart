@@ -268,13 +268,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           );
 
       SchoolProfile? cached;
-      Map<String, dynamic>? cachedSchool;
       if (rememberedId != null && rememberedId.isNotEmpty) {
         cached = await repo.cachedProfileForUser(rememberedId);
-        final schoolId = cached?.schoolId;
-        if (schoolId != null && schoolId.isNotEmpty) {
-          cachedSchool = await repo.cachedSchoolForId(schoolId);
-        }
       }
 
       // A signed-in online session can refresh a missing cache. This is only
@@ -284,9 +279,6 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           const Duration(seconds: 5),
           onTimeout: () => repo.cachedProfileForUser(session.user.id),
         );
-        if (cached?.schoolId != null) {
-          cachedSchool = await repo.cachedSchoolForId(cached!.schoolId!);
-        }
       }
 
       // Do not auto-open a cached account without a password proof.
