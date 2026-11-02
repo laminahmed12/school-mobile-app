@@ -1704,12 +1704,13 @@ class SchoolRepository {
     }
     final profileForFee = await cachedProfile();
     if (profileForFee == null) {
-      final onlineProfile = await profile();
-      if (onlineProfile == null) {
+      await profile();
+      final refreshedProfile = await cachedProfile();
+      if (refreshedProfile == null) {
         throw Exception('تعذر تحديد حساب المدرسة الحالي.');
       }
       return _saveFeeAfterAuthorization(
-        profile: onlineProfile,
+        profile: refreshedProfile,
         studentId: studentId,
         term: term,
         totalFee: totalFee,
@@ -1729,7 +1730,6 @@ class SchoolRepository {
       academicYearLabel: academicYearLabel,
       note: note,
     );
-
   }
 
   Future<void> _saveFeeAfterAuthorization({
