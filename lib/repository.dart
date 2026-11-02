@@ -830,7 +830,7 @@ class SchoolRepository {
     Map<String, dynamic> result = {};
     try {
       final r = await db.rpc('school_daily_summary', params: {'p_date': d})
-          .timeout(const Duration(seconds: 7));
+          .timeout(const Duration(seconds: 5));
       result = Map<String, dynamic>.from(r as Map);
       final start = DateTime(day.year, day.month, day.day).toUtc().toIso8601String();
       final end = DateTime(day.year, day.month, day.day + 1).toUtc().toIso8601String();
@@ -842,7 +842,7 @@ class SchoolRepository {
             .gte('created_at', start).lt('created_at', end)
             .order('id', ascending: true)
             .range(offset, offset + pageSize - 1)
-            .timeout(const Duration(seconds: 7)) as List;
+            .timeout(const Duration(seconds: 5)) as List;
         expenseTotal += rows.fold<double>(
           0, (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
         if (rows.length < pageSize) break;
@@ -934,7 +934,7 @@ class SchoolRepository {
         'p_migrate_students': true,
         'p_migrate_staff': true,
       },
-    ).timeout(const Duration(seconds: 8));
+    ).timeout(const Duration(seconds: 6));
     return result?.toString();
   }
 
