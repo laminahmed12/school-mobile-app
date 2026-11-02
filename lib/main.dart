@@ -376,7 +376,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         return 'كلمة المرور غير مطابقة للاعتماد المحلي المحفوظ.';
       }
 
-      await auth.rememberOfflineUser(userId).timeout(
+      await LaminAuthService().rememberOfflineUser(userId).timeout(
         const Duration(seconds: 5),
       );
       final enabled = await security.enabled;
