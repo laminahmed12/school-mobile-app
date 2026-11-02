@@ -232,11 +232,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool checking = true;
   bool mustChangePassword = false;
   bool offlineAccess = false;
-  bool onlineLoginPreparing = false;
+  OnlineLoginPreparationState onlineLoginState =
+      OnlineLoginPreparationState.idle;
 
-  void _setOnlineLoginPreparing(bool value) {
+  void _setOnlineLoginState(OnlineLoginPreparationState value) {
     if (!mounted) return;
-    setState(() => onlineLoginPreparing = value);
+    setState(() => onlineLoginState = value);
   }
 
   @override
@@ -320,7 +321,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> _tryOfflineAccess({
+  Future<String?> _tryOfflineAccess({
     required String schoolCode,
     required String username,
     required String password,
@@ -330,63 +331,65 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     if (normalizedSchool.isEmpty ||
         normalizedUsername.isEmpty ||
         password.isEmpty) {
-      return false;
+      return 'أدخل رمز المدرسة واسم المستخدم وكلمة المرور.';
     }
 
     try {
-      final userId = db.auth.currentUser?.id ??
-          await const FlutterSecureStorage().read(
-            key: 'lamin.offline.user.id',
-          );
-      if (userId == null || userId.isEmpty) return false;
-
-      final repo = SchoolRepository(widget.prefs);
-      final cachedProfile = await repo.cachedProfileForUser(userId);
-      final schoolId = cachedProfile?.schoolId;
-      if (cachedProfile == null ||
-          schoolId == null ||
-          schoolId.isEmpty ||
-          !cachedProfile.active ||
-          cachedProfile.mustChangePassword ||
-          cachedProfile.username.trim().toLowerCase() != normalizedUsername) {
-        return false;
+      final offlineStore = LaminOfflineCredentialStore();
+      final identity = await offlineStore.readIdentity();
+      if (identity == null) {
+        return 'لم يُحفظ اعتماد الدخول المحلي على هذا الجهاز. يلزم إتمام دخول متصل ناجح بعد تثبيت النسخة الحالية.';
       }
 
-      final cachedSchool = await repo.cachedSchoolForId(schoolId);
-      if (cachedSchool == null ||
-          cachedSchool['code']?.toString().trim().toLowerCase() !=
-              normalizedSchool ||
-          cachedSchool['active'] == false) {
-        return false;
+      final userId = identity['user_id']?.toString() ?? '';
+      if (userId.isEmpty) {
+        return 'تعذر استعادة معرّف الحساب المحفوظ محليًا.';
+      }
+      if (identity['school_code'] != normalizedSchool ||
+          identity['username'] != normalizedUsername) {
+        return 'رمز المدرسة أو اسم المستخدم لا يطابق الحساب المحفوظ على هذا الجهاز.';
+      }
+      if (identity['profile_active'] != true ||
+          identity['must_change_password'] == true) {
+        return 'الحساب غير مؤهل للدخول المحلي. تحقق من حالة الحساب أو تغيير كلمة المرور المطلوب.';
+      }
+      if (identity['school_active'] != true) {
+        return 'المدرسة موقوفة، ولا يمكن فتحها دون اتصال.';
       }
 
-      final licensed = cachedSchool['licensed'] == true;
-      final validTrial =
-          schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
+      final licensed = identity['licensed'] == true;
+      final trialValid = schoolTrialEnd({
+            'trial_started_at': identity['trial_started_at'],
+          })?.isAfter(DateTime.now().toUtc()) ??
           false;
-      if (!licensed && !validTrial) return false;
+      if (!licensed && !trialValid) {
+        return 'انتهى الترخيص أو الفترة التجريبية المحفوظة لهذا الجهاز.';
+      }
 
-      // Local access requires a password verifier created after a successful
-      // online login. The password itself is never saved on the device.
-      final passwordValid = await LaminOfflineCredentialStore().verify(
+      final passwordValid = await offlineStore.verify(
         userId: userId,
         schoolCode: normalizedSchool,
         username: normalizedUsername,
         password: password,
-      ).timeout(const Duration(seconds: 8), onTimeout: () => false);
-      if (!passwordValid) return false;
+      ).timeout(const Duration(seconds: 10), onTimeout: () => false);
+      if (!passwordValid) {
+        return 'كلمة المرور غير مطابقة للاعتماد المحلي المحفوظ.';
+      }
 
+      await auth.rememberOfflineUser(userId).timeout(
+        const Duration(seconds: 5),
+      );
       final enabled = await security.enabled;
-      if (!mounted) return false;
+      if (!mounted) return 'تعذر استعادة جلسة التطبيق.';
       setState(() {
         offlineAccess = true;
         locked = enabled;
         mustChangePassword = false;
       });
-      return true;
+      return null;
     } catch (error) {
       debugPrint('Offline identity check failed: $error');
-      return false;
+      return 'تعذر قراءة بيانات الدخول الآمن من الجهاز. أعد الدخول بالإنترنت لحفظها من جديد.';
     }
   }
 
@@ -401,12 +404,15 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (shouldShowLoginForm(
         hasAuthenticatedSession: db.auth.currentSession != null,
         offlineAccess: offlineAccess,
-        preparingOnlineLogin: onlineLoginPreparing,
+        preparingOnlineLogin:
+            onlineLoginState == OnlineLoginPreparationState.preparing,
+        onlineLoginPreparationFailed:
+            onlineLoginState == OnlineLoginPreparationState.failed,
       )) {
         return LoginPage(
           prefs: widget.prefs,
           onOfflineAccess: _tryOfflineAccess,
-          onOnlineLoginPreparationChanged: _setOnlineLoginPreparing,
+          onOnlineLoginPreparationChanged: _setOnlineLoginState,
         );
       }
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
@@ -471,10 +477,18 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
           if (schoolCode != null && schoolCode.isNotEmpty) {
             await LaminOfflineCredentialStore().save(
               userId: userId,
+              schoolId: schoolId,
               schoolCode: schoolCode,
               username: profile.username,
               password: p,
-            ).timeout(const Duration(seconds: 6));
+              profileActive: profile.active,
+              mustChangePassword: false,
+              schoolActive: school?['active'] != false,
+              licensed: school?['licensed'] == true,
+              trialStartedAt: school?['trial_started_at']?.toString(),
+              role: profile.role,
+            ).timeout(const Duration(seconds: 12));
+            await LaminAuthService().rememberOfflineUser(userId);
           }
         }
       }
@@ -624,12 +638,13 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
 
 class LoginPage extends StatefulWidget {
   final SharedPreferences prefs;
-  final Future<bool> Function({
+  final Future<String?> Function({
     required String schoolCode,
     required String username,
     required String password,
   }) onOfflineAccess;
-  final ValueChanged<bool> onOnlineLoginPreparationChanged;
+  final ValueChanged<OnlineLoginPreparationState>
+      onOnlineLoginPreparationChanged;
   const LoginPage({
     super.key,
     required this.prefs,
@@ -742,14 +757,13 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     try {
-      final allowed = await widget.onOfflineAccess(
+      final failure = await widget.onOfflineAccess(
         schoolCode: school.text,
         username: username.text,
         password: password.text,
       );
-      if (!allowed && mounted) {
-        setState(() => error =
-            'تحقق من رمز المدرسة واسم المستخدم وكلمة المرور، أو سجّل الدخول بالإنترنت مرة واحدة لحفظ اعتماد الدخول المحلي.');
+      if (failure != null && mounted) {
+        setState(() => error = failure);
       }
     } catch (e) {
       if (mounted) {
@@ -761,7 +775,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<bool> _openCachedAccount() async {
+  Future<String?> _openCachedAccount() async {
     return widget.onOfflineAccess(
       schoolCode: school.text,
       username: username.text,
@@ -771,40 +785,13 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<bool> _hasOfflineIdentity() async {
     try {
-      final userId = await auth.offlineUserId();
-      if (userId == null || userId.isEmpty) return false;
-      final repo = SchoolRepository(widget.prefs);
-      final profile = await repo.cachedProfileForUser(userId);
-      final schoolId = profile?.schoolId;
-      if (profile == null ||
-          schoolId == null ||
-          schoolId.isEmpty ||
-          !profile.active ||
-          profile.mustChangePassword) {
-        return false;
-      }
-      final cachedSchool = await repo.cachedSchoolForId(schoolId);
-      if (cachedSchool == null || cachedSchool['active'] == false) {
-        return false;
-      }
-      final cachedCode =
-          cachedSchool['code']?.toString().trim().toLowerCase() ?? '';
-      final licenseValid = cachedSchool['licensed'] == true ||
-          (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
-              false);
-      if (cachedCode.isEmpty ||
-          !licenseValid ||
-          profile.username.trim().isEmpty) {
-        return false;
-      }
-      final hasVerifier = await LaminOfflineCredentialStore().hasCredential(
-        userId: userId,
-        schoolCode: cachedCode,
-        username: profile.username,
-      );
-      if (!hasVerifier || !mounted) return false;
-      school.text = cachedCode;
-      username.text = profile.username;
+      final identity = await LaminOfflineCredentialStore().readIdentity();
+      if (identity == null || !mounted) return false;
+      final savedCode = identity['school_code']?.toString() ?? '';
+      final savedUsername = identity['username']?.toString() ?? '';
+      if (savedCode.isEmpty || savedUsername.isEmpty) return false;
+      school.text = savedCode;
+      username.text = savedUsername;
       schoolLocked = true;
       return true;
     } catch (storageError) {
@@ -812,7 +799,6 @@ class _LoginPageState extends State<LoginPage> {
       return false;
     }
   }
-
 
   Future<void> login() async {
     if (school.text.trim().isEmpty ||
@@ -826,6 +812,7 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     var onlineLoginPreparationStarted = false;
+    var onlineLoginPreparationResolved = false;
     try {
       // Read the platform connectivity state first. Airplane mode takes the
       // encrypted local verifier path without a remote DNS/HTTP probe.
@@ -841,22 +828,21 @@ class _LoginPageState extends State<LoginPage> {
         onTimeout: () => false,
       );
       if (!hasInternet) {
-        final opened = await _openCachedAccount();
-        if (opened) {
+        final offlineFailure = await _openCachedAccount();
+        if (offlineFailure == null) {
           await _saveUsernamePreference();
           return;
         }
-        if (mounted) {
-          setState(() => error =
-              'لا يوجد اتصال بالخادم، أو لم يُحفظ اعتماد كلمة المرور محلياً بعد. سجّل الدخول بالإنترنت مرة واحدة بعد تثبيت هذه النسخة.');
-        }
+        if (mounted) setState(() => error = offlineFailure);
         return;
       }
 
       // Supabase emits an authenticated-session event during setSession.
       // Keep this LoginPage mounted until all local offline identity data has
       // been durably written and checked below.
-      widget.onOnlineLoginPreparationChanged(true);
+      widget.onOnlineLoginPreparationChanged(
+        OnlineLoginPreparationState.preparing,
+      );
       onlineLoginPreparationStarted = true;
       final r = await auth.login(
         school: school.text,
@@ -889,14 +875,20 @@ class _LoginPageState extends State<LoginPage> {
         if (offlineSchoolCode.isEmpty || profile.username.trim().isEmpty) {
           throw StateError('بيانات الحساب أو رمز المدرسة غير مكتملة لحفظ الدخول المحلي.');
         }
-        await auth.rememberOfflineUser(authenticatedUserId);
         final offlineStore = LaminOfflineCredentialStore();
         await offlineStore.save(
           userId: authenticatedUserId,
+          schoolId: profile.schoolId!,
           schoolCode: offlineSchoolCode,
           username: profile.username,
           password: password.text,
-        ).timeout(const Duration(seconds: 12));
+          profileActive: profile.active,
+          mustChangePassword: profile.mustChangePassword,
+          schoolActive: schoolData['active'] != false,
+          licensed: schoolData['licensed'] == true,
+          trialStartedAt: schoolData['trial_started_at']?.toString(),
+          role: profile.role,
+        ).timeout(const Duration(seconds: 15));
         final credentialPersisted = await offlineStore.hasCredential(
           userId: authenticatedUserId,
           schoolCode: offlineSchoolCode,
@@ -905,34 +897,50 @@ class _LoginPageState extends State<LoginPage> {
         if (!credentialPersisted) {
           throw StateError('لم يتم التحقق من حفظ اعتماد الدخول دون اتصال.');
         }
+        await auth.rememberOfflineUser(authenticatedUserId);
         await _saveUsernamePreference();
-      } else if (r.networkFailure) {
-        final opened = await _openCachedAccount();
-        if (opened) {
-          await _saveUsernamePreference();
-          return;
-        }
-        error = 'تعذر الاتصال بخادم الدخول، أو لا توجد كلمة مرور محلية مطابقة لهذا الحساب.';
-      }
-
-      if (mounted && error == null) {
-        setState(
-          () => error = r.ok
-              ? null
-              : (r.trialExpired
-                    ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
-                    : r.message),
+        widget.onOnlineLoginPreparationChanged(
+          OnlineLoginPreparationState.ready,
         );
+        onlineLoginPreparationResolved = true;
+      } else {
+        if (r.networkFailure) {
+          final offlineFailure = await _openCachedAccount();
+          if (offlineFailure == null) {
+            await _saveUsernamePreference();
+            return;
+          }
+          error = offlineFailure;
+        } else {
+          error = r.trialExpired
+              ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
+              : r.message;
+        }
+        if (onlineLoginPreparationStarted && mounted) {
+          widget.onOnlineLoginPreparationChanged(
+            OnlineLoginPreparationState.idle,
+          );
+          onlineLoginPreparationResolved = true;
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(
-          () => error = friendlyError(e, fallback: 'تعذر تسجيل الدخول.'),
+          () => error = friendlyError(
+            e,
+            fallback: 'تعذر إكمال حفظ الدخول المحلي بعد نجاح الاتصال.',
+          ),
         );
       }
     } finally {
-      if (onlineLoginPreparationStarted) {
-        widget.onOnlineLoginPreparationChanged(false);
+      if (onlineLoginPreparationStarted &&
+          !onlineLoginPreparationResolved &&
+          mounted) {
+        widget.onOnlineLoginPreparationChanged(
+          db.auth.currentSession == null
+              ? OnlineLoginPreparationState.idle
+              : OnlineLoginPreparationState.failed,
+        );
       }
       if (mounted) setState(() => loading = false);
     }
