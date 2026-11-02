@@ -1702,9 +1702,9 @@ class SchoolRepository {
         'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
       );
     }
-    final profileForFee = await cachedProfile();
+    final currentProfile = await _requireCurrentProfile();
     return _saveFeeAfterAuthorization(
-      profile: profileForFee!,
+      profile: currentProfile,
       studentId: studentId,
       term: term,
       totalFee: totalFee,
@@ -1713,6 +1713,17 @@ class SchoolRepository {
       academicYearLabel: academicYearLabel,
       note: note,
     );
+  }
+
+  Future<SchoolProfile> _requireCurrentProfile() async {
+    final cached = await cachedProfile();
+    if (cached != null) return cached;
+    await profile();
+    final refreshed = await cachedProfile();
+    if (refreshed == null) {
+      throw Exception('تعذر تحديد حساب المدرسة الحالي.');
+    }
+    return refreshed;
   }
 
   Future<void> _saveFeeAfterAuthorization({
