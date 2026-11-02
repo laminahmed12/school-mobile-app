@@ -827,9 +827,14 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     try {
-      // Never wait for the remote auth function when the device has no
-      // internet. Try the encrypted, school-bound offline identity first.
-      final hasInternet = await _canReachLoginService();
+      // Read the platform connectivity state first. Airplane mode takes the
+      // encrypted local verifier path without a remote DNS/HTTP probe.
+      final network = await Connectivity().checkConnectivity().timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () => const <ConnectivityResult>[],
+      );
+      final hasNetwork = network.any((item) => item != ConnectivityResult.none);
+      final hasInternet = hasNetwork && await _canReachLoginService();
       if (!hasInternet) {
         final opened = await _openCachedAccount();
         if (opened) {
