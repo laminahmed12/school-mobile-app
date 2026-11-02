@@ -207,10 +207,10 @@ class BackupView extends StatelessWidget {
 
   Future<void> _restoreFile(BuildContext context) async {
     try {
-      final school = await repo.school();
+      final school = await repo.cachedSchool();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || schoolId.isEmpty) {
-        throw Exception('تعذر تحديد المدرسة الحالية.');
+        throw Exception('لا توجد هوية مدرسة محفوظة محلياً على هذا الجهاز.');
       }
       final envelope = await BackupService.pickBackupFile(
         expectedSchoolId: schoolId,
