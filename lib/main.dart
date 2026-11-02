@@ -232,6 +232,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool checking = true;
   bool mustChangePassword = false;
   bool offlineAccess = false;
+  bool onlineLoginPreparing = false;
+
+  void _setOnlineLoginPreparing(bool value) {
+    if (!mounted) return;
+    setState(() => onlineLoginPreparing = value);
+  }
 
   @override
   void initState() {
@@ -392,10 +398,15 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null && !offlineAccess) {
+      if (shouldShowLoginForm(
+        hasAuthenticatedSession: db.auth.currentSession != null,
+        offlineAccess: offlineAccess,
+        preparingOnlineLogin: onlineLoginPreparing,
+      )) {
         return LoginPage(
           prefs: widget.prefs,
           onOfflineAccess: _tryOfflineAccess,
+          onOnlineLoginPreparationChanged: _setOnlineLoginPreparing,
         );
       }
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
@@ -618,10 +629,12 @@ class LoginPage extends StatefulWidget {
     required String username,
     required String password,
   }) onOfflineAccess;
+  final ValueChanged<bool> onOnlineLoginPreparationChanged;
   const LoginPage({
     super.key,
     required this.prefs,
     required this.onOfflineAccess,
+    required this.onOnlineLoginPreparationChanged,
   });
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -812,6 +825,7 @@ class _LoginPageState extends State<LoginPage> {
       loading = true;
       error = null;
     });
+    var onlineLoginPreparationStarted = false;
     try {
       // Read the platform connectivity state first. Airplane mode takes the
       // encrypted local verifier path without a remote DNS/HTTP probe.
@@ -839,6 +853,11 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
+      // Supabase emits an authenticated-session event during setSession.
+      // Keep this LoginPage mounted until all local offline identity data has
+      // been durably written and checked below.
+      widget.onOnlineLoginPreparationChanged(true);
+      onlineLoginPreparationStarted = true;
       final r = await auth.login(
         school: school.text,
         username: username.text,
@@ -865,12 +884,27 @@ class _LoginPageState extends State<LoginPage> {
         if (authenticatedUserId == null || authenticatedUserId.isEmpty) {
           throw StateError('تعذر تحديد حساب المستخدم لحفظ الدخول المحلي.');
         }
-        await LaminOfflineCredentialStore().save(
+        final offlineSchoolCode =
+            (schoolData['code']?.toString() ?? school.text).trim();
+        if (offlineSchoolCode.isEmpty || profile.username.trim().isEmpty) {
+          throw StateError('بيانات الحساب أو رمز المدرسة غير مكتملة لحفظ الدخول المحلي.');
+        }
+        await auth.rememberOfflineUser(authenticatedUserId);
+        final offlineStore = LaminOfflineCredentialStore();
+        await offlineStore.save(
           userId: authenticatedUserId,
-          schoolCode: schoolData['code']?.toString() ?? school.text,
+          schoolCode: offlineSchoolCode,
           username: profile.username,
           password: password.text,
-        ).timeout(const Duration(seconds: 6));
+        ).timeout(const Duration(seconds: 12));
+        final credentialPersisted = await offlineStore.hasCredential(
+          userId: authenticatedUserId,
+          schoolCode: offlineSchoolCode,
+          username: profile.username,
+        ).timeout(const Duration(seconds: 5), onTimeout: () => false);
+        if (!credentialPersisted) {
+          throw StateError('لم يتم التحقق من حفظ اعتماد الدخول دون اتصال.');
+        }
         await _saveUsernamePreference();
       } else if (r.networkFailure) {
         final opened = await _openCachedAccount();
@@ -897,6 +931,9 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } finally {
+      if (onlineLoginPreparationStarted) {
+        widget.onOnlineLoginPreparationChanged(false);
+      }
       if (mounted) setState(() => loading = false);
     }
   }
