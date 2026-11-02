@@ -1737,6 +1737,16 @@ class SchoolRepository {
     );
   }
 
+  Future<void> _saveFeeAssessmentOnline({
+    required String schoolId,
+    required String studentId,
+    required String term,
+    required double totalFee,
+    required double discount,
+    String? academicYearId,
+    required String academicYearLabel,
+    required String note,
+  }) async {
     try {
       final existingForYear = academicYearId == null
           ? await db
