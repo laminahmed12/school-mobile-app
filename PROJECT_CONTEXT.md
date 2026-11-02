@@ -433,3 +433,19 @@ When continuing in a new ChatGPT conversation:
 - Do not describe a problem without its implemented fix or the exact blocker.
 - Never claim a build, test, offline login, or signature passed unless the corresponding result was checked.
 - Final report: maximum five lines, Arabic, only actual changes, checks run, signed-build hold status, and the one physical-device test needed next.
+
+
+---
+
+# EXECUTION UPDATE — 2026-11-02 (current changes; CI pending)
+
+- Working branch only: `fix/lamin-portal-crud-offline-20261030`; PR #22 remains open and unmerged. No changes to `main`, production Supabase, or the separate Firebase app.
+- Cold-start sign-in work: restores the remembered school and username sequentially from local secure storage/cache, checks cached user/profile/school/license and offline verifier metadata, and leaves the password empty. The actual local unlock continues to require the existing PBKDF2 password verification and enabled biometric lock; this prefill is not authentication. Airplane mode is detected before the remote login health probe.
+- The local verifier now has a metadata-only `hasCredential` check bound to user ID, normalized school code, username, version, and PBKDF2 parameters. The actual `verify` flow remains authoritative.
+- Queue replay remote deadlines were reduced to six seconds for student create/update, fee replay reads/writes, payment RPC, attendance replay, and offline owner/admin endpoint requests. Existing operation IDs, payment idempotency keys, local IDs, and reconciliation logic remain in place. Financial summary reads now fetch fees, payments, and academic year concurrently.
+- Cache-only backup creation continues to call `exportCachedBackup` and AES-GCM encryption only. Local restore and backup-file restore now resolve the current tenant from `cachedSchool()`, avoiding a server-dependent school lookup. The restore service still validates the current user and school IDs and restores only the local snapshot plus queued operations.
+- Added `test/offline_auth_preflight_test.dart` for password-gating, active-school/license, and incorrect-password invariants.
+- CI run `41410839734` on predecessor HEAD `f17cc9543d990c041a8c7dcf0e08d4d387fbeb9d` failed in static analysis. The log identified missing login helper methods and one nullable profile guard; these were restored/fixed in subsequent commits. Tests and Android build were skipped on that failed run.
+- The later run for HEAD `1df37f75a50c9488c4ad5b406398e295edcb9526` had portal validation success; development validation, schema acceptance, and RPC ACL runs were still in progress at last inspection. Re-fetch status for the exact latest HEAD before relying on any result.
+- Latest code commit after that check: cap the admin API request timeout at six seconds. Current exact HEAD must be refreshed after this update; CI pending.
+- Existing signed APK 2.0.3+13 and certificate remain untouched. Signed release workflow remains prohibited until CI is fully green and cold-start, queue replay, local backup restore, and biometric behavior are accepted on a physical Android device.
