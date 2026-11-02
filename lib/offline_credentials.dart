@@ -185,6 +185,12 @@ class LaminOfflineCredentialStore {
     }
   }
 
+  Future<bool> verifyDeviceBinding() async {
+    final saved = await readIdentity();
+    if (saved == null) return false;
+    return _isBoundToCurrentDevice(saved);
+  }
+
   Future<bool> verify({
     required String userId,
     required String schoolCode,
