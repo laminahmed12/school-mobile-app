@@ -4,6 +4,15 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// Keeps the login form alive until online authentication has finished
+/// persisting its local offline credential and cached school identity.
+bool shouldShowLoginForm({
+  required bool hasAuthenticatedSession,
+  required bool offlineAccess,
+  required bool preparingOnlineLogin,
+}) =>
+    preparingOnlineLogin || (!hasAuthenticatedSession && !offlineAccess);
+
 /// Verifies a previously authenticated account offline without storing the
 /// user's password. The verifier is scoped to both the Supabase user ID and
 /// the school code and is stored only in the platform secure store.
