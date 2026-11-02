@@ -194,6 +194,8 @@ class BackupService {
     final dir = await getApplicationDocumentsDirectory();
     final backups = Directory('${dir.path}/LaameenBackups');
     if (!await backups.exists()) return null;
+    // Do not perform a server lookup from local restore. The currently
+    // authenticated user's cache is the only allowed tenant selector.
     final school = await repo.cachedSchool();
     final schoolId = school?['id']?.toString();
     if (schoolId == null || schoolId.isEmpty) return null;
