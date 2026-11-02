@@ -802,9 +802,11 @@ class _LoginPageState extends State<LoginPage> {
         return false;
       }
 
-      final hasVerifier = await LaminOfflineCredentialStore()
-          .hasCredential(userId: userId, schoolCode: cachedCode,
-              username: profile.username);
+      final hasVerifier = await LaminOfflineCredentialStore().hasCredential(
+        userId: userId,
+        schoolCode: cachedCode,
+        username: profile.username,
+      );
       if (!hasVerifier || !mounted) return false;
 
       // Pre-fill only. No password is stored or restored here.
