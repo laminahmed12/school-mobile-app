@@ -839,8 +839,13 @@ class _LoginPageState extends State<LoginPage> {
         const Duration(milliseconds: 300),
         onTimeout: () => const <ConnectivityResult>[],
       );
-      final hasNetwork = network.any((item) => item != ConnectivityResult.none);
-      final hasInternet = hasNetwork && await _canReachLoginService();
+      final hasNetwork = network.any(
+        (item) => item != ConnectivityResult.none,
+      );
+      final hasInternet = hasNetwork && await _hasInternetConnection().timeout(
+        const Duration(milliseconds: 1500),
+        onTimeout: () => false,
+      );
       if (!hasInternet) {
         final opened = await _openCachedAccount();
         if (opened) {
