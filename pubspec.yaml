@@ -21,7 +21,7 @@ dependencies:
   printing: ^5.14.3
   flutter_secure_storage: ^9.2.4
   cryptography: ^2.9.0
-  image: 4.11.1 # fixes archive decodeLazy API compatibility in transitive PNG decoding
+  image: 4.10.2 # compatible with pdf 3.12.0 / archive 4.0.x
   local_auth: ^3.0.1
 dev_dependencies:
   flutter_test:
