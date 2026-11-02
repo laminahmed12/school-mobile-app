@@ -148,6 +148,8 @@ class BackupView extends StatelessWidget {
         );
         return;
       }
+      // Local restore is cache-only: never call repo.school() here because
+      // that method may contact Supabase when the cache is missing.
       final school = await repo.cachedSchool();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
