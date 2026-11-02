@@ -801,14 +801,12 @@ class _LoginPageState extends State<LoginPage> {
       final hasVerifier = await const FlutterSecureStorage().containsKey(
         key: 'lamin.offline.credential.v1.$userId',
       );
-      if (!hasVerifier) return false;
-      if (!mounted) return false;
-      setState(() {
-        if (school.text.trim().isEmpty) school.text = schoolCode;
-        if (username.text.trim().isEmpty) username.text = usernameValue;
-        schoolLocked = true;
-        error = null;
-      });
+      if (!hasVerifier || !mounted) return false;
+      // Populate the cached identity only. The password is never restored,
+      // and LoginPage performs PBKDF2 verification before granting entry.
+      school.text = schoolCode;
+      username.text = usernameValue;
+      schoolLocked = true;
       return true;
     } catch (storageError) {
       debugPrint('Offline identity preflight failed: $storageError');
