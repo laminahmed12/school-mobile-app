@@ -844,12 +844,11 @@ class _LoginPageState extends State<LoginPage> {
         key: 'lamin.offline.credential.v1.$userId',
       );
       if (!hasVerifier || !mounted) return false;
-      setState(() {
-        school.text = schoolCode;
-        username.text = profile.username;
-        schoolLocked = true;
-        error = null;
-      });
+      // The screen is rendered as a password form; this method only restores
+      // the account identity and never grants access by itself.
+      school.text = schoolCode;
+      username.text = profile.username;
+      schoolLocked = true;
       return true;
     } catch (storageError) {
       debugPrint('Offline identity preflight failed: $storageError');
