@@ -767,6 +767,47 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<bool> _hasOfflineIdentity() async {
+    try {
+      final userId = await auth.offlineUserId();
+      if (userId == null || userId.isEmpty) return false;
+      final repo = SchoolRepository(widget.prefs);
+      final profile = await repo.cachedProfileForUser(userId);
+      if (profile == null || profile.schoolId == null ||
+          profile.schoolId!.isEmpty || !profile.active ||
+          profile.mustChangePassword) {
+        return false;
+      }
+      final cachedSchool = await repo.cachedSchoolForId(profile.schoolId!);
+      if (cachedSchool == null || cachedSchool['active'] == false) {
+        return false;
+      }
+      final schoolCode = cachedSchool['code']?.toString().trim() ?? '';
+      final licenseValid = cachedSchool['licensed'] == true ||
+          (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ?? false);
+      if (schoolCode.isEmpty || !licenseValid) return false;
+      final usernameValue = profile.username.trim();
+      if (usernameValue.isEmpty) return false;
+      // Verify that a credential exists for this exact user/school/username.
+      // Actual password proof still occurs when the user submits the form.
+      final hasVerifier = await const FlutterSecureStorage().containsKey(
+        key: 'lamin.offline.credential.v1.$userId',
+      );
+      if (!hasVerifier) return false;
+      if (!mounted) return false;
+      setState(() {
+        if (school.text.trim().isEmpty) school.text = schoolCode;
+        if (username.text.trim().isEmpty) username.text = usernameValue;
+        schoolLocked = true;
+        error = null;
+      });
+      return true;
+    } catch (storageError) {
+      debugPrint('Offline identity preflight failed: $storageError');
+      return false;
+    }
+  }
+
   Future<void> login() async {
     if (school.text.trim().isEmpty ||
         username.text.trim().isEmpty ||
