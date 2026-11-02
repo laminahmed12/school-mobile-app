@@ -1501,7 +1501,7 @@ class SchoolRepository {
         paid += (row['amount'] as num?)?.toDouble() ?? 0;
       }
       double opening = 0;
-      if (year?['id'] != null) {
+      if (year != null && year['id'] != null) {
         final rows = await db.from('student_opening_balances').select('amount')
             .eq('student_id', studentId).eq('academic_year_id', year['id'])
             .timeout(const Duration(seconds: 6));
