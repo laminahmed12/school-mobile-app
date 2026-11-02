@@ -808,6 +808,47 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<bool> _hasOfflineIdentity() async {
+    try {
+      final userId = await auth.offlineUserId();
+      if (userId == null || userId.isEmpty) return false;
+      final repo = SchoolRepository(widget.prefs);
+      final profile = await repo.cachedProfileForUser(userId);
+      final schoolId = profile?.schoolId;
+      if (profile == null ||
+          schoolId == null ||
+          schoolId.isEmpty ||
+          !profile.active ||
+          profile.mustChangePassword) {
+        return false;
+      }
+      final cachedSchool = await repo.cachedSchoolForId(schoolId);
+      if (cachedSchool == null || cachedSchool['active'] == false) {
+        return false;
+      }
+      final schoolCode = cachedSchool['code']?.toString().trim() ?? '';
+      final licenseValid = cachedSchool['licensed'] == true ||
+          (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ?? false);
+      if (schoolCode.isEmpty || !licenseValid || profile.username.trim().isEmpty) {
+        return false;
+      }
+      final hasVerifier = await const FlutterSecureStorage().containsKey(
+        key: 'lamin.offline.credential.v1.$userId',
+      );
+      if (!hasVerifier || !mounted) return false;
+      setState(() {
+        school.text = schoolCode;
+        username.text = profile.username;
+        schoolLocked = true;
+        error = null;
+      });
+      return true;
+    } catch (storageError) {
+      debugPrint('Offline identity preflight failed: $storageError');
+      return false;
+    }
+  }
+
   Future<void> login() async {
     if (school.text.trim().isEmpty ||
         username.text.trim().isEmpty ||
