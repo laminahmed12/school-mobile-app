@@ -646,9 +646,17 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _loadSchool();
     _loadRememberedUsername();
+    _restoreOfflineLoginIdentity();
   }
 
   static const _secureSavedUsernameKey = 'lamin.login.saved_username.v1';
+
+  Future<void> _restoreOfflineLoginIdentity() async {
+    final hasOfflineIdentity = await _hasOfflineIdentity();
+    if (!hasOfflineIdentity || !mounted) return;
+    // Keep the password empty: offline entry always requires fresh user proof.
+    password.clear();
+  }
 
   Future<void> _loadRememberedUsername() async {
     final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
