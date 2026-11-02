@@ -1703,9 +1703,11 @@ class SchoolRepository {
       );
     }
     final p = await cachedProfile() ?? await profile();
-    final schoolId = p?.schoolId;
-    if (p == null ||
-        schoolId == null ||
+    if (p == null) {
+      throw Exception('تعذر تحديد حساب المدرسة الحالي.');
+    }
+    final schoolId = p.schoolId;
+    if (schoolId == null ||
         schoolId.isEmpty ||
         (p.role != 'admin' && p.role != 'owner' && p.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
