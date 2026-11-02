@@ -781,35 +781,39 @@ class _LoginPageState extends State<LoginPage> {
       if (userId == null || userId.isEmpty) return false;
       final repo = SchoolRepository(widget.prefs);
       final profile = await repo.cachedProfileForUser(userId);
-      if (profile == null || profile.schoolId == null ||
-          profile.schoolId!.isEmpty || !profile.active ||
+      final schoolId = profile?.schoolId;
+      if (profile == null ||
+          schoolId == null ||
+          schoolId.isEmpty ||
+          !profile.active ||
           profile.mustChangePassword) {
         return false;
       }
-      final cachedSchool = await repo.cachedSchoolForId(profile.schoolId!);
+
+      final cachedSchool = await repo.cachedSchoolForId(schoolId);
       if (cachedSchool == null || cachedSchool['active'] == false) {
         return false;
       }
-      final schoolCode = cachedSchool['code']?.toString().trim() ?? '';
+      final cachedCode = cachedSchool['code']?.toString().trim().toLowerCase();
       final licenseValid = cachedSchool['licensed'] == true ||
-          (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ?? false);
-      if (schoolCode.isEmpty || !licenseValid) return false;
-      final usernameValue = profile.username.trim();
-      if (usernameValue.isEmpty) return false;
-      // Verify that a credential exists for this exact user/school/username.
-      // Actual password proof still occurs when the user submits the form.
-      final hasVerifier = await const FlutterSecureStorage().containsKey(
-        key: 'lamin.offline.credential.v1.$userId',
-      );
+          (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
+              false);
+      if (cachedCode == null || cachedCode.isEmpty || !licenseValid) {
+        return false;
+      }
+
+      final hasVerifier = await LaminOfflineCredentialStore()
+          .hasCredential(userId: userId, schoolCode: cachedCode,
+              username: profile.username);
       if (!hasVerifier || !mounted) return false;
-      // Populate the cached identity only. The password is never restored,
-      // and LoginPage performs PBKDF2 verification before granting entry.
-      school.text = schoolCode;
-      username.text = usernameValue;
+
+      // Pre-fill only. No password is stored or restored here.
+      school.text = cachedCode;
+      username.text = profile.username;
       schoolLocked = true;
       return true;
-    } catch (storageError) {
-      debugPrint('Offline identity preflight failed: $storageError');
+    } catch (error) {
+      debugPrint('Offline identity preflight failed: $error');
       return false;
     }
   }
