@@ -1704,13 +1704,15 @@ class SchoolRepository {
       );
     }
     final SchoolProfile currentProfile = await _requireCurrentProfile();
-    final String authorizedSchoolId = currentProfile.schoolId ?? '';
-    if (authorizedSchoolId.isEmpty ||
+    final String? profileSchoolId = currentProfile.schoolId;
+    if (profileSchoolId == null ||
+        profileSchoolId.isEmpty ||
         (currentProfile.role != 'admin' &&
             currentProfile.role != 'owner' &&
             currentProfile.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
+    final String authorizedSchoolId = profileSchoolId;
 
     if (studentId.startsWith('offline-') || !await _serverAvailable()) {
       await _queueStudentFeeAssessment(
