@@ -42,6 +42,7 @@ jobs:
       - name: Prepare Android platform files and Lamin identity
         run: |
           flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+          install -D tooling/android/MainActivity.kt android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt
           rm -f test/widget_test.dart
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
           cat > android/app/src/main/res/values/lamin_launcher.xml <<'EOF'
