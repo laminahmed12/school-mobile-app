@@ -432,11 +432,12 @@ class SchoolRepository {
                   .eq('academic_year_id', yearId)
                   .maybeSingle()
                   .timeout(const Duration(seconds: 6));
-          final saved = existing?['id'] != null
+          final existingId = existing == null ? null : existing['id'];
+          final saved = existingId != null
               ? await db
                     .from('student_fee_assessments')
                     .update(payload)
-                    .eq('id', existing!['id'])
+                    .eq('id', existingId)
                     .select('id')
                     .single()
                     .timeout(const Duration(seconds: 6))
@@ -1735,6 +1736,17 @@ class SchoolRepository {
       academicYearLabel: academicYearLabel,
       note: note,
     );
+  }
+
+  Future<SchoolProfile> _requireCurrentProfile() async {
+    final cachedProfileValue = await cachedProfile();
+    if (cachedProfileValue != null) return cachedProfileValue;
+    await profile();
+    final refreshedProfileValue = await cachedProfile();
+    if (refreshedProfileValue == null) {
+      throw Exception('تعذر تحديد حساب المدرسة الحالي.');
+    }
+    return refreshedProfileValue;
   }
 
   Future<void> _saveFeeAssessmentOnline({
