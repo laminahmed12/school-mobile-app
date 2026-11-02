@@ -463,7 +463,7 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
               schoolCode: schoolCode,
               username: profile.username,
               password: p,
-            ).timeout(const Duration(seconds: 10));
+            ).timeout(const Duration(seconds: 6));
           }
         }
       }
