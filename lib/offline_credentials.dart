@@ -97,5 +97,29 @@ class LaminOfflineCredentialStore {
     }
   }
 
+  Future<bool> hasCredential({
+    required String userId,
+    required String schoolCode,
+    required String username,
+  }) async {
+    if (userId.isEmpty || schoolCode.trim().isEmpty || username.trim().isEmpty) {
+      return false;
+    }
+    try {
+      final raw = await _storage.read(key: _key(userId));
+      if (raw == null) return false;
+      final saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      return saved['version'] == 1 &&
+          saved['user_id'] == userId &&
+          saved['school_code'] == schoolCode.trim().toLowerCase() &&
+          saved['username'] == username.trim().toLowerCase() &&
+          saved['iterations'] == _iterations &&
+          saved['salt'] is String &&
+          saved['verifier'] is String;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> remove(String userId) => _storage.delete(key: _key(userId));
 }
