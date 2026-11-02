@@ -1702,14 +1702,17 @@ class SchoolRepository {
         'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
       );
     }
-    final p = await cachedProfile() ?? await profile();
-    if (p == null) {
+    final p = (await cachedProfile()) ?? (await profile());
+    final SchoolProfile? currentProfile = p;
+    if (currentProfile == null) {
       throw Exception('تعذر تحديد حساب المدرسة الحالي.');
     }
-    final schoolId = p.schoolId;
+    final schoolId = currentProfile.schoolId;
     if (schoolId == null ||
         schoolId.isEmpty ||
-        (p.role != 'admin' && p.role != 'owner' && p.role != 'accountant')) {
+        (currentProfile.role != 'admin' &&
+            currentProfile.role != 'owner' &&
+            currentProfile.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
 
