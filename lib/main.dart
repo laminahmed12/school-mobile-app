@@ -800,20 +800,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<bool> _canReachLoginService() async {
-    try {
-      final network = await Connectivity().checkConnectivity().timeout(
-        const Duration(milliseconds: 500),
-      );
-      if (network.contains(ConnectivityResult.none)) return false;
-      return await _hasInternetConnection().timeout(
-        const Duration(milliseconds: 1500),
-        onTimeout: () => false,
-      );
-    } catch (_) {
-      return false;
-    }
-  }
 
   Future<void> login() async {
     if (school.text.trim().isEmpty ||
@@ -884,7 +870,7 @@ class _LoginPageState extends State<LoginPage> {
           schoolCode: schoolData['code']?.toString() ?? school.text,
           username: profile.username,
           password: password.text,
-        ).timeout(const Duration(seconds: 10));
+        ).timeout(const Duration(seconds: 6));
         await _saveUsernamePreference();
       } else if (r.networkFailure) {
         final opened = await _openCachedAccount();
