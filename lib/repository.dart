@@ -1702,17 +1702,52 @@ class SchoolRepository {
         'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
       );
     }
-    final p = (await cachedProfile()) ?? (await profile());
-    final SchoolProfile? currentProfile = p;
-    if (currentProfile == null) {
-      throw Exception('تعذر تحديد حساب المدرسة الحالي.');
+    final profileForFee = await cachedProfile();
+    if (profileForFee == null) {
+      final onlineProfile = await profile();
+      if (onlineProfile == null) {
+        throw Exception('تعذر تحديد حساب المدرسة الحالي.');
+      }
+      return _saveFeeAfterAuthorization(
+        profile: onlineProfile,
+        studentId: studentId,
+        term: term,
+        totalFee: totalFee,
+        discount: discount,
+        academicYearId: academicYearId,
+        academicYearLabel: academicYearLabel,
+        note: note,
+      );
     }
-    final schoolId = currentProfile.schoolId;
+    return _saveFeeAfterAuthorization(
+      profile: profileForFee,
+      studentId: studentId,
+      term: term,
+      totalFee: totalFee,
+      discount: discount,
+      academicYearId: academicYearId,
+      academicYearLabel: academicYearLabel,
+      note: note,
+    );
+
+  }
+
+  Future<void> _saveFeeAfterAuthorization({
+    required SchoolProfile profile,
+    required String studentId,
+    required String term,
+    required double totalFee,
+    required double discount,
+    String? academicYearId,
+    required String academicYearLabel,
+    required String note,
+  }) async {
+    final schoolId = profile.schoolId;
     if (schoolId == null ||
         schoolId.isEmpty ||
-        (currentProfile.role != 'admin' &&
-            currentProfile.role != 'owner' &&
-            currentProfile.role != 'accountant')) {
+        (profile.role != 'admin' &&
+            profile.role != 'owner' &&
+            profile.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
 
