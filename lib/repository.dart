@@ -366,7 +366,7 @@ class SchoolRepository {
               'p_term_fee': item['term_fee'] ?? 0,
               'p_term': item['term'] ?? 'الفصل الأول',
             },
-          ).timeout(const Duration(seconds: 15));
+          ).timeout(const Duration(seconds: 6));
           final remote = result?.toString() ?? '';
           if (remote.isEmpty) {
             throw Exception('لم يؤكد الخادم إنشاء الطالب.');
@@ -395,7 +395,7 @@ class SchoolRepository {
                 'phone': item['phone'] ?? '',
               })
               .eq('id', resolve(item['student_id']))
-              .timeout(const Duration(seconds: 15));
+              .timeout(const Duration(seconds: 6));
         } else if (type == 'save_fee') {
           final studentId = resolve(item['student_id']);
           final yearId = item['academic_year_id'];
@@ -425,7 +425,11 @@ class SchoolRepository {
                     item['academic_year_label'] ?? 'غير محدد',
                   )
                   .maybeSingle()
-              : await base.eq('academic_year_id', yearId).maybeSingle();
+                  .timeout(const Duration(seconds: 6))
+              : await base
+                  .eq('academic_year_id', yearId)
+                  .maybeSingle()
+                  .timeout(const Duration(seconds: 6));
           final saved = existing?['id'] != null
               ? await db
                     .from('student_fee_assessments')
@@ -433,11 +437,13 @@ class SchoolRepository {
                     .eq('id', existing!['id'])
                     .select('id')
                     .single()
+                    .timeout(const Duration(seconds: 6))
               : await db
                     .from('student_fee_assessments')
                     .insert(payload)
                     .select('id')
-                    .single();
+                    .single()
+                    .timeout(const Duration(seconds: 6));
 
           final localFee = item['local_id']?.toString();
           final remoteFee = saved['id']?.toString();
@@ -475,7 +481,7 @@ class SchoolRepository {
                   : resolve(item['fee_assessment_id']),
               'p_idempotency_key': item['idempotency_key'],
             },
-          ).timeout(const Duration(seconds: 20));
+          ).timeout(const Duration(seconds: 6));
           if (result == null || result.toString().isEmpty) {
             throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
           }
@@ -503,7 +509,7 @@ class SchoolRepository {
             date: item['attendance_date'].toString(),
             status: item['status'].toString(),
             minutesLate: (item['minutes_late'] as num?)?.toInt() ?? 0,
-          ).timeout(const Duration(seconds: 15));
+          ).timeout(const Duration(seconds: 6));
         } else {
           throw Exception('نوع عملية محلية غير معروف: $type');
         }
@@ -1470,11 +1476,16 @@ class SchoolRepository {
     final schoolId = await _schoolId();
     final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'financial_summary_$studentId');
     try {
-      final fees = await studentFeeAssessments(studentId);
-      final paymentRows = await studentPayments(studentId);
-      final year = await db.from('academic_years').select('id,name')
-          .eq('active', true).order('created_at', ascending: false)
-          .limit(1).maybeSingle().timeout(const Duration(seconds: 6));
+      final details = await Future.wait<Object?>([
+        studentFeeAssessments(studentId),
+        studentPayments(studentId),
+        db.from('academic_years').select('id,name')
+            .eq('active', true).order('created_at', ascending: false)
+            .limit(1).maybeSingle().timeout(const Duration(seconds: 6)),
+      ]);
+      final fees = details[0] as List<Map<String, dynamic>>;
+      final paymentRows = details[1] as List<Map<String, dynamic>>;
+      final year = details[2] as Map<String, dynamic>?;
       double totalFee = 0, discount = 0, paid = 0;
       for (final row in fees) {
         totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
@@ -1486,7 +1497,7 @@ class SchoolRepository {
       double opening = 0;
       if (year?['id'] != null) {
         final rows = await db.from('student_opening_balances').select('amount')
-            .eq('student_id', studentId).eq('academic_year_id', year!['id'])
+            .eq('student_id', studentId).eq('academic_year_id', year['id'])
             .timeout(const Duration(seconds: 6));
         opening = (rows as List).fold<double>(0,
             (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0));
