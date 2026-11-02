@@ -9,6 +9,7 @@ void main() {
           hasAuthenticatedSession: true,
           offlineAccess: false,
           preparingOnlineLogin: true,
+          onlineLoginPreparationFailed: false,
         ),
         isTrue,
       );
@@ -17,9 +18,43 @@ void main() {
           hasAuthenticatedSession: true,
           offlineAccess: false,
           preparingOnlineLogin: false,
+          onlineLoginPreparationFailed: true,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldShowLoginForm(
+          hasAuthenticatedSession: true,
+          offlineAccess: false,
+          preparingOnlineLogin: false,
+          onlineLoginPreparationFailed: false,
         ),
         isFalse,
       );
+    });
+
+    test('offline identity snapshot has a separate versioned schema', () {
+      const version = 2;
+      const schoolCode = 'test';
+      const username = 'admin';
+      const requiredIdentityParts = [
+        'user_id',
+        'school_id',
+        'school_code',
+        'username',
+        'profile_active',
+        'must_change_password',
+        'school_active',
+        'licensed',
+        'trial_started_at',
+        'salt',
+        'verifier',
+      ];
+      expect(version, 2);
+      expect(schoolCode, isNotEmpty);
+      expect(username, isNotEmpty);
+      expect(requiredIdentityParts, contains('verifier'));
+      expect(requiredIdentityParts, contains('school_id'));
     });
 
     test('offline access remains password-gated', () {
