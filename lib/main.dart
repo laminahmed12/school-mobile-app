@@ -659,123 +659,6 @@ class _LoginPageState extends State<LoginPage> {
     password.clear();
   }
 
-  Future<void> _loadRememberedUsername() async {
-    final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
-    String? saved;
-    const secureStorage = FlutterSecureStorage();
-    try {
-      if (enabled) {
-        saved = await secureStorage.read(key: _secureSavedUsernameKey);
-        if (saved == null) {
-          final legacy = widget.prefs.getString(_savedUsernameKey);
-          if (legacy != null && legacy.isNotEmpty) {
-            await secureStorage.write(
-              key: _secureSavedUsernameKey,
-              value: legacy,
-            );
-            saved = legacy;
-          }
-        }
-      } else {
-        await secureStorage.delete(key: _secureSavedUsernameKey);
-      }
-      // Remove the old plaintext username once secure storage has been checked.
-      await widget.prefs.remove(_savedUsernameKey);
-    } catch (storageError) {
-      debugPrint('Remembered username secure-storage migration failed: $storageError');
-      saved = null;
-      await widget.prefs.remove(_savedUsernameKey);
-      await widget.prefs.setBool(_rememberUsernameKey, false);
-    }
-    if (!mounted) return;
-    setState(() {
-      rememberUsername = enabled && saved != null;
-      if (saved != null) username.text = saved;
-    });
-  }
-
-  Future<void> _saveUsernamePreference() async {
-    const secureStorage = FlutterSecureStorage();
-    try {
-      if (rememberUsername) {
-        await secureStorage.write(
-          key: _secureSavedUsernameKey,
-          value: username.text.trim(),
-        );
-      } else {
-        await secureStorage.delete(key: _secureSavedUsernameKey);
-      }
-      await widget.prefs.remove(_savedUsernameKey);
-      await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
-    } catch (storageError) {
-      debugPrint('Remembered username secure-storage write failed: $storageError');
-      try {
-        await secureStorage.delete(key: _secureSavedUsernameKey);
-      } catch (_) {}
-      await widget.prefs.remove(_savedUsernameKey);
-      await widget.prefs.setBool(_rememberUsernameKey, false);
-      if (mounted) setState(() => rememberUsername = false);
-    }
-  }
-
-  Future<void> _loadSchool() async {
-    final saved = await auth.savedSchoolCode();
-    if (!mounted) return;
-    if (saved != null && saved.isNotEmpty) {
-      school.text = saved;
-      setState(() => schoolLocked = true);
-    }
-  }
-
-  Future<void> continueOffline() async {
-    if (loading || checkingOffline) return;
-    setState(() {
-      checkingOffline = true;
-      error = null;
-    });
-    try {
-      final allowed = await widget.onOfflineAccess(
-        schoolCode: school.text,
-        username: username.text,
-        password: password.text,
-      );
-      if (!allowed && mounted) {
-        setState(() => error =
-            'تحقق من رمز المدرسة واسم المستخدم وكلمة المرور، أو سجّل الدخول بالإنترنت مرة واحدة لحفظ اعتماد الدخول المحلي.');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => error =
-            friendlyError(e, fallback: 'تعذّر استعادة الدخول دون اتصال.'));
-      }
-    } finally {
-      if (mounted) setState(() => checkingOffline = false);
-    }
-  }
-
-  Future<bool> _openCachedAccount() async {
-    return widget.onOfflineAccess(
-      schoolCode: school.text,
-      username: username.text,
-      password: password.text,
-    );
-  }
-
-  Future<bool> _canReachLoginService() async {
-    try {
-      final network = await Connectivity().checkConnectivity().timeout(
-        const Duration(milliseconds: 500),
-      );
-      if (network.contains(ConnectivityResult.none)) return false;
-      return await _hasInternetConnection().timeout(
-        const Duration(milliseconds: 1500),
-        onTimeout: () => false,
-      );
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<bool> _hasOfflineIdentity() async {
     try {
       final userId = await auth.offlineUserId();
@@ -790,27 +673,25 @@ class _LoginPageState extends State<LoginPage> {
           profile.mustChangePassword) {
         return false;
       }
-
       final cachedSchool = await repo.cachedSchoolForId(schoolId);
       if (cachedSchool == null || cachedSchool['active'] == false) {
         return false;
       }
-      final cachedCode = cachedSchool['code']?.toString().trim().toLowerCase();
+      final cachedCode =
+          cachedSchool['code']?.toString().trim().toLowerCase() ?? '';
       final licenseValid = cachedSchool['licensed'] == true ||
           (schoolTrialEnd(cachedSchool)?.isAfter(DateTime.now().toUtc()) ??
               false);
-      if (cachedCode == null || cachedCode.isEmpty || !licenseValid) {
+      if (cachedCode.isEmpty || !licenseValid || profile.username.trim().isEmpty) {
         return false;
       }
-
       final hasVerifier = await LaminOfflineCredentialStore().hasCredential(
         userId: userId,
         schoolCode: cachedCode,
         username: profile.username,
       );
       if (!hasVerifier || !mounted) return false;
-
-      // Pre-fill only. No password is stored or restored here.
+      // This is only a prefill. The password stays blank and is verified later.
       school.text = cachedCode;
       username.text = profile.username;
       schoolLocked = true;
