@@ -1702,52 +1702,18 @@ class SchoolRepository {
         'تحقق من الرسوم والخصم؛ يجب ألا يتجاوز الخصم قيمة الرسوم.',
       );
     }
-    final currentProfile = await _requireCurrentProfile();
-    return _saveFeeAfterAuthorization(
-      profile: currentProfile,
-      studentId: studentId,
-      term: term,
-      totalFee: totalFee,
-      discount: discount,
-      academicYearId: academicYearId,
-      academicYearLabel: academicYearLabel,
-      note: note,
-    );
-  }
-
-  Future<SchoolProfile> _requireCurrentProfile() async {
-    final cached = await cachedProfile();
-    if (cached != null) return cached;
-    await profile();
-    final refreshed = await cachedProfile();
-    if (refreshed == null) {
-      throw Exception('تعذر تحديد حساب المدرسة الحالي.');
-    }
-    return refreshed;
-  }
-
-  Future<void> _saveFeeAfterAuthorization({
-    required SchoolProfile profile,
-    required String studentId,
-    required String term,
-    required double totalFee,
-    required double discount,
-    String? academicYearId,
-    required String academicYearLabel,
-    required String note,
-  }) async {
-    final schoolId = profile.schoolId;
-    if (schoolId == null ||
-        schoolId.isEmpty ||
-        (profile.role != 'admin' &&
-            profile.role != 'owner' &&
-            profile.role != 'accountant')) {
+    final SchoolProfile currentProfile = await _requireCurrentProfile();
+    final String authorizedSchoolId = currentProfile.schoolId ?? '';
+    if (authorizedSchoolId.isEmpty ||
+        (currentProfile.role != 'admin' &&
+            currentProfile.role != 'owner' &&
+            currentProfile.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
 
     if (studentId.startsWith('offline-') || !await _serverAvailable()) {
       await _queueStudentFeeAssessment(
-        schoolId: schoolId,
+        schoolId: authorizedSchoolId,
         studentId: studentId,
         term: term,
         totalFee: totalFee,
@@ -1758,6 +1724,18 @@ class SchoolRepository {
       );
       return;
     }
+
+    return _saveFeeAssessmentOnline(
+      schoolId: authorizedSchoolId,
+      studentId: studentId,
+      term: term,
+      totalFee: totalFee,
+      discount: discount,
+      academicYearId: academicYearId,
+      academicYearLabel: academicYearLabel,
+      note: note,
+    );
+  }
 
     try {
       final existingForYear = academicYearId == null
