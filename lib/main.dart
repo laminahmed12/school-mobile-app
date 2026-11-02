@@ -3405,7 +3405,7 @@ class _UserManagementViewState extends State<UserManagementView> {
   ]) async {
     final response = await db.functions
         .invoke('admin-api', body: {'action': action, ...fields})
-        .timeout(const Duration(seconds: 20));
+        .timeout(const Duration(seconds: 6));
     final data = response.data;
     if (data is Map && data['error'] != null)
       throw Exception(data['error'].toString());
