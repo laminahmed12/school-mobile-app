@@ -357,6 +357,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         return 'المدرسة موقوفة، ولا يمكن فتحها دون اتصال.';
       }
 
+      if (!await offlineStore.verifyDeviceBinding()) {
+        return 'معرّف الجهاز لا يطابق مفتاح الأمان الذي سُجّل عند الدخول المتصل. يلزم إعادة تسجيل الدخول بالإنترنت على هذا الجهاز.';
+      }
+
       final licensed = identity['licensed'] == true;
       final trialValid = schoolTrialEnd({
             'trial_started_at': identity['trial_started_at'],
