@@ -12,7 +12,7 @@ void main() {
       });
 
       expect(identity.deviceId, fingerprint);
-      expect(identity.displayId, 'A' * 16);
+      expect(identity.displayId, 'AAAAAAAAAAAAAAAA');
       expect(identity.hardwareBacked, isTrue);
     });
 
