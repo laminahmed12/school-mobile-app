@@ -1704,8 +1704,10 @@ class SchoolRepository {
     }
     final p = await cachedProfile() ?? await profile();
     final schoolId = p?.schoolId;
-    if (schoolId == null ||
-        (p?.role != 'admin' && p?.role != 'owner' && p?.role != 'accountant')) {
+    if (p == null ||
+        schoolId == null ||
+        schoolId.isEmpty ||
+        (p.role != 'admin' && p.role != 'owner' && p.role != 'accountant')) {
       throw Exception('ليست لديك صلاحية تعديل الرسوم الدراسية.');
     }
 
