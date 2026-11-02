@@ -1703,25 +1703,8 @@ class SchoolRepository {
       );
     }
     final profileForFee = await cachedProfile();
-    if (profileForFee == null) {
-      await profile();
-      final refreshedProfile = await cachedProfile();
-      if (refreshedProfile == null) {
-        throw Exception('تعذر تحديد حساب المدرسة الحالي.');
-      }
-      return _saveFeeAfterAuthorization(
-        profile: refreshedProfile,
-        studentId: studentId,
-        term: term,
-        totalFee: totalFee,
-        discount: discount,
-        academicYearId: academicYearId,
-        academicYearLabel: academicYearLabel,
-        note: note,
-      );
-    }
     return _saveFeeAfterAuthorization(
-      profile: profileForFee,
+      profile: profileForFee!,
       studentId: studentId,
       term: term,
       totalFee: totalFee,
