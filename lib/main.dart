@@ -652,6 +652,7 @@ class _LoginPageState extends State<LoginPage> {
   static const _secureSavedUsernameKey = 'lamin.login.saved_username.v1';
 
   Future<void> _restoreOfflineLoginIdentity() async {
+    await _loadRememberedUsername();
     final hasOfflineIdentity = await _hasOfflineIdentity();
     if (!hasOfflineIdentity || !mounted) return;
     // Keep the password empty: offline entry always requires fresh user proof.
