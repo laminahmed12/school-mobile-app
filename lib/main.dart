@@ -281,8 +281,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         );
       }
 
-      // Do not auto-open a cached account without a password proof.
-      // LoginPage verifies the PBKDF2 credential before enabling offline access.
+      // Keep the login form visible on cold start; it requires a password proof.
+      // Offline access is activated only by LoginPage after PBKDF2 verification.
       const canOpenOffline = false;
 
       final forcePassword = cached?.active == true &&
