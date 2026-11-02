@@ -165,3 +165,22 @@ This is the last verified CI state recorded here. Re-check GitHub Actions for ne
 - لا تذكر المشكلة وحدها؛ اربطها بالإجراء التنفيذي والحل.
 - لا تدّع نجاح تعديل أو اختبار أو بناء دون تحقق فعلي.
 - التقرير النهائي لا يتجاوز خمسة أسطر: ما عُدّل، الفحوصات الفعلية، حالة APK الموقع، وما بقي لتجربته على الهاتف.
+
+
+---
+
+## Session update — 2026-11-02
+
+- Verified branch: `fix/lamin-portal-crud-offline-20261030`.
+- Latest verified HEAD after this session's source update: `9030519fecb144f68b6a8d40aca3fef6ac293061`.
+- PR #22 remains OPEN and UNMERGED; no change to `main`, production Supabase, or Firebase project.
+- `pubspec.yaml` remains `2.0.3+14`.
+- Removed only the unused local `cachedSchool` initialization/read from `AuthGate._refreshLock` in `lib/main.dart`; retained cached profile lookup, session fallback, password verification flow, school/license/trial checks in `_tryOfflineAccess`, and biometric lock logic.
+- Commit: `9030519fecb144f68b6a8d40aca3fef6ac293061` — `fix(auth): remove unused startup school cache variable`.
+- The previous failure is confirmed from logs: `flutter analyze --no-pub --fatal-infos --fatal-warnings` failed solely on unused `cachedSchool` at `lib/main.dart:270:29`; all later test and candidate-build steps were skipped.
+- New CI runs were queued/started for HEAD `9030519...`: development validation `41396408072` (push) and `41396413815` (PR), portal validation `41396408033` / `41396413817`, RPC ACL `41396408268` / `41396413825`, schema `41396407992` / `41396413830`. At handover update time these were still running; no result is claimed here.
+- Offline login code review: login form does call `onOfflineAccess` when network is absent; the local verifier is PBKDF2/HMAC-SHA256 and scoped to user ID, school code, and username. `_tryOfflineAccess` validates cached active profile, school active flag, license/trial end, password verifier, and then respects biometric lock. On cold-start with no Supabase session, identity comes from `lamin.offline.user.id`. This is code-path inspection only, not physical-device proof.
+- Performance audit found a remaining 20-second timeout in offline payment replay, 15-second timeouts in student/attendance queue replay, and sequential payment/fee detail reads with 5–7 second timeouts. These were not modified during this session because the RPC replay/idempotency and financial workflow need targeted changes/tests; don't treat performance as fully resolved.
+- Release workflow exists and consumes the four established GitHub Secrets without printing them. It does not expose a workflow_dispatch action through the current GitHub connector, so no signed release run was initiated in this session.
+- No new signed APK or release ZIP was generated; no new certificate verification was performed. Preserve the established certificate SHA-256 fingerprint from this file's earlier section.
+- Physical device validation remains required for cold-start airplane mode, incorrect password rejection, biometric lock, active/expired license behavior, offline queue replay, and backup restoration.
