@@ -4,24 +4,24 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Keeps the login form alive until online authentication has finished
-/// persisting its local offline credential and cached school identity.
+enum OnlineLoginPreparationState { idle, preparing, ready, failed }
+
 bool shouldShowLoginForm({
   required bool hasAuthenticatedSession,
   required bool offlineAccess,
   required bool preparingOnlineLogin,
+  required bool onlineLoginPreparationFailed,
 }) =>
-    preparingOnlineLogin || (!hasAuthenticatedSession && !offlineAccess);
+    preparingOnlineLogin ||
+    onlineLoginPreparationFailed ||
+    (!hasAuthenticatedSession && !offlineAccess);
 
-/// Verifies a previously authenticated account offline without storing the
-/// user's password. The verifier is scoped to both the Supabase user ID and
-/// the school code and is stored only in the platform secure store.
+/// One encrypted record binds the password verifier to the cached school and
+/// account eligibility. The password itself is never stored.
 class LaminOfflineCredentialStore {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const int _iterations = 60000;
-  static const String _keyPrefix = 'lamin.offline.credential.v1.';
-
-  String _key(String userId) => '$_keyPrefix$userId';
+  static const String _identityKey = 'lamin.offline.identity.v2';
 
   Future<List<int>> _derive(String password, List<int> salt) async {
     final algorithm = Pbkdf2(
@@ -36,13 +36,50 @@ class LaminOfflineCredentialStore {
     return secret.extractBytes();
   }
 
+  Future<Map<String, dynamic>?> readIdentity() async {
+    try {
+      final raw = await _storage.read(key: _identityKey);
+      if (raw == null) return null;
+      final saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      if (saved['version'] != 2 ||
+          saved['user_id'] is! String ||
+          (saved['user_id'] as String).isEmpty ||
+          saved['school_id'] is! String ||
+          (saved['school_id'] as String).isEmpty ||
+          saved['school_code'] is! String ||
+          (saved['school_code'] as String).isEmpty ||
+          saved['username'] is! String ||
+          (saved['username'] as String).isEmpty ||
+          saved['salt'] is! String ||
+          saved['verifier'] is! String ||
+          saved['iterations'] != _iterations ||
+          saved['profile_active'] is! bool ||
+          saved['must_change_password'] is! bool ||
+          saved['school_active'] is! bool ||
+          saved['licensed'] is! bool) {
+        return null;
+      }
+      return saved;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> save({
     required String userId,
+    required String schoolId,
     required String schoolCode,
     required String username,
     required String password,
+    required bool profileActive,
+    required bool mustChangePassword,
+    required bool schoolActive,
+    required bool licensed,
+    required String? trialStartedAt,
+    required String role,
   }) async {
-    if (userId.isEmpty ||
+    if (userId.trim().isEmpty ||
+        schoolId.trim().isEmpty ||
         schoolCode.trim().isEmpty ||
         username.trim().isEmpty ||
         password.isEmpty) {
@@ -53,15 +90,31 @@ class LaminOfflineCredentialStore {
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
     final verifier = await _derive(password, salt);
     final payload = {
-      'version': 1,
+      'version': 2,
       'user_id': userId,
+      'school_id': schoolId,
       'school_code': schoolCode.trim().toLowerCase(),
       'username': username.trim().toLowerCase(),
+      'profile_active': profileActive,
+      'must_change_password': mustChangePassword,
+      'school_active': schoolActive,
+      'licensed': licensed,
+      'trial_started_at': trialStartedAt,
+      'role': role,
       'salt': base64Encode(salt),
       'verifier': base64Encode(verifier),
       'iterations': _iterations,
+      'saved_at': DateTime.now().toUtc().toIso8601String(),
     };
-    await _storage.write(key: _key(userId), value: jsonEncode(payload));
+    await _storage.write(key: _identityKey, value: jsonEncode(payload));
+    final persisted = await readIdentity();
+    if (persisted == null ||
+        persisted['user_id'] != userId ||
+        persisted['school_id'] != schoolId ||
+        persisted['school_code'] != schoolCode.trim().toLowerCase() ||
+        persisted['username'] != username.trim().toLowerCase()) {
+      throw StateError('Offline identity record did not persist correctly.');
+    }
   }
 
   Future<bool> verify({
@@ -78,15 +131,11 @@ class LaminOfflineCredentialStore {
     }
 
     try {
-      final raw = await _storage.read(key: _key(userId));
-      if (raw == null) return false;
-      final saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-
-      if (saved['version'] != 1 ||
+      final saved = await readIdentity();
+      if (saved == null ||
           saved['user_id'] != userId ||
           saved['school_code'] != schoolCode.trim().toLowerCase() ||
-          saved['username'] != username.trim().toLowerCase() ||
-          saved['iterations'] != _iterations) {
+          saved['username'] != username.trim().toLowerCase()) {
         return false;
       }
 
@@ -95,7 +144,6 @@ class LaminOfflineCredentialStore {
       final actual = await _derive(password, salt);
       if (actual.length != expected.length) return false;
 
-      // Constant-time comparison prevents an early-exit timing signal.
       var difference = 0;
       for (var index = 0; index < actual.length; index++) {
         difference |= actual[index] ^ expected[index];
@@ -111,24 +159,18 @@ class LaminOfflineCredentialStore {
     required String schoolCode,
     required String username,
   }) async {
-    if (userId.isEmpty || schoolCode.trim().isEmpty || username.trim().isEmpty) {
-      return false;
-    }
-    try {
-      final raw = await _storage.read(key: _key(userId));
-      if (raw == null) return false;
-      final saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-      return saved['version'] == 1 &&
-          saved['user_id'] == userId &&
-          saved['school_code'] == schoolCode.trim().toLowerCase() &&
-          saved['username'] == username.trim().toLowerCase() &&
-          saved['iterations'] == _iterations &&
-          saved['salt'] is String &&
-          saved['verifier'] is String;
-    } catch (_) {
-      return false;
-    }
+    final saved = await readIdentity();
+    return saved != null &&
+        saved['user_id'] == userId &&
+        saved['school_code'] == schoolCode.trim().toLowerCase() &&
+        saved['username'] == username.trim().toLowerCase();
   }
 
-  Future<void> remove(String userId) => _storage.delete(key: _key(userId));
+  Future<void> remove(String userId) async {
+    final saved = await readIdentity();
+    if (saved?['user_id'] == userId) {
+      await _storage.delete(key: _identityKey);
+    }
+    await _storage.delete(key: 'lamin.offline.credential.v1.$userId');
+  }
 }
