@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'device_identity.dart';
+
 enum OnlineLoginPreparationState { idle, preparing, ready, failed }
 
 bool shouldShowLoginForm({
@@ -16,12 +18,14 @@ bool shouldShowLoginForm({
     onlineLoginPreparationFailed ||
     (!hasAuthenticatedSession && !offlineAccess);
 
-/// One encrypted record binds the password verifier to the cached school and
-/// account eligibility. The password itself is never stored.
+/// One encrypted record binds the account, school, password verifier and
+/// Android Keystore public-key fingerprint to this installation.
 class LaminOfflineCredentialStore {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const int _iterations = 60000;
-  static const String _identityKey = 'lamin.offline.identity.v2';
+  static const String _identityKey = 'lamin.offline.identity.v3';
+  final LaminDeviceIdentityService _deviceIdentity =
+      LaminDeviceIdentityService();
 
   Future<List<int>> _derive(String password, List<int> salt) async {
     final algorithm = Pbkdf2(
@@ -36,12 +40,32 @@ class LaminOfflineCredentialStore {
     return secret.extractBytes();
   }
 
+  String _bindingChallenge(Map<String, dynamic> payload) => jsonEncode({
+    'format': 'lamin-offline-device-binding-v1',
+    'version': payload['version'],
+    'user_id': payload['user_id'],
+    'school_id': payload['school_id'],
+    'school_code': payload['school_code'],
+    'username': payload['username'],
+    'profile_active': payload['profile_active'],
+    'must_change_password': payload['must_change_password'],
+    'school_active': payload['school_active'],
+    'licensed': payload['licensed'],
+    'trial_started_at': payload['trial_started_at'],
+    'salt': payload['salt'],
+    'verifier': payload['verifier'],
+    'iterations': payload['iterations'],
+    'device_id': payload['device_id'],
+    'device_public_key': payload['device_public_key'],
+  });
+
   Future<Map<String, dynamic>?> readIdentity() async {
     try {
       final raw = await _storage.read(key: _identityKey);
       if (raw == null) return null;
       final saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-      if (saved['version'] != 2 ||
+      final deviceId = saved['device_id'];
+      if (saved['version'] != 3 ||
           saved['user_id'] is! String ||
           (saved['user_id'] as String).isEmpty ||
           saved['school_id'] is! String ||
@@ -56,7 +80,14 @@ class LaminOfflineCredentialStore {
           saved['profile_active'] is! bool ||
           saved['must_change_password'] is! bool ||
           saved['school_active'] is! bool ||
-          saved['licensed'] is! bool) {
+          saved['licensed'] is! bool ||
+          deviceId is! String ||
+          !RegExp(r'^[a-f0-9]{64}$').hasMatch(deviceId) ||
+          saved['device_public_key'] is! String ||
+          (saved['device_public_key'] as String).isEmpty ||
+          saved['device_signature'] is! String ||
+          (saved['device_signature'] as String).isEmpty ||
+          saved['device_hardware_backed'] is! bool) {
         return null;
       }
       return saved;
@@ -86,11 +117,13 @@ class LaminOfflineCredentialStore {
       throw ArgumentError('Offline credential fields must not be empty.');
     }
 
+    // This key is created once in Android Keystore and is never exportable.
+    final device = await _deviceIdentity.getOrCreate();
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
     final verifier = await _derive(password, salt);
-    final payload = {
-      'version': 2,
+    final payload = <String, dynamic>{
+      'version': 3,
       'user_id': userId,
       'school_id': schoolId,
       'school_code': schoolCode.trim().toLowerCase(),
@@ -104,16 +137,51 @@ class LaminOfflineCredentialStore {
       'salt': base64Encode(salt),
       'verifier': base64Encode(verifier),
       'iterations': _iterations,
+      'device_id': device.deviceId,
+      'device_public_key': device.publicKey,
+      'device_hardware_backed': device.hardwareBacked,
       'saved_at': DateTime.now().toUtc().toIso8601String(),
     };
+
+    final challenge = _bindingChallenge(payload);
+    final signature = await _deviceIdentity.signChallenge(challenge);
+    final currentDevice = await _deviceIdentity.getExisting();
+    if (currentDevice == null ||
+        currentDevice.deviceId != device.deviceId ||
+        currentDevice.publicKey != device.publicKey) {
+      throw StateError('Android device key changed during local enrollment.');
+    }
+    payload['device_signature'] = signature;
+
     await _storage.write(key: _identityKey, value: jsonEncode(payload));
     final persisted = await readIdentity();
     if (persisted == null ||
         persisted['user_id'] != userId ||
         persisted['school_id'] != schoolId ||
         persisted['school_code'] != schoolCode.trim().toLowerCase() ||
-        persisted['username'] != username.trim().toLowerCase()) {
-      throw StateError('Offline identity record did not persist correctly.');
+        persisted['username'] != username.trim().toLowerCase() ||
+        persisted['device_id'] != device.deviceId) {
+      throw StateError('Device-bound offline identity did not persist correctly.');
+    }
+  }
+
+  Future<bool> _isBoundToCurrentDevice(Map<String, dynamic> saved) async {
+    try {
+      final current = await _deviceIdentity.getExisting();
+      if (current == null ||
+          current.deviceId != saved['device_id'] ||
+          current.publicKey != saved['device_public_key']) {
+        return false;
+      }
+      final valid = await _deviceIdentity.verifyBinding(
+        challenge: _bindingChallenge(saved),
+        signature: saved['device_signature'].toString(),
+        deviceId: saved['device_id'].toString(),
+        publicKey: saved['device_public_key'].toString(),
+      );
+      return valid;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -139,6 +207,10 @@ class LaminOfflineCredentialStore {
         return false;
       }
 
+      // Require the original Android Keystore private key before accepting
+      // the PBKDF2 password verifier.
+      if (!await _isBoundToCurrentDevice(saved)) return false;
+
       final salt = base64Decode(saved['salt'].toString());
       final expected = base64Decode(saved['verifier'].toString());
       final actual = await _derive(password, salt);
@@ -160,10 +232,13 @@ class LaminOfflineCredentialStore {
     required String username,
   }) async {
     final saved = await readIdentity();
-    return saved != null &&
-        saved['user_id'] == userId &&
-        saved['school_code'] == schoolCode.trim().toLowerCase() &&
-        saved['username'] == username.trim().toLowerCase();
+    if (saved == null ||
+        saved['user_id'] != userId ||
+        saved['school_code'] != schoolCode.trim().toLowerCase() ||
+        saved['username'] != username.trim().toLowerCase()) {
+      return false;
+    }
+    return _isBoundToCurrentDevice(saved);
   }
 
   Future<void> remove(String userId) async {
@@ -172,5 +247,7 @@ class LaminOfflineCredentialStore {
       await _storage.delete(key: _identityKey);
     }
     await _storage.delete(key: 'lamin.offline.credential.v1.$userId');
+    await _storage.delete(key: 'lamin.offline.credential.v1');
+    await _storage.delete(key: 'lamin.offline.identity.v2');
   }
 }
