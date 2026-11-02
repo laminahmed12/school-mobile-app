@@ -1008,7 +1008,7 @@ class _OwnerPinDialogState extends State<_OwnerPinDialog> {
     try {
       final response = await db.functions
           .invoke('owner-api', body: {'action': 'list_schools', 'pin': pin})
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 6));
       final data = response.data;
       if (data is Map && data['error'] != null)
         throw Exception(data['error'].toString());
