@@ -263,14 +263,17 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
+    if (state == AppLifecycleState.resumed) {
+      // Invalidate a background preference read that has not completed yet.
+      // This prevents a quick system interruption from locking after resume.
+      _lifecycleLockRevision++;
+    } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       final revision = ++_lifecycleLockRevision;
       unawaited(_applyBackgroundLock(state, revision));
     }
-    // Do not call _refreshLock() on resume. Rechecking a persisted Supabase
-    // session here used to set locked=true again while the biometric flow was
-    // already completing, remounting the lock page and prompting repeatedly.
+    // Do not call _refreshLock() on resume. A persisted Supabase session is
+    // not a fresh biometric event and must not recreate the lock page.
   }
 
   Future<void> _applyBackgroundLock(

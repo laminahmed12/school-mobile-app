@@ -23,7 +23,7 @@ bool isMissingStudentCreationRpc(Object error) {
   final message = error.toString().toLowerCase();
   if (!message.contains(studentCreateIdempotentRpc)) return false;
 
-  final missingCode = RegExp(r'\\b(?:pgrst202|42883)\\b').hasMatch(message);
+  final missingCode = message.contains('pgrst202') || message.contains('42883');
   final missingDescription =
       message.contains('could not find the function') ||
       message.contains('function does not exist') ||

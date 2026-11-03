@@ -34,6 +34,18 @@ void main() {
       expect(isMissingStudentCreationRpc(error), isTrue);
     });
 
+    test('recognizes PGRST202 even if the server omits descriptive text', () {
+      expect(
+        isMissingStudentCreationRpc(
+          Exception(
+            'PostgrestException: public.create_student_with_fee_idempotent '
+            '(code: PGRST202)',
+          ),
+        ),
+        isTrue,
+      );
+    });
+
     test('recognizes an undefined PostgreSQL function response', () {
       final error = Exception(
         'function public.create_student_with_fee_idempotent does not exist '
