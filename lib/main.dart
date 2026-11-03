@@ -301,25 +301,14 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
   Future<void> _refreshLock() async {
     final isInitialStartupCheck = !_startupAuthCheckCompleted;
+    final lifecycleRevision = _lifecycleLockRevision;
     try {
       final session = db.auth.currentSession;
       final enabled = await security.enabled;
 
-      // A restored Supabase session is not proof of the user's password on a
-      // cold offline start. Detect real internet access before deciding
-      // whether the login form may be skipped.
-      final network = await Connectivity().checkConnectivity().timeout(
-        const Duration(milliseconds: 300),
-        onTimeout: () => const <ConnectivityResult>[],
-      );
-      final hasNetwork = network.any(
-        (item) => item != ConnectivityResult.none,
-      );
-      final hasInternet = hasNetwork && await _hasInternetConnection().timeout(
-        const Duration(milliseconds: 1500),
-        onTimeout: () => false,
-      );
-
+      // Keep startup deterministic: cached identity is available offline.
+      // Internet reachability is probed only to permit a remote profile
+      // fallback; it must never decide whether offline login is available.
       final repo = SchoolRepository(widget.prefs);
       final rememberedId = session?.user.id ??
           await const FlutterSecureStorage().read(
@@ -331,25 +320,31 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         cached = await repo.cachedProfileForUser(rememberedId);
       }
 
-      // Never make an offline cold start wait on a remote profile request.
-      if (hasInternet && session != null && cached == null) {
-        cached = await repo.profile().timeout(
-          const Duration(seconds: 5),
-          onTimeout: () => repo.cachedProfileForUser(session.user.id),
+      if (session != null && cached == null) {
+        final hasInternet = await _hasInternetConnection().timeout(
+          const Duration(milliseconds: 1500),
+          onTimeout: () => false,
         );
+        if (hasInternet) {
+          cached = await repo.profile().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => repo.cachedProfileForUser(session.user.id),
+          );
+        }
       }
 
-      // Offline access is granted only after LoginPage verifies the device,
-      // password, school, profile, license/trial and biometric requirements.
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
           cached?.mustChangePassword == true;
-      if (!mounted) return;
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
       setState(() {
         checking = false;
         if (isInitialStartupCheck) {
+          // Always require local password/device proof for an offline cold
+          // start, even if Supabase restored a persisted session.
           offlineAccess = false;
-          startupRequiresOfflineCredentialProof = !hasInternet;
+          startupRequiresOfflineCredentialProof =
+              db.auth.currentSession != null;
         }
         locked = (session != null || offlineAccess) && enabled;
         mustChangePassword = forcePassword && session != null;
@@ -357,18 +352,17 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       _startupAuthCheckCompleted = true;
     } catch (error) {
       debugPrint('AuthGate cache restore failed: $error');
-      if (!mounted) return;
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
       var keepBiometricLock = false;
       try {
         keepBiometricLock =
             (db.auth.currentSession != null || offlineAccess) &&
             await security.enabled;
       } catch (_) {}
-      // Fail closed: an uncertain cold-start network state must not let a
-      // restored session bypass the offline password/device proof.
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
       setState(() {
         checking = false;
-        if (isInitialStartupCheck) {
+        if (isInitialStartupCheck && db.auth.currentSession != null) {
           offlineAccess = false;
           startupRequiresOfflineCredentialProof = true;
         }
