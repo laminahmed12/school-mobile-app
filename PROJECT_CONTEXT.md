@@ -872,3 +872,15 @@ If it fails:
 - Student names in financial operations appear only after searching; this is currently expected/accepted behavior.
 - Student names in the Students window are always visible; this is currently expected/accepted behavior.
 - These are user-reported results, not independently tested in this session. No code changes, tests, or APK build were performed for these issues.
+
+
+## HANDOVER — 2026-11-03 (student archive request)
+
+- User clarified with a screenshot that student deletion was attempted and failed with PostgreSQL/PostgREST error 23503: deleting from `payments` is blocked by foreign key `payment_allocations_payment_fk` because rows in `payment_allocations` still reference the payment. This is not a silent/no-op delete.
+- User chose **archive instead of permanent deletion**. Implement an archive action that preserves student, payment, allocation, attendance, and audit history. Do not cascade-delete financial records or bypass FK constraints.
+- The current UI’s delete handler directly deletes the student row; its error message mentions archive, but no verified archive implementation was found in the reviewed path. Exact schema fields, RPC/migration support, list filtering, and offline queue semantics still need inspection before code changes.
+- Phone remains optional by user requirement; registration without a phone has been reported to fail online and offline. Diagnose the actual form/RPC/schema contract and make nullable/blank phone work in both online creation and queued replay without changing unrelated validation.
+- Screenshot confirms the user-facing delete error: “لم يُحذف الطالب… PostgrestException… update or delete on table payments violates foreign key constraint payment_allocations_payment_fk … Key is still referenced from table payment_allocations.”
+- No source code, database, or production data was changed for archive/optional-phone work in this session. No tests or APK build were run for these issues.
+- Existing signed reference APK remains `lamin-school-2.0.3-13-v1-v2-v3-signed.apk`, version 2.0.3+13, with certificate fingerprint and SHA-256 documented above. It is a preserved reference, not a build containing current source changes. Commercial signing remains deferred.
+- Next execution: inspect current branch HEAD and PR state; inspect student schema/migrations, RPCs, repository queue replay, and UI filtering; implement archive/unarchive or archive-only according to existing schema, ensure archived students are hidden from active lists but retained in history, make phone optional online/offline; add regression tests; run CI and only then produce a test APK. Do not run production migrations or merge PR #22.
