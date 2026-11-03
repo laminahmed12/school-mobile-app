@@ -61,6 +61,8 @@ bool isValidLaminOfflineIdentityRecord(Map<String, dynamic> saved) {
   }
 }
 
+enum OnlineLoginPreparationState { idle, preparing, ready, failed }
+
 bool shouldShowLoginForm({
   required bool hasAuthenticatedSession,
   required bool offlineAccess,
