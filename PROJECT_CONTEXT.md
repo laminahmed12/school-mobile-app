@@ -854,3 +854,11 @@ If it fails:
 - Correction: AuthGate now makes cached local identity the primary startup path, probes internet only for a missing cached profile/remote fallback, and does not use failed internet detection itself to suppress offline access. A restored session still requires offline password + device-bound verification; successful verification clears the gate. Existing biometric lifecycle revision protection is retained.
 - Added/updated cold-start authentication contract tests for restored sessions, successful offline proof, and online session behavior.
 - This change is on the existing fix branch only. It does not touch main, production Supabase, PR merge state, Lamīn Management/Firebase, or commercial signing. CI and a new APK are pending until the new branch HEAD completes workflow validation.
+
+
+## BUILD ACCESS CLARIFICATION — 2026-11-03
+- The user has previously received multiple APK files generated through this ChatGPT/GitHub workflow. Do not tell the user that APK generation or retrieval is categorically unavailable.
+- GitHub Actions candidate build and artifact download/retrieval have worked in prior sessions; the GitHub connection can read/edit branch files, inspect runs/artifacts, download artifacts, and APK verification has been completed before.
+- The current connector tool list does not expose a workflow-dispatch action. This is a session/tool-surface limitation, not proof that the user lacks repository permissions or that APK generation is impossible. Before concluding blocked, inspect recent runs/artifacts for the exact branch HEAD and use a successful candidate artifact if available. If a new run must be started and dispatch is unavailable, state that specific limitation accurately.
+- Keep using the unsigned/debug-signed candidate for phone testing. Do not invoke the commercial signing workflow until all required edits and physical-device acceptance are complete, as explicitly ordered by the user.
+- Do not ask the user to repeat this history.
