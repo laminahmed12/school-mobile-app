@@ -97,8 +97,7 @@ Preserve these behaviors and verify them in the build/tests and on device.
 ### Local backup and restore
 Files changed:
 - `lib/repository.dart`
-- `lib/backup_service.dart`
-- `lib/backup_view.dart`
+- `lib/backup_service.dart`- `lib/backup_view.dart`
 - `test/backup_envelope_test.dart`
 
 Current implementation includes:
@@ -197,8 +196,7 @@ This section is the current source of truth. Older HEADs, CI results, and releas
 - Repository: `laminahmed12/school-mobile-app`.
 - Project: **Lamīn School / Supabase only**. Never switch to Lamīn Management / Firebase.
 - Work branch: `fix/lamin-portal-crud-offline-20261030`.
-- Verified branch HEAD: `bcc8d411a3228be0daf8bce32ac53272c10dbc50`.
-- Pull request: #22, **OPEN / UNMERGED**:
+- Verified branch HEAD: `bcc8d411a3228be0daf8bce32ac53272c10dbc50`.- Pull request: #22, **OPEN / UNMERGED**:
   https://github.com/laminahmed12/school-mobile-app/pull/22
 - PR base is `feature/lamin-desktop-portal-2026-10-29`; do not retarget, merge, close, or update `main) unless explicitly instructed.
 - `pubspec.yaml` version: `2.0.3+14`.
@@ -297,8 +295,7 @@ This is the established, working development build path used in this repository.
 On a commit pushed to the working branch / PR #22, GitHub Actions runs:
 `.github/workflows/lamin-development-validation.yml`.
 
-The workflow uses:
-- Java 17.
+The workflow uses:- Java 17.
 - Flutter 3.35.4.
 - `flutter pub get`.
 - `dart format --output=none --set-exit-if-changed lib test`.
@@ -397,7 +394,6 @@ C. Offline backup:
 - Test create/restore entirely in airplane mode on Android.
 
 ## G. Exact mandatory next-session instructions
-
 When continuing in a new ChatGPT conversation:
 
 1. Read this `PROJECT_CONTEXT.md` from the working branch before making changes.
@@ -498,7 +494,6 @@ All of these steps passed on HEAD `b0bcc0d...`:
 
 Previous run `41575753475` passed Dart tests but Android build failed because the GitHub runner received a corrupted NDK archive:
 `java.util.zip.ZipException: Archive is not a ZIP archive` while installing `ndk;27.0.12077973`.
-
 Added a step to `.github/workflows/lamin-development-validation.yml` that:
 - Locates `sdkmanager`.
 - Accepts Android SDK licenses.
@@ -596,7 +591,6 @@ Other acceptance gates remain:
 - Do NOT create or replace any keystore.
 - Wait for physical-device offline-login acceptance, slow-operation fixes, local backup/restore acceptance, and all CI checks before preparing the next commercial signed version with the original certificate.
 - Do not change `main`, merge PR #22, or touch production Supabase.
-
 
 
 ---
@@ -697,8 +691,7 @@ For any new source changes:
 1. Commit them only to `fix/lamin-portal-crud-offline-20261030`.
 2. GitHub Actions runs `Lamin development validation` for the branch/PR.
 3. Inspect the run corresponding to the exact source HEAD and require all steps above to pass.
-4. Download Artifact `lamin-development-candidate` from that run, not `lamin-apksigner-toolchain`.
-5. Extract `app-release.apk` from the path above.
+4. Download Artifact `lamin-development-candidate` from that run, not `lamin-apksigner-toolchain`.5. Extract `app-release.apk` from the path above.
 6. Recompute SHA-256 and compare it with `_temp/lamin-candidate-sha256.txt`.
 7. Verify package name/version with `aapt dump badging` and signature with `apksigner verify --verbose --print-certs`.
 8. Give the user the actual APK file/link only after the exact file was retrieved and verified.
@@ -798,7 +791,6 @@ If it fails:
 12. Update this file with exact commits, CI run IDs, artifact IDs, checksums, and actual phone-test results after each verified milestone.
 
 ## 9. Communication and execution
-
 - Work directly; do not replace implementation with a plan or repetitive manual instructions.
 - Do not ask the user to re-upload files or repeat already-confirmed information.
 - Use the existing GitHub connection to inspect, edit, build through Actions, retrieve candidate APKs, and verify them from this conversation when available.
@@ -862,3 +854,10 @@ If it fails:
 - The current connector tool list does not expose a workflow-dispatch action. This is a session/tool-surface limitation, not proof that the user lacks repository permissions or that APK generation is impossible. Before concluding blocked, inspect recent runs/artifacts for the exact branch HEAD and use a successful candidate artifact if available. If a new run must be started and dispatch is unavailable, state that specific limitation accurately.
 - Keep using the unsigned/debug-signed candidate for phone testing. Do not invoke the commercial signing workflow until all required edits and physical-device acceptance are complete, as explicitly ordered by the user.
 - Do not ask the user to repeat this history.
+
+## USER CLARIFICATION — 2026-11-03
+
+- User confirms cold-start offline login had already succeeded previously.
+- Biometric authentication is required for offline entry; preserve this requirement and do not weaken or remove it.
+- User explicitly instructed: make no code changes. This update is documentation-only.
+- Current scope: retain the previously verified progress and avoid further authentication edits unless the user requests them.
