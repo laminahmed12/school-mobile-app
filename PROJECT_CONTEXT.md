@@ -821,3 +821,14 @@ If it fails:
 - Added a regression test proving that a restored Supabase session cannot hide the login form during an offline cold start, and that the form can close after offline proof succeeds.
 - The previously completed candidate `2.0.3+15` remains unchanged: CI run `41577403383` succeeded for source commit `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`; downloaded APK SHA-256 verified as `413b6a5aac6603a798f7f1fe247f5214b880e8b87cf8d78c9c9334b58cab6e49`. Its only successor commit before this change updated this context file.
 - This new source change is not yet validated by CI. Physical-device cold-start acceptance remains pending. Commercial signing remains on hold.
+
+
+## HANDOVER UPDATE — 2026-11-03 (current chat)
+
+- Current branch: `fix/lamin-portal-crud-offline-20261030`; project remains Lamīn School / Supabase only. Do not touch Lamīn Management / Firebase.
+- Latest reviewed areas: `lib/repository.dart`, `lib/biometric_service.dart`, and `lib/main.dart`. No source code was changed in this chat.
+- Student queue review: queued `create_student` replay calls `create_student_with_fee_idempotent`; replay requires a valid Supabase session, school profile, and server availability. RPC errors halt replay and preserve the operation. The exact user-reported failure is not yet diagnosed; inspect the student form submit handler and matching RPC SQL before editing.
+- Device lock review: lifecycle handling locks on pause/hidden; refresh depends on session/offline access and biometric preference. Cause of repeated prompt is not confirmed. Trace state transitions before changing; preserve all authentication safeguards.
+- No CI was run, no APK was built or signed, and no device test was performed in this chat. No production data, main branch, PR merge, or signing material was changed.
+- Next: diagnose both issues from exact current source, implement narrowly scoped fixes with regression tests on this branch, run CI for the resulting HEAD, and only then retrieve and verify a test APK. Commercial signing remains deferred.
+- GitHub integration has read access and has previously successfully committed branch file edits; Actions artifact build/retrieval and APK verification worked in a prior session. Do not claim these were performed in this chat. Signing secrets are not exposed; commercial signing can only use the established approved workflow and existing configured certificate/secrets, and remains on hold.
