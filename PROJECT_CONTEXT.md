@@ -861,3 +861,14 @@ If it fails:
 - Biometric authentication is required for offline entry; preserve this requirement and do not weaken or remove it.
 - User explicitly instructed: make no code changes. This update is documentation-only.
 - Current scope: retain the previously verified progress and avoid further authentication edits unless the user requests them.
+
+
+## USER-REPORTED STATUS — 2026-11-03 (student archive/delete and display)
+
+- Preferred behavior: archive a student with no financial obligations rather than permanently delete them.
+- Registration without a phone number fails both online and offline.
+- Deleting a student with a zero balance fails both online and offline. Investigate replacing this path with archival, while preserving financial/audit history and preventing archive when obligations exist.
+- Date formatting is confirmed working; do not change it.
+- Student names in financial operations appear only after searching; this is currently expected/accepted behavior.
+- Student names in the Students window are always visible; this is currently expected/accepted behavior.
+- These are user-reported results, not independently tested in this session. No code changes, tests, or APK build were performed for these issues.
