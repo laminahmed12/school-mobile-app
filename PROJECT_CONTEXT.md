@@ -461,3 +461,139 @@ When continuing in a new ChatGPT conversation:
 - User asks whether APK building can start from this chat, branch, and reference file. Use the repository's existing CI candidate build workflow for a test APK after code changes and CI pass; retrieve the actual artifact and verify its SHA. Do not claim the artifact is available until checked. Commercial signing remains on hold until the documented offline login, latency, and backup/restore acceptance gates pass. Preserve the old signed APK and certificate; do not generate a new keystore.
 - Current unresolved work remains cold-start airplane-mode login, >30-second operations, and fully offline cache backup/restore acceptance. Preserve working offline student creation and idempotent queue reconciliation.
 - Before handoff, update this file with actual HEAD, CI run conclusions, candidate artifact location/hash, and tests truly run. No unverified status may be written as complete.
+
+
+---
+
+# VERIFIED HANDOVER UPDATE — 2026-11-03 04:20 UTC
+
+This update supersedes older build/CI status entries above where they conflict.
+
+## Current source and CI
+
+- Repository: `laminahmed12/school-mobile-app`.
+- Project: Lamīn School / Supabase only.
+- Branch: `fix/lamin-portal-crud-offline-20261030`.
+- Verified HEAD: `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`.
+- Latest commit: `ci(android): retry and verify NDK install before Gradle build`.
+- Candidate version from `pubspec.yaml`: `2.0.3+15`.
+- Development validation run: **41576326304 — SUCCESS**:
+  https://github.com/laminahmed12/school-mobile-app/actions/runs/41576326304
+
+## Exact CI results
+
+All of these steps passed on HEAD `b0bcc0d...`:
+- Resolve Flutter dependencies.
+- Dart formatting and formatting verification.
+- `flutter analyze --no-pub --fatal-infos --fatal-warnings`.
+- `flutter test --no-pub`.
+- Generate Android platform files and install Lamin native Android identity bridge.
+- Install and verify NDK `27.0.12077973`.
+- Build Android candidate APK.
+- `apksigner verify --verbose`.
+- Verify package identity/version with `aapt dump badging`.
+- Generate SHA-256 and upload both artifacts.
+
+### NDK failure and verified fix
+
+Previous run `41575753475` passed Dart tests but Android build failed because the GitHub runner received a corrupted NDK archive:
+`java.util.zip.ZipException: Archive is not a ZIP archive` while installing `ndk;27.0.12077973`.
+
+Added a step to `.github/workflows/lamin-development-validation.yml` that:
+- Locates `sdkmanager`.
+- Accepts Android SDK licenses.
+- Installs NDK `27.0.12077973` explicitly with up to three attempts.
+- Removes incomplete NDK directory between attempts.
+- Verifies `source.properties` reports exactly the requested revision.
+
+The new NDK step passed on run `41576326304`, and Gradle APK build then completed successfully. Preserve this retry/install step.
+
+## Downloadable APK test candidate
+
+Artifact:
+- Name: `lamin-development-candidate`
+- Artifact ID: `13203379921`
+- Run ID: `41576326304`
+- ZIP name retrieved in this session: `lamin-development-candidate-b0bcc0d.zip`
+- Artifact ZIP SHA-256: `6dd279b1c0fd89d90f3fe14298835e76037815441ab98933176d5d20b22552d5`
+- Retention: until 2026-11-10 04:15:23 UTC (verify current expiration in GitHub before relying on it).
+
+APK path inside artifact ZIP:
+`school-mobile-app/school-mobile-app/build/app/outputs/flutter-apk/app-release.apk`
+
+APK SHA-256 (also recorded in `_temp/lamin-candidate-sha256.txt`):
+`9d7d2336427b71f70cf2edc6b130525a70b7db017e743116a90b4f16e9ac8779`
+
+APK size: 61,973,456 bytes (approximately 60 MiB).
+
+The APK was extracted and the checksum was independently recomputed in the assistant runtime; it matched the workflow-generated checksum exactly.
+
+### Signature and identity verification
+
+The APK was verified locally with the workflow's packaged `apksigner` tool:
+- APK integrity: verified.
+- V1: false.
+- V2: true.
+- V3: false.
+- V3.1/V3.2/V4: false.
+- Signer: `CN=Android Debug, O=Android, C=US`.
+- Debug certificate SHA-256:
+  `8da193dba5a5f18a853ea514e9c592b327c911d2c5438da6068049a9463c1c27`.
+- CI package identity/version verification passed (application ID and pubspec version matched).
+
+This is a **debug-signed test candidate**, not a commercial release. It cannot update the existing production-signed app. Install it only on a separate/empty test device; never uninstall the existing production app just to install this candidate.
+
+## Offline-login device-binding implementation in this candidate
+
+The branch contains:
+- `lib/device_identity.dart`: Flutter method-channel wrapper for device-bound proof.
+- `tooling/android/MainActivity.kt`: native Android Keystore EC key generation/proof implementation, copied into the generated Android project by CI.
+- `lib/offline_credentials.dart`: v3 local identity/credential record; PBKDF2 password verifier plus public-key fingerprint/signature and account/school/license snapshot.
+- Device-bound login remains additional to password verification, school/user matching, active account/school, license/trial, forced-password-change and device-lock checks.
+- Do not use IMEI or a user-entered Android ID. No manually typed device identifier is needed.
+- Device key is non-exportable in Android Keystore. Its public-key fingerprint is used as the device ID, and the app must prove possession of the private key on cold offline login.
+- Android Keystore hardware-backed status is recorded, but it is not a substitute for the full password/school/license checks.
+
+## Remaining acceptance gates — NOT YET VERIFIED ON A PHYSICAL PHONE
+
+User's confirmed prior behavior:
+- Online login works.
+- Operations while an already-open session loses internet work and queue for later sync.
+- Adding a student offline works.
+- Cold-start / force-close / airplane-mode login had failed in earlier builds.
+
+The current candidate is the first build from this device-bound branch with:
+- v3 device-bound identity snapshot validation,
+- PBKDF2 password verifier,
+- Android Keystore public-key fingerprint/signature proof,
+- login form retained until secure credential save and read-back complete,
+- failed credential persistence kept visible instead of routing to the home screen,
+- device-binding regression tests.
+
+**Do not mark cold-start offline login as fixed until a physical-device test confirms it.**
+
+Required device test:
+1. Use a separate test phone or a device without the existing production app/data.
+2. Install the current debug-signed `2.0.3+15` candidate.
+3. Sign in online once with the intended test school/account and confirm the device ID/binding is created and shown.
+4. Force-stop the app (do not merely background it).
+5. Enable airplane mode.
+6. Relaunch and enter the same school code, username, and password.
+7. Confirm offline access succeeds.
+8. Confirm wrong password, different school, and a different device are rejected.
+9. Confirm biometric/device-lock behavior remains intact.
+10. Reconnect and check that normal online session refresh and queued sync work.
+
+Other acceptance gates remain:
+- Investigate >30-second operations across all screens and repository methods.
+- Verify encrypted local backup creation and restoration fully offline.
+- Preserve working offline student creation and idempotent queue replay.
+
+## Commercial release remains ON HOLD
+
+- Existing signed 2.0.3+13 V1+V2+V3 APK and release certificate remain the commercial signing reference (hash and fingerprint documented earlier in this file).
+- Do NOT run `release-signed-apk.yml`, create a GitHub Release, or sign this 2.0.3+15 candidate yet.
+- Do NOT create or replace any keystore.
+- Wait for physical-device offline-login acceptance, slow-operation fixes, local backup/restore acceptance, and all CI checks before preparing the next commercial signed version with the original certificate.
+- Do not change `main`, merge PR #22, or touch production Supabase.
+
