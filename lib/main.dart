@@ -4372,10 +4372,6 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                               value: 'edit',
                               child: Text('تعديل بيانات المعلم'),
                             ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('حذف المعلم'),
-                            ),
                           ],
                         ),
                       ),
