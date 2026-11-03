@@ -12,6 +12,14 @@ const int laminOfflinePbkdf2Iterations = 60000;
 /// Pure structural validation shared by cold-start recovery and unit tests.
 /// Cryptographic ownership is verified separately by Android Keystore.
 bool isValidLaminOfflineIdentityRecord(Map<String, dynamic> saved) {
+  final deviceId = saved['device_id'];
+  final validDeviceId = deviceId is String &&
+      deviceId.length == 64 &&
+      deviceId.codeUnits.every(
+        (value) =>
+            (value >= 48 && value <= 57) ||
+            (value >= 97 && value <= 102),
+      );
   if (saved['version'] != laminOfflineIdentityRecordVersion ||
       saved['user_id'] is! String ||
       (saved['user_id'] as String).trim().isEmpty ||
@@ -30,8 +38,29 @@ bool isValidLaminOfflineIdentityRecord(Map<String, dynamic> saved) {
       saved['iterations'] != laminOfflinePbkdf2Iterations ||
       saved['salt'] is! String ||
       saved['verifier'] is! String ||
-      saved['device_id'] is! String ||
-      !RegExp(r'^[a-f0-9]{64}
+      !validDeviceId ||
+      saved['device_public_key'] is! String ||
+      (saved['device_public_key'] as String).isEmpty ||
+      saved['device_signature'] is! String ||
+      (saved['device_signature'] as String).isEmpty ||
+      saved['device_hardware_backed'] is! bool) {
+    return false;
+  }
+
+  try {
+    final salt = base64Decode(saved['salt'] as String);
+    final verifier = base64Decode(saved['verifier'] as String);
+    final publicKey = base64Decode(saved['device_public_key'] as String);
+    final signature = base64Decode(saved['device_signature'] as String);
+    return salt.length == 16 &&
+        verifier.length == 32 &&
+        publicKey.isNotEmpty &&
+        signature.isNotEmpty;
+  } on FormatException {
+    return false;
+  }
+}
+
 bool shouldShowLoginForm({
   required bool hasAuthenticatedSession,
   required bool offlineAccess,
