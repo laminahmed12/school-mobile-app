@@ -884,3 +884,14 @@ If it fails:
 - No source code, database, or production data was changed for archive/optional-phone work in this session. No tests or APK build were run for these issues.
 - Existing signed reference APK remains `lamin-school-2.0.3-13-v1-v2-v3-signed.apk`, version 2.0.3+13, with certificate fingerprint and SHA-256 documented above. It is a preserved reference, not a build containing current source changes. Commercial signing remains deferred.
 - Next execution: inspect current branch HEAD and PR state; inspect student schema/migrations, RPCs, repository queue replay, and UI filtering; implement archive/unarchive or archive-only according to existing schema, ensure archived students are hidden from active lists but retained in history, make phone optional online/offline; add regression tests; run CI and only then produce a test APK. Do not run production migrations or merge PR #22.
+
+
+## User direction — archive records (2026-11-04)
+- Current task: replace destructive deletion with archiving for students, teachers, and employees.
+- Archived records must be hidden from ordinary active lists and visible only through search inside a dedicated Archive section.
+- User confirmed there is no real or important data in the app; all current records are test data. This permits implementing the requested archive behavior for the test dataset, but does not authorize destructive production database operations.
+- Preserve records and their linked history; do not hard-delete records as part of archive. Include restore only if the existing architecture supports it safely.
+- Inspect schema, foreign keys, RPCs, offline queue/sync, and all relevant list/search screens before changing behavior. Keep archived records out of normal lists and scope archive search to archived records.
+- Continue only on `fix/lamin-portal-crud-offline-20261030` in `laminahmed12/school-mobile-app` (Lamīn School/Supabase). Do not touch Lamīn Management/Firebase, `main`, PR merge state, or production data.
+- The previously recorded HEAD/context may be stale. Re-check the actual branch HEAD before editing and record exact changed files, commit, and checks actually run.
+- No archive implementation or tests have been verified yet as of this note.
