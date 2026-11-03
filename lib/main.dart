@@ -1930,8 +1930,6 @@ class _StudentsViewState extends State<StudentsView> {
                               );
                             } else if (action == 'edit') {
                               await editStudent(s);
-                            } else if (action == 'delete') {
-                              await deleteStudent(s);
                             }
                           },
                           itemBuilder: (_) => [
@@ -1944,11 +1942,7 @@ class _StudentsViewState extends State<StudentsView> {
                                 value: 'edit',
                                 child: Text('تعديل بيانات الطالب'),
                               ),
-                            if (widget.canAdd)
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('حذف الطالب'),
-                              ),
+
                           ],
                         ),
                       ),
@@ -3982,7 +3976,7 @@ class _UserManagementViewState extends State<UserManagementView> {
                             onSelected: (value) {
                               if (value == 'edit') editUser(user: u);
                               if (value == 'active') toggleActive(u);
-                              if (value == 'delete') deleteUser(u);
+                              
                               if (value == 'drive') oneDrive(u);
                             },
                             itemBuilder: (_) => [
@@ -4375,7 +4369,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                         trailing: PopupMenuButton<String>(
                           onSelected: (action) {
                             if (action == 'edit') editTeacher(t);
-                            if (action == 'delete') deleteTeacher(t);
+                            
                           },
                           itemBuilder: (_) => const [
                             PopupMenuItem(
