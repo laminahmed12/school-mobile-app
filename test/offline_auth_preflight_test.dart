@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamin_school/offline_credentials.dart';
 
@@ -33,28 +35,59 @@ void main() {
       );
     });
 
-    test('offline identity snapshot has a separate versioned schema', () {
-      const version = 2;
-      const schoolCode = 'test';
-      const username = 'admin';
-      const requiredIdentityParts = [
-        'user_id',
-        'school_id',
-        'school_code',
-        'username',
-        'profile_active',
-        'must_change_password',
-        'school_active',
-        'licensed',
-        'trial_started_at',
-        'salt',
-        'verifier',
-      ];
-      expect(version, 2);
-      expect(schoolCode, isNotEmpty);
-      expect(username, isNotEmpty);
-      expect(requiredIdentityParts, contains('verifier'));
-      expect(requiredIdentityParts, contains('school_id'));
+    Map<String, dynamic> validDeviceBoundRecord() => {
+      'version': laminOfflineIdentityRecordVersion,
+      'user_id': 'user-1',
+      'school_id': 'school-1',
+      'school_code': 'test',
+      'username': 'admin',
+      'role': 'admin',
+      'profile_active': true,
+      'must_change_password': false,
+      'school_active': true,
+      'licensed': false,
+      'trial_started_at': '2026-11-01T00:00:00.000Z',
+      'salt': base64Encode(List<int>.filled(16, 1)),
+      'verifier': base64Encode(List<int>.filled(32, 2)),
+      'iterations': laminOfflinePbkdf2Iterations,
+      'device_id': List<String>.filled(64, 'a').join(),
+      'device_public_key': base64Encode([1, 2, 3]),
+      'device_signature': base64Encode([4, 5, 6]),
+      'device_hardware_backed': false,
+      'saved_at': '2026-11-03T00:00:00.000Z',
+    };
+
+    test('accepts the current v3 device-bound identity schema', () {
+      expect(
+        isValidLaminOfflineIdentityRecord(validDeviceBoundRecord()),
+        isTrue,
+      );
+    });
+
+    test('rejects legacy v2 records without a Keystore binding', () {
+      final legacy = validDeviceBoundRecord()..['version'] = 2;
+      expect(isValidLaminOfflineIdentityRecord(legacy), isFalse);
+    });
+
+    test('rejects malformed or missing device bindings', () {
+      final malformedId = validDeviceBoundRecord()
+        ..['device_id'] = 'android-id';
+      final missingSignature = validDeviceBoundRecord()
+        ..remove('device_signature');
+      final invalidPublicKey = validDeviceBoundRecord()
+        ..['device_public_key'] = 'not-base64!';
+      expect(isValidLaminOfflineIdentityRecord(malformedId), isFalse);
+      expect(isValidLaminOfflineIdentityRecord(missingSignature), isFalse);
+      expect(isValidLaminOfflineIdentityRecord(invalidPublicKey), isFalse);
+    });
+
+    test('rejects an identity with malformed password verifier material', () {
+      final malformedVerifier = validDeviceBoundRecord()
+        ..['verifier'] = base64Encode([1, 2, 3]);
+      expect(
+        isValidLaminOfflineIdentityRecord(malformedVerifier),
+        isFalse,
+      );
     });
 
     test('offline access remains password-gated', () {
