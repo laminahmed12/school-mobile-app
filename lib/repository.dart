@@ -6,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'models.dart';
-import 'supabase_config.dart';\nimport 'student_creation_rpc.dart';
+import 'supabase_config.dart';
+import 'student_creation_rpc.dart';
 
 class OfflineSyncResult {
   final int synced;
