@@ -3994,10 +3994,6 @@ class _UserManagementViewState extends State<UserManagementView> {
                                 value: 'drive',
                                 child: Text('إدارة صلاحية OneDrive'),
                               ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('حذف المستخدم'),
-                              ),
                             ],
                           ),
                   ),
