@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'models.dart';
-import 'supabase_config.dart';
+import 'supabase_config.dart';\nimport 'student_creation_rpc.dart';
 
 class OfflineSyncResult {
   final int synced;
@@ -359,15 +359,15 @@ class SchoolRepository {
       try {
         if (type == 'create_student') {
           final result = await db.rpc(
-            'create_student_with_fee_idempotent',
-            params: {
-              'p_operation_id': item['operation_id'],
-              'p_name': item['name'],
-              'p_class_name': item['class_name'],
-              'p_phone': item['phone'] ?? '',
-              'p_term_fee': item['term_fee'] ?? 0,
-              'p_term': item['term'] ?? 'الفصل الأول',
-            },
+            studentCreateIdempotentRpc,
+            params: buildStudentCreationRpcParams(
+              operationId: item['operation_id']?.toString() ?? '',
+              name: item['name']?.toString() ?? '',
+              className: item['class_name']?.toString() ?? '',
+              phone: item['phone']?.toString() ?? '',
+              termFee: (item['term_fee'] as num?) ?? 0,
+              term: item['term']?.toString() ?? 'الفصل الأول',
+            ),
           ).timeout(const Duration(seconds: 6));
           final remote = result?.toString() ?? '';
           if (remote.isEmpty) {
@@ -526,7 +526,9 @@ class SchoolRepository {
           synced: synced,
           pending: queue.length,
           failedOperation: type,
-          error: error.toString(),
+          error: isMissingStudentCreationRpc(error)
+              ? studentCreationRpcUnavailableMessage
+              : error.toString(),
         );
       }
     }
@@ -1376,15 +1378,15 @@ class SchoolRepository {
 
     try {
       final result = await db.rpc(
-        'create_student_with_fee_idempotent',
-        params: {
-          'p_operation_id': operationId,
-          'p_name': name.trim(),
-          'p_class_name': className.trim(),
-          'p_phone': phone.trim(),
-          'p_term_fee': termFee,
-          'p_term': term,
-        },
+        studentCreateIdempotentRpc,
+        params: buildStudentCreationRpcParams(
+          operationId: operationId,
+          name: name,
+          className: className,
+          phone: phone,
+          termFee: termFee,
+          term: term,
+        ),
       ).timeout(const Duration(seconds: 5));
 
       final id = result?.toString() ?? '';
@@ -1400,7 +1402,9 @@ class SchoolRepository {
       );
       return id;
     } catch (error) {
-      if (_isNetworkFailure(error)) return queueLocally();
+      if (_isNetworkFailure(error) || isMissingStudentCreationRpc(error)) {
+        return queueLocally();
+      }
       rethrow;
     }
   }

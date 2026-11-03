@@ -3,6 +3,16 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
 
+bool shouldEngageBiometricLockForLifecycle({
+  required AppLifecycleState state,
+  required bool biometricEnabled,
+  required bool hasAuthenticatedAccess,
+}) {
+  final appWentToBackground =
+      state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
+  return appWentToBackground && biometricEnabled && hasAuthenticatedAccess;
+}
+
 class LaminBiometricService {
   static const _enabledKey = 'lamin.biometric.enabled';
   final LocalAuthentication _auth = LocalAuthentication();

@@ -234,6 +234,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool offlineAccess = false;
   bool startupRequiresOfflineCredentialProof = false;
   bool _startupAuthCheckCompleted = false;
+  int _lifecycleLockRevision = 0;
   OnlineLoginPreparationState onlineLoginState =
       OnlineLoginPreparationState.idle;
 
@@ -262,13 +263,36 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _refreshLock();
-    } else if (state == AppLifecycleState.paused ||
+    if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      if ((db.auth.currentSession != null || offlineAccess) && mounted) {
-        setState(() => locked = true);
-      }
+      final revision = ++_lifecycleLockRevision;
+      unawaited(_applyBackgroundLock(state, revision));
+    }
+    // Do not call _refreshLock() on resume. Rechecking a persisted Supabase
+    // session here used to set locked=true again while the biometric flow was
+    // already completing, remounting the lock page and prompting repeatedly.
+  }
+
+  Future<void> _applyBackgroundLock(
+    AppLifecycleState state,
+    int revision,
+  ) async {
+    bool enabled;
+    try {
+      enabled = await security.enabled;
+    } catch (_) {
+      enabled = true;
+    }
+    if (!mounted || revision != _lifecycleLockRevision) return;
+
+    final hasAuthenticatedAccess =
+        db.auth.currentSession != null || offlineAccess;
+    if (shouldEngageBiometricLockForLifecycle(
+      state: state,
+      biometricEnabled: enabled,
+      hasAuthenticatedAccess: hasAuthenticatedAccess,
+    )) {
+      if (!locked) setState(() => locked = true);
     }
   }
 
@@ -431,6 +455,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   }
 
   void _unlock() {
+    _lifecycleLockRevision++;
     if (mounted) setState(() => locked = false);
   }
 
@@ -2137,7 +2162,7 @@ class _StudentsViewState extends State<StudentsView> {
                   return;
                 }
                 try {
-                  await widget.repo.addStudent(
+                  final studentId = await widget.repo.addStudent(
                     name: n.text,
                     className: cl.text,
                     phone: p.text,
@@ -2146,7 +2171,15 @@ class _StudentsViewState extends State<StudentsView> {
                   );
                   if (ctx.mounted) Navigator.pop(ctx);
                   await widget.onChanged();
-                  if (context.mounted && amount > 0) {
+                  if (context.mounted && studentId.startsWith('offline-')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'حُفظ الطالب على الجهاز، وبقيت المزامنة معلّقة حتى يصبح الخادم جاهزًا.',
+                        ),
+                      ),
+                    );
+                  } else if (context.mounted && amount > 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('تم حفظ الطالب ورسوم الفصل الدراسي.'),
