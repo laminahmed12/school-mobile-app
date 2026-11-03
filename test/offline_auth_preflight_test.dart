@@ -5,6 +5,29 @@ import 'package:lamin_school/offline_credentials.dart';
 
 void main() {
   group('cold-start offline authentication contract', () {
+    test('restored Supabase session cannot bypass cold offline password proof', () {
+      expect(
+        shouldShowLoginForm(
+          hasAuthenticatedSession: true,
+          offlineAccess: false,
+          preparingOnlineLogin: false,
+          onlineLoginPreparationFailed: false,
+          requiresOfflineCredentialProof: true,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldShowLoginForm(
+          hasAuthenticatedSession: true,
+          offlineAccess: true,
+          preparingOnlineLogin: false,
+          onlineLoginPreparationFailed: false,
+          requiresOfflineCredentialProof: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('online auth event does not hide login form before verifier is saved', () {
       expect(
         shouldShowLoginForm(

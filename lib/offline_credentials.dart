@@ -68,7 +68,9 @@ bool shouldShowLoginForm({
   required bool offlineAccess,
   required bool preparingOnlineLogin,
   required bool onlineLoginPreparationFailed,
+  bool requiresOfflineCredentialProof = false,
 }) =>
+    requiresOfflineCredentialProof ||
     preparingOnlineLogin ||
     onlineLoginPreparationFailed ||
     (!hasAuthenticatedSession && !offlineAccess);

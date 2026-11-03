@@ -232,12 +232,19 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool checking = true;
   bool mustChangePassword = false;
   bool offlineAccess = false;
+  bool startupRequiresOfflineCredentialProof = false;
+  bool _startupAuthCheckCompleted = false;
   OnlineLoginPreparationState onlineLoginState =
       OnlineLoginPreparationState.idle;
 
   void _setOnlineLoginState(OnlineLoginPreparationState value) {
     if (!mounted) return;
-    setState(() => onlineLoginState = value);
+    setState(() {
+      onlineLoginState = value;
+      if (value == OnlineLoginPreparationState.ready) {
+        startupRequiresOfflineCredentialProof = false;
+      }
+    });
   }
 
   @override
@@ -259,15 +266,33 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       _refreshLock();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      if (db.auth.currentSession != null && mounted)
+      if ((db.auth.currentSession != null || offlineAccess) && mounted) {
         setState(() => locked = true);
+      }
     }
   }
 
   Future<void> _refreshLock() async {
+    final isInitialStartupCheck = !_startupAuthCheckCompleted;
     try {
       final session = db.auth.currentSession;
       final enabled = await security.enabled;
+
+      // A restored Supabase session is not proof of the user's password on a
+      // cold offline start. Detect real internet access before deciding
+      // whether the login form may be skipped.
+      final network = await Connectivity().checkConnectivity().timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () => const <ConnectivityResult>[],
+      );
+      final hasNetwork = network.any(
+        (item) => item != ConnectivityResult.none,
+      );
+      final hasInternet = hasNetwork && await _hasInternetConnection().timeout(
+        const Duration(milliseconds: 1500),
+        onTimeout: () => false,
+      );
+
       final repo = SchoolRepository(widget.prefs);
       final rememberedId = session?.user.id ??
           await const FlutterSecureStorage().read(
@@ -279,45 +304,51 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         cached = await repo.cachedProfileForUser(rememberedId);
       }
 
-      // A signed-in online session can refresh a missing cache. This is only
-      // a fallback; offline startup never waits for a network probe.
-      if (session != null && cached == null) {
+      // Never make an offline cold start wait on a remote profile request.
+      if (hasInternet && session != null && cached == null) {
         cached = await repo.profile().timeout(
           const Duration(seconds: 5),
           onTimeout: () => repo.cachedProfileForUser(session.user.id),
         );
       }
 
-      // Keep the login form visible on cold start; it requires a password proof.
-      // Offline access is activated only by LoginPage after PBKDF2 verification.
-      const canOpenOffline = false;
-
+      // Offline access is granted only after LoginPage verifies the device,
+      // password, school, profile, license/trial and biometric requirements.
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
           cached?.mustChangePassword == true;
       if (!mounted) return;
       setState(() {
         checking = false;
-        offlineAccess = canOpenOffline;
-        locked = (session != null || canOpenOffline) && enabled;
+        if (isInitialStartupCheck) {
+          offlineAccess = false;
+          startupRequiresOfflineCredentialProof = !hasInternet;
+        }
+        locked = (session != null || offlineAccess) && enabled;
         mustChangePassword = forcePassword && session != null;
       });
+      _startupAuthCheckCompleted = true;
     } catch (error) {
       debugPrint('AuthGate cache restore failed: $error');
       if (!mounted) return;
       var keepBiometricLock = false;
       try {
         keepBiometricLock =
-            db.auth.currentSession != null && await security.enabled;
+            (db.auth.currentSession != null || offlineAccess) &&
+            await security.enabled;
       } catch (_) {}
-      // Do not strand a valid Supabase session on a startup cache exception,
-      // and do not bypass an already-enabled biometric lock.
+      // Fail closed: an uncertain cold-start network state must not let a
+      // restored session bypass the offline password/device proof.
       setState(() {
         checking = false;
-        offlineAccess = false;
+        if (isInitialStartupCheck) {
+          offlineAccess = false;
+          startupRequiresOfflineCredentialProof = true;
+        }
         locked = keepBiometricLock;
         mustChangePassword = false;
       });
+      _startupAuthCheckCompleted = true;
     }
   }
 
@@ -387,6 +418,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (!mounted) return 'تعذر استعادة جلسة التطبيق.';
       setState(() {
         offlineAccess = true;
+        startupRequiresOfflineCredentialProof = false;
+        _startupAuthCheckCompleted = true;
         locked = enabled;
         mustChangePassword = false;
       });
@@ -412,6 +445,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
             onlineLoginState == OnlineLoginPreparationState.preparing,
         onlineLoginPreparationFailed:
             onlineLoginState == OnlineLoginPreparationState.failed,
+        requiresOfflineCredentialProof:
+            startupRequiresOfflineCredentialProof,
       )) {
         return LoginPage(
           prefs: widget.prefs,

@@ -806,3 +806,18 @@ If it fails:
 - Never claim the commercial release was signed or published while release signing is deferred.
 - Final reports in Arabic, concise, with actual changes, CI/build results, and the one concrete phone test or blocker.
 
+
+
+---
+
+## IMPLEMENTATION UPDATE — 2026-11-03
+
+- Re-inspected branch HEAD `d088214eb16b46bc32ab1297d4c4f821fa84e474`, PR #22, and the completed candidate workflow.
+- Identified a cold-start authentication gate defect: `shouldShowLoginForm` hid the login form whenever a persisted Supabase session existed, even when the device had no internet. This could bypass the required password/device-bound offline verification on a cold start.
+- Updated `AuthGate` to classify actual internet availability during its initial restore. When offline (or when connectivity classification fails), a restored session now remains behind the login form until the offline password/device proof succeeds. The cold offline path no longer waits for a remote profile fetch.
+- Kept online session behavior when internet is available. Successful online login clears the startup proof gate only after the existing local-credential preparation succeeds.
+- Successful offline authentication still requires the v3 Android Keystore signature, matching device/public key, PBKDF2 password, matching school/user, active profile and school, valid license/trial, and biometric lock.
+- App pause/hidden now also reapplies biometric lock to an offline-authenticated session even when there is no live Supabase session.
+- Added a regression test proving that a restored Supabase session cannot hide the login form during an offline cold start, and that the form can close after offline proof succeeds.
+- The previously completed candidate `2.0.3+15` remains unchanged: CI run `41577403383` succeeded for source commit `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`; downloaded APK SHA-256 verified as `413b6a5aac6603a798f7f1fe247f5214b880e8b87cf8d78c9c9334b58cab6e49`. Its only successor commit before this change updated this context file.
+- This new source change is not yet validated by CI. Physical-device cold-start acceptance remains pending. Commercial signing remains on hold.
