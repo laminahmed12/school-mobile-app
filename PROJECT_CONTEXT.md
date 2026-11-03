@@ -7,8 +7,8 @@
 - Active working branch: `fix/lamin-portal-crud-offline-20261030`.
 - Active pull request: #22 — https://github.com/laminahmed12/school-mobile-app/pull/22
 - PR is currently **open and unmerged**. Keep it that way unless the user explicitly authorizes a merge.
-- Latest branch HEAD checked while updating this file: `d52e0c3b19b2be0eaed02e9f410d6f785569abc1`.
-- Current app version in `pubspec.yaml`: `2.0.3+14`. This is a source/build target, NOT evidence that a 2.0.3+14 APK has passed CI or has been signed.
+- Latest branch HEAD checked while updating this file: `8356ff858e6e1d6fe72e7eb439582a14e226d412` (this latest commit only updates this context document; the candidate code was built and validated on its parent code commit `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`).
+- Current app version in `pubspec.yaml`: `2.0.3+15`. A debug-signed test candidate for this version was built successfully by GitHub Actions; it is not the commercial release signature.
 
 ## Critical existing signed release — preserve this signing identity
 A real signed APK already exists and was verified previously. Do not restart signing setup or create a replacement keystore.
@@ -596,4 +596,213 @@ Other acceptance gates remain:
 - Do NOT create or replace any keystore.
 - Wait for physical-device offline-login acceptance, slow-operation fixes, local backup/restore acceptance, and all CI checks before preparing the next commercial signed version with the original certificate.
 - Do not change `main`, merge PR #22, or touch production Supabase.
+
+
+
+---
+
+# AUTHORITATIVE HANDOVER — 2026-11-03 (LATEST VERIFIED STATE)
+
+This section supersedes any older HEAD, source version, candidate build, and offline-device-login status recorded earlier in this file.
+
+## 1. Exact project and Git state
+
+- Repository: `laminahmed12/school-mobile-app`.
+- Project: **Lamīn School / Supabase only**.
+- Working branch: `fix/lamin-portal-crud-offline-20261030`.
+- Latest verified branch HEAD: `8356ff858e6e1d6fe72e7eb439582a14e226d412`.
+- Latest HEAD commit message: `docs(context): record device-bound candidate build and NDK recovery`.
+- The latest HEAD commit changes only `PROJECT_CONTEXT.md`; the source code built into the latest candidate is from parent commit `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`.
+- PR #22 remains **OPEN and UNMERGED**. Do not merge, close, or retarget it.
+- PR base and all branch/prod boundaries remain as recorded earlier.
+- `pubspec.yaml` version: `2.0.3+15`.
+- No production Supabase migration or production data change was made.
+
+## 2. Existing commercial signed APK — preserve it
+
+A commercial signed APK already exists and was verified in the earlier session:
+
+- Filename: `lamin-school-2.0.3-13-v1-v2-v3-signed.apk`.
+- Version: `2.0.3+13`.
+- Signing schemes: V1 + V2 + V3.
+- Release certificate SHA-256 fingerprint:
+  `7B:9C:F1:1E:AF:AB:48:01:BE:68:21:D6:92:ED:AE:34:75:61:8F:CB:51:BE:21:86:B0:F5:86:6B:24:41:88:1A`.
+- Existing APK SHA-256:
+  `f0d4dc99410bcd741386ecd69da040f72bbe16754ba82af00f0af744ac97f7da`.
+
+This is the existing commercial signing reference, NOT the current code candidate. Never create a new keystore or replace the certificate. Do not ask the user to upload the existing key or enter secrets again unless a real release run later proves a missing setting.
+
+## 3. Latest successful APK build — verified and downloadable
+
+GitHub Actions workflow:
+`.github/workflows/lamin-development-validation.yml`
+
+Successful run:
+https://github.com/laminahmed12/school-mobile-app/actions/runs/41577403383
+
+- Run ID: `41577403383`.
+- Run number: `463`.
+- Candidate code commit: `b0bcc0d3f8955fed292a9ceabf33df7f6353e72c`.
+- Workflow conclusion: **SUCCESS**.
+- Job: `validate`, conclusion **SUCCESS**.
+
+All steps passed:
+1. Resolve dependencies.
+2. Format Dart sources.
+3. Verify Dart formatting.
+4. Static analysis (`flutter analyze --no-pub --fatal-infos --fatal-warnings`).
+5. Automated tests (`flutter test --no-pub`).
+6. Generate Android platform files and install Lamin native identity bridge.
+7. Install and verify NDK `27.0.12077973`.
+8. Build Android candidate APK.
+9. Verify candidate APK signature and application ID/version.
+10. Package/upload the Android signing toolchain.
+11. Upload candidate APK and SHA-256.
+
+### Actual candidate Artifact
+
+- Artifact name: `lamin-development-candidate`.
+- Artifact ID: `13204806929`.
+- Run ID: `41577403383`.
+- Artifact ZIP digest: `sha256:de471a33b3813032dffa972ad3193ede4b6b2b750f6113abf8aea790c4f68867`.
+- Expiration: `2026-11-10T04:27:33Z` (check GitHub for current expiration before download).
+- APK path inside ZIP:
+  `school-mobile-app/school-mobile-app/build/app/outputs/flutter-apk/app-release.apk`.
+- APK size: `61,973,456` bytes.
+- Independently verified APK SHA-256:
+  `413b6a5aac6603a798f7f1fe247f5214b880e8b87cf8d78c9c9334b58cab6e49`.
+- The SHA-256 computed from the extracted APK matched `_temp/lamin-candidate-sha256.txt` exactly.
+
+### Candidate signature classification
+
+This is a **debug-signed testing APK**, not a commercial release.
+
+Locally verified using the packaged `apksigner` from Artifact `13205120942`:
+- APK integrity: verified.
+- V1: false.
+- V2: true.
+- V3: false.
+- V3.1/V3.2/V4: false.
+- Signer: `CN=Android Debug, O=Android, C=US`.
+- Debug certificate SHA-256:
+  `d129a241808012b9f0f8f1e34d8e40f66ba16e93b4eb902b7043ad8386ae698c`.
+
+Never present it as V1/V2/V3 release-signed. It cannot update the existing production-signed app. Use a separate/empty test phone; do not uninstall the existing production app to install this candidate, because that may delete local data.
+
+### How to build and obtain another test APK directly from this ChatGPT conversation
+
+The connected GitHub access has already been used successfully in this conversation to edit the branch, inspect GitHub Actions, download the candidate Artifact, extract the APK, and verify its checksum/signature. Continue doing this directly; do not ask the user to build locally.
+
+For any new source changes:
+1. Commit them only to `fix/lamin-portal-crud-offline-20261030`.
+2. GitHub Actions runs `Lamin development validation` for the branch/PR.
+3. Inspect the run corresponding to the exact source HEAD and require all steps above to pass.
+4. Download Artifact `lamin-development-candidate` from that run, not `lamin-apksigner-toolchain`.
+5. Extract `app-release.apk` from the path above.
+6. Recompute SHA-256 and compare it with `_temp/lamin-candidate-sha256.txt`.
+7. Verify package name/version with `aapt dump badging` and signature with `apksigner verify --verbose --print-certs`.
+8. Give the user the actual APK file/link only after the exact file was retrieved and verified.
+
+The workflow's current build command and NDK recovery step are documented in the prior sections. Preserve Java 17, Flutter 3.35.4, and explicit NDK 27.0.12077973 retry/install verification.
+
+## 4. Offline login — current implementation includes device binding
+
+User's requested requirement: **offline entry must be tied to the device identity registered during a successful online login**. Keep it as a mandatory part of offline authentication.
+
+The current source contains:
+
+- `lib/device_identity.dart`: Flutter interface to the native Android device-key service.
+- `tooling/android/MainActivity.kt`: native Android Keystore implementation.
+- `lib/offline_credentials.dart`: v3 secure offline identity record with password verifier and device binding.
+- `lib/main.dart`: cold-start prefill, offline verification, failure messages, and visible enrolled device identifier.
+- `test/offline_auth_preflight_test.dart` and other device-binding tests: structural and authentication regression checks.
+- `.github/workflows/lamin-development-validation.yml`: copies the native identity bridge into generated Android project files before building.
+
+### Device ID design in the current candidate
+
+- Android Keystore creates a non-exportable EC `secp256r1` key pair for the app installation.
+- The displayed device identifier is SHA-256 of the public key (64 lowercase hexadecimal characters; UI displays it as a selectable identifier).
+- The raw private key never leaves Android Keystore.
+- The local v3 identity record binds: Supabase user ID, school ID/code, username/role, active profile, forced-password-change state, school active/license/trial snapshot, PBKDF2 verifier, device ID, public key, and a signature over the binding challenge.
+- Offline login requires the same device key/public key and valid challenge signature, then checks school/user, password, active status, license/trial, and device-lock/biometric state.
+- This is an app-scoped Keystore key identity, not IMEI and not a manually typed Android ID.
+- The login UI displays the registered device identifier after online enrollment. The offline flow obtains and checks it automatically; do not treat the displayed identifier by itself as an authentication secret.
+- Do not replace this design with a user-entered IMEI or publicly readable Android ID.
+- Do not log private key material, passwords, PBKDF2 verifier, or complete sensitive identifiers to CI logs.
+
+The user asked for a device-ID requirement because previous offline login attempts failed. Treat device binding as an additional factor; do not remove password verification or account/school/license restrictions.
+
+## 5. Current user-observed behavior and what is still unverified
+
+Confirmed by the user:
+- Online login succeeds.
+- If the app is already open and the internet disconnects, it continues working; offline changes are retained and can sync after reconnecting.
+- Adding a student offline works.
+- Cold-start / close-and-reopen login in airplane mode failed on the earlier 2.0.3+14 candidate, even after an online login.
+
+The latest 2.0.3+15 candidate adds the device-bound Keystore identity and the v3 secure record. It has passed CI and was built successfully, but **the user has not yet confirmed cold-start offline login on a physical device using this latest 2.0.3+15 candidate**. Never state that offline login is fixed until that test passes.
+
+### Required physical-device test for 2.0.3+15
+
+Use a separate/empty test phone because the candidate has a debug signature different from the existing commercial signed app:
+
+1. Install the latest 2.0.3+15 candidate.
+2. Connect to the internet.
+3. Sign in with the intended test school/account.
+4. Verify that the UI shows the enrolled device ID and that the app completes online login.
+5. Force-stop the app completely.
+6. Turn on airplane mode.
+7. Relaunch the app.
+8. Enter the same school code, username and password; press `متابعة دون اتصال`.
+9. Verify that the same device-bound key/ID is accepted and the dashboard opens.
+10. Try a wrong password, another school code, and (if available) another device; each must be rejected.
+11. Confirm active profile/school, trial/license, required password change, and device lock remain enforced.
+12. Reconnect and verify online session refresh and pending sync.
+
+If it fails:
+- Capture the exact error shown on screen and whether the device ID appears.
+- Inspect the v3 identity read/write path, Android Keystore alias availability, native MethodChannel wiring, identity fingerprint, challenge signing/verification, and app lifecycle.
+- Do not ask the user to repeat old 2.0.3+14 tests.
+- Fix directly on the same branch, add a regression test, rerun CI, and build another candidate through GitHub Actions.
+- Do not require the user to type the ID manually unless a clear product requirement remains; the secure design should fetch it and verify possession automatically.
+
+## 6. Other unresolved work
+
+- Cold-start offline login physical-device acceptance: **pending**.
+- Operations previously taking 30+ seconds: audit all screens/repository/RPC paths; target fast local feedback and bounded server waits; preserve idempotency.
+- Encrypted cache-only local backup creation/restoration in full airplane mode: physical-device acceptance pending.
+- Preserve working offline student addition and the existing offline operation queue/idempotent replay.
+- Do not confuse CI success with physical acceptance.
+
+## 7. Commercial signing is explicitly deferred
+
+- Existing commercial signed APK 2.0.3+13 remains the signing reference (details above and earlier in this file).
+- Do NOT run `release-signed-apk.yml`, sign 2.0.3+15, publish a new GitHub Release, or modify signing secrets now.
+- The next commercial version must use the SAME existing release certificate and a version code greater than 13, after all offline-login, latency, backup/restore, and physical-phone acceptance gates pass.
+- Do not create a replacement keystore.
+- Do not uninstall the commercial app or risk its local data to test a debug APK.
+
+## 8. Exact instructions for the next ChatGPT conversation
+
+1. Read this entire `PROJECT_CONTEXT.md` from branch `fix/lamin-portal-crud-offline-20261030` first.
+2. Fetch the actual current branch HEAD; the HEAD above is the reference at handoff and may advance after this documentation commit.
+3. Verify PR #22 is still open/unmerged.
+4. Inspect current code and the latest GitHub Actions run for the exact HEAD. Do not repeat successful work from older commits.
+5. Continue only on `fix/lamin-portal-crud-offline-20261030`. Never switch to Lamīn Management/Firebase.
+6. Treat the current successful 2.0.3+15 candidate and Artifact `13204806929` as the latest available test build; download it from run `41577403383` if still unexpired. Do not rebuild unchanged source merely to repeat a completed build.
+7. Prioritize the user's physical test result for cold-start offline login with device-ID binding. If it fails, fix the reason directly, add tests, and build another test APK using the documented GitHub Actions artifact route.
+8. Then fix/verify >30-second operations and fully offline local backup/restore.
+9. Preserve offline student addition, queue idempotency, device-bound authorization, password verification, license/trial rules, school/user isolation, and biometric/device lock.
+10. Keep commercial signing on hold until all acceptance gates pass. Preserve the existing signed 2.0.3+13 certificate and never generate a new keystore.
+11. Keep PR #22 open/unmerged; do not touch `main`, production Supabase, or Lamīn Management/Firebase.
+12. Update this file with exact commits, CI run IDs, artifact IDs, checksums, and actual phone-test results after each verified milestone.
+
+## 9. Communication and execution
+
+- Work directly; do not replace implementation with a plan or repetitive manual instructions.
+- Do not ask the user to re-upload files or repeat already-confirmed information.
+- Use the existing GitHub connection to inspect, edit, build through Actions, retrieve candidate APKs, and verify them from this conversation when available.
+- Never claim offline login works until the latest candidate passes the physical-device cold-start airplane-mode test.
+- Never claim the commercial release was signed or published while release signing is deferred.
+- Final reports in Arabic, concise, with actual changes, CI/build results, and the one concrete phone test or blocker.
 
