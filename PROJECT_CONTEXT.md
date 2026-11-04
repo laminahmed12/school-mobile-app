@@ -922,3 +922,12 @@ Use these as standing execution instructions for future sessions:
 
 > **أمر الاستئناف:** اقرأ `PROJECT_CONTEXT.md` من مستودع `laminahmed12/school-mobile-app` أولًا، ثم تحقق من HEAD الفعلي والفرع `fix/lamin-portal-crud-offline-20261030` وحالة PR #22 وآخر Actions. نفّذ مباشرةً دون طلب معلومات موجودة في الملفات أو الأدوات. أكمل أرشفة الطلاب والمعلمين والموظفين فقط: أزل خيار الحذف النهائي ومسارات DELETE، حافظ على السجلات والعلاقات، أخفِ المؤرشف من القوائم النشطة، واجعل البحث عنه داخل قسم الأرشيف فقط، وأضف الاستعادة إذا دعمها المخطط بأمان. افحص المخطط وRPCs والـ offline queue قبل التعديل، وأضف اختبارات، ثم شغّل CI وابنِ APK اختبار عبر المسار المتاح بعد نجاح الفحوصات. لا توقّع إصدارًا تجاريًا الآن، ولا تغيّر main أو تدمج PR أو تمس الإنتاج أو الأسرار. حدّث هذا الملف بنتائج مؤكدة فقط. في التقرير النهائي اذكر التعديلات والفحوصات الفعلية وحالة APK وما يلزم اختباره على الهاتف؛ لا تدّع نجاحًا غير متحقق.
 
+
+
+## USER REQUEST — 2026-11-04 (documentation-first checkpoint)
+
+- User explicitly requested that this canonical file be updated first, before continuing implementation.
+- Confirmed current task remains archive-only lifecycle for students, teachers, and employees: remove permanent-delete UI and direct DELETE paths; preserve records/relationships; hide archived records from active lists; discover archived records only through search in the dedicated Archive section; add restore only where safely supported by schema/RPCs and offline sync.
+- Work remains limited to `fix/lamin-portal-crud-offline-20261030` in this repository. Do not modify production, secrets, `main`, or PR merge state; commercial signing remains deferred.
+- This checkpoint is documentation-only. No application source, database, workflow, or APK was changed or tested as part of this file update.
+- Re-check actual branch HEAD and PR/Actions state before code edits; do not treat the historical commit/run information above as current unless independently verified.
