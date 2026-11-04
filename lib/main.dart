@@ -2027,7 +2027,7 @@ class _StudentsViewState extends State<StudentsView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('إدارة سجل الطالب'),
-        content: Text('اختر أرشفة السجل مع الاحتفاظ بتاريخه، أو الحذف النهائي.'),
+        content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -2037,28 +2037,10 @@ class _StudentsViewState extends State<StudentsView> {
             onPressed: () => Navigator.pop(ctx, 'archive'),
             child: const Text('أرشفة'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'delete'),
-            child: const Text('حذف نهائي'),
-          ),
         ],
       ),
     );
     if (action == null) return;
-    if (action == 'delete') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('تأكيد الحذف النهائي'),
-          content: Text('سيُحذف سجل الطالب «${student.name}» نهائيًا إذا سمحت علاقات قاعدة البيانات بذلك.'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف نهائي')),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-    }
     try {
       if (action == 'archive') {
         await db.rpc('archive_person', params: {
@@ -2067,12 +2049,9 @@ class _StudentsViewState extends State<StudentsView> {
           'p_reason': 'other',
           'p_note': '',
         });
-      } else {
-        await db.from('students').delete().eq('id', student.id);
-      }
       await widget.onChanged();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(action == 'archive' ? 'تمت أرشفة السجل.' : 'تم الحذف النهائي.')),
+        const SnackBar(content: Text('تمت أرشفة السجل.')),
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -4158,7 +4137,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('إدارة سجل المعلم'),
-        content: Text('اختر أرشفة السجل مع الاحتفاظ بتاريخه، أو الحذف النهائي.'),
+        content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -4167,10 +4146,6 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'archive'),
             child: const Text('أرشفة'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'delete'),
-            child: const Text('حذف نهائي'),
           ),
         ],
       ),
@@ -4204,7 +4179,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
       await load();
       await widget.onChanged();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(action == 'archive' ? 'تمت أرشفة السجل.' : 'تم الحذف النهائي.')),
+        const SnackBar(content: Text('تمت أرشفة السجل.')),
       );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
