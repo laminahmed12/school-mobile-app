@@ -901,3 +901,24 @@ If it fails:
 - The owner delegates routine implementation and repair decisions for Lamīn School to the assistant; proceed without approval for each ordinary step and report only verified work.
 - Scope remains this repository and branch `fix/lamin-portal-crud-offline-20261030`. Do not switch to Lamīn Management/Firebase, change `main`, merge PRs, alter production data/configuration/secrets, or perform destructive database operations without explicit authorization.
 - Data lifecycle policy: archive/restore only; no hard-delete action or UI option for students, teachers, or employees. Preserve records and relationships. Exclude archived records from active lists; provide discovery through the dedicated archive search.
+
+
+## VERIFIED SESSION UPDATE — 2026-11-04 (archive action UI and CI syntax correction)
+
+- Repository/branch: `laminahmed12/school-mobile-app`, `fix/lamin-portal-crud-offline-20261030`. Project is Lamīn School / Supabase only.
+- This session added an action chooser to student and teacher record handlers in `lib/main.dart`: archive calls the existing `archive_person` RPC; permanent deletion remains available behind a second confirmation. Both actions refresh the relevant view and report errors.
+- The first edit accidentally produced duplicate declarations (`Future<void> Future<void> deleteStudent` and the equivalent teacher declaration). GitHub Actions formatting validation caught this exact syntax error. The duplicate return-type text was removed in a follow-up commit.
+- Fix commit: `6e5d098a245ad561b54f1265bedc1b11dd61b390`. File blob verified by re-fetch: `d9b29b70115f049b991b324fb741129fbec50545`. The source now contains one declaration for each handler and no duplicated `Future<void>` sequence.
+- CI state for the fix commit: no workflow runs were returned by the commit-workflow lookup. Do not claim format, analyze, tests, or APK build passed for this commit. No APK was built or downloaded in this session.
+- IMPORTANT SCOPE MISMATCH: the latest user direction in this context requires archive/restore only and explicitly forbids any hard-delete action or UI option for students, teachers, or employees. The current handlers still expose “حذف نهائي” and still contain direct DELETE calls. This is NOT compliant and must be removed before considering the archive task complete.
+- Also not completed/verified: employee archive path; dedicated archive section and archived-only search; exclusion of archived records from active lists; restore UI/flow; archive reason/note handling; offline queue semantics; regression tests; full CI; test APK build and physical-device acceptance. No production Supabase changes were made.
+- Next: remove permanent-delete options and direct hard-delete paths for student/teacher; inspect and implement the same archive-only lifecycle for employees; connect archive filtering/search/restore to the existing schema and RPCs; add tests; run the branch CI and obtain a test APK only from a successful matching HEAD. Keep commercial signing deferred and do not change production or secrets.
+
+## Fixed execution permissions and working prompt
+
+Use these as standing execution instructions for future sessions:
+
+> **صلاحيات التنفيذ الثابتة:** لدي اتصال GitHub مُخوّل بمستودع `laminahmed12/school-mobile-app`. افحص الأدوات المتاحة واستخدمها مباشرةً لقراءة الملفات وتعديل الفرع المحدد وتشغيل فحوصات GitHub Actions وبناء APK عبر مسار البناء الموجود في المستودع. لا تفترض غياب الصلاحية أو القدرة قبل فحص الأدوات والـ workflows. لا تغيّر الإنتاج أو الأسرار. إذا تعذّر إجراء محدد بعد تجربة المسارات المتاحة، اذكر العائق الفعلي فقط، ولا تعمّم العجز على بقية الصلاحيات.
+
+> **أمر الاستئناف:** اقرأ `PROJECT_CONTEXT.md` من مستودع `laminahmed12/school-mobile-app` أولًا، ثم تحقق من HEAD الفعلي والفرع `fix/lamin-portal-crud-offline-20261030` وحالة PR #22 وآخر Actions. نفّذ مباشرةً دون طلب معلومات موجودة في الملفات أو الأدوات. أكمل أرشفة الطلاب والمعلمين والموظفين فقط: أزل خيار الحذف النهائي ومسارات DELETE، حافظ على السجلات والعلاقات، أخفِ المؤرشف من القوائم النشطة، واجعل البحث عنه داخل قسم الأرشيف فقط، وأضف الاستعادة إذا دعمها المخطط بأمان. افحص المخطط وRPCs والـ offline queue قبل التعديل، وأضف اختبارات، ثم شغّل CI وابنِ APK اختبار عبر المسار المتاح بعد نجاح الفحوصات. لا توقّع إصدارًا تجاريًا الآن، ولا تغيّر main أو تدمج PR أو تمس الإنتاج أو الأسرار. حدّث هذا الملف بنتائج مؤكدة فقط. في التقرير النهائي اذكر التعديلات والفحوصات الفعلية وحالة APK وما يلزم اختباره على الهاتف؛ لا تدّع نجاحًا غير متحقق.
+
