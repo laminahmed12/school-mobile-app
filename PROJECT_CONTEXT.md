@@ -895,3 +895,9 @@ If it fails:
 - Continue only on `fix/lamin-portal-crud-offline-20261030` in `laminahmed12/school-mobile-app` (Lamīn School/Supabase). Do not touch Lamīn Management/Firebase, `main`, PR merge state, or production data.
 - The previously recorded HEAD/context may be stale. Re-check the actual branch HEAD before editing and record exact changed files, commit, and checks actually run.
 - No archive implementation or tests have been verified yet as of this note.
+
+
+## Delegated project execution (2026-11-04)
+- The owner delegates routine implementation and repair decisions for Lamīn School to the assistant; proceed without approval for each ordinary step and report only verified work.
+- Scope remains this repository and branch `fix/lamin-portal-crud-offline-20261030`. Do not switch to Lamīn Management/Firebase, change `main`, merge PRs, alter production data/configuration/secrets, or perform destructive database operations without explicit authorization.
+- Data lifecycle policy: archive/restore only; no hard-delete action or UI option for students, teachers, or employees. Preserve records and relationships. Exclude archived records from active lists; provide discovery through the dedicated archive search.
