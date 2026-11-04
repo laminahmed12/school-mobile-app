@@ -2022,47 +2022,68 @@ class _StudentsViewState extends State<StudentsView> {
     }
   }
 
-  Future<void> deleteStudent(Student student) async {
-    final ok = await showDialog<bool>(
+  Future<void> Future<void> deleteStudent(Student student) async {
+    final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف الطالب'),
-        content: Text(
-          'سيُحذف سجل الطالب «${student.name}» إذا سمحت علاقات قاعدة البيانات بذلك. قد تمنع سجلات الحضور والدرجات والمدفوعات الحذف لحماية التاريخ.',
-        ),
+        title: const Text('إدارة سجل الطالب'),
+        content: Text('اختر أرشفة السجل مع الاحتفاظ بتاريخه، أو الحذف النهائي.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('إلغاء'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'archive'),
+            child: const Text('أرشفة'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف الطالب'),
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Text('حذف نهائي'),
           ),
         ],
       ),
     );
-    if (ok != true) return;
+    if (action == null) return;
+    if (action == 'delete') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تأكيد الحذف النهائي'),
+          content: Text('سيُحذف سجل الطالب «${student.name}» نهائيًا إذا سمحت علاقات قاعدة البيانات بذلك.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف نهائي')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
     try {
-      await db.from('students').delete().eq('id', student.id);
+      if (action == 'archive') {
+        await db.rpc('archive_person', params: {
+          'p_kind': 'student',
+          'p_id': student.id,
+          'p_reason': 'other',
+          'p_note': '',
+        });
+      } else {
+        await db.from('students').delete().eq('id', student.id);
+      }
       await widget.onChanged();
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تم حذف الطالب.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(action == 'archive' ? 'تمت أرشفة السجل.' : 'تم الحذف النهائي.')),
+      );
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم يُحذف الطالب؛ قد تكون له سجلات مرتبطة. احتفظ بسجلاته وأرشفه بدل الحذف. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
-            ),
-          ),
-        );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر تنفيذ العملية: ${friendlyError(e, fallback: 'تحقق من صلاحياتك والسجلات المرتبطة.')}')),
+      );
+    } finally {
+      
     }
   }
 
-  Future<void> addStudent(BuildContext context) async {
+addStudent(BuildContext context) async {
     final n = TextEditingController(),
         cl = TextEditingController(),
         p = TextEditingController(),
@@ -4132,47 +4153,69 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     }
   }
 
-  Future<void> deleteTeacher(Teacher teacher) async {
-    final ok = await showDialog<bool>(
+  Future<void> Future<void> deleteTeacher(Teacher teacher) async {
+    final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف المعلم'),
-        content: Text(
-          'سيُحذف سجل «${teacher.name}» إذا لم تكن له سجلات رواتب أو حضور مرتبطة. ستمنع قاعدة البيانات الحذف عند وجود علاقات تحمي السجل التاريخي.',
-        ),
+        title: const Text('إدارة سجل المعلم'),
+        content: Text('اختر أرشفة السجل مع الاحتفاظ بتاريخه، أو الحذف النهائي.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('إلغاء'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'archive'),
+            child: const Text('أرشفة'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف المعلم'),
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Text('حذف نهائي'),
           ),
         ],
       ),
     );
-    if (ok != true) return;
+    if (action == null) return;
+    if (action == 'delete') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تأكيد الحذف النهائي'),
+          content: Text('سيُحذف سجل المعلم «${teacher.name}» نهائيًا إذا سمحت علاقات قاعدة البيانات بذلك.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف نهائي')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
     try {
-      setState(() => saving = true);
-      await db.from('teachers').delete().eq('id', teacher.id);
+      if (action == 'archive') {
+        await db.rpc('archive_person', params: {
+          'p_kind': 'teacher',
+          'p_id': teacher.id,
+          'p_reason': 'other',
+          'p_note': '',
+        });
+      } else {
+        await db.from('teachers').delete().eq('id', teacher.id);
+      }
       await load();
       await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(action == 'archive' ? 'تمت أرشفة السجل.' : 'تم الحذف النهائي.')),
+      );
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم يُحذف المعلم؛ قد تكون له سجلات رواتب أو سنوات دراسية. أرشفه للحفاظ على التاريخ. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
-            ),
-          ),
-        );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر تنفيذ العملية: ${friendlyError(e, fallback: 'تحقق من صلاحياتك والسجلات المرتبطة.')}')),
+      );
     } finally {
       if (mounted) setState(() => saving = false);
     }
   }
 
-  Future<void> addTeacher() async {
+addTeacher() async {
     final name = TextEditingController();
     final subject = TextEditingController();
     final phone = TextEditingController();
