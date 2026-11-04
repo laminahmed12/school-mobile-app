@@ -2022,7 +2022,7 @@ class _StudentsViewState extends State<StudentsView> {
     }
   }
 
-  Future<void> Future<void> deleteStudent(Student student) async {
+  Future<void> deleteStudent(Student student) async {
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -4153,7 +4153,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     }
   }
 
-  Future<void> Future<void> deleteTeacher(Teacher teacher) async {
+  Future<void> deleteTeacher(Teacher teacher) async {
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
