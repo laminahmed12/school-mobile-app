@@ -14,6 +14,7 @@ drop policy if exists teachers_owner_delete on public.teachers;
 drop policy if exists staff_write on public.staff;
 drop policy if exists staff_insert on public.staff;
 drop policy if exists staff_update on public.staff;
+drop policy if exists staff_delete on public.staff;
 
 create policy staff_insert on public.staff for insert to authenticated
   with check (school_id = private.my_school() and private.my_role() = any (array['admin','owner']));
