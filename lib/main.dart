@@ -2029,26 +2029,19 @@ class _StudentsViewState extends State<StudentsView> {
         title: const Text('إدارة سجل الطالب'),
         content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'archive'),
-            child: const Text('أرشفة'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'archive'), child: const Text('أرشفة')),
         ],
       ),
     );
-    if (action == null) return;
+    if (action != 'archive') return;
     try {
-      if (action == 'archive') {
-        await db.rpc('archive_person', params: {
-          'p_kind': 'student',
-          'p_id': student.id,
-          'p_reason': 'other',
-          'p_note': '',
-        });
+      await db.rpc('archive_person', params: {
+        'p_kind': 'student',
+        'p_id': student.id,
+        'p_reason': 'other',
+        'p_note': '',
+      });
       await widget.onChanged();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تمت أرشفة السجل.')),
@@ -2057,12 +2050,10 @@ class _StudentsViewState extends State<StudentsView> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('تعذّر تنفيذ العملية: ${friendlyError(e, fallback: 'تحقق من صلاحياتك والسجلات المرتبطة.')}')),
       );
-    } finally {
-      
     }
   }
 
-addStudent(BuildContext context) async {
+  addStudent(BuildContext context) async {
     final n = TextEditingController(),
         cl = TextEditingController(),
         p = TextEditingController(),
@@ -4139,43 +4130,19 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
         title: const Text('إدارة سجل المعلم'),
         content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'archive'),
-            child: const Text('أرشفة'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'archive'), child: const Text('أرشفة')),
         ],
       ),
     );
-    if (action == null) return;
-    if (action == 'delete') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('تأكيد الحذف النهائي'),
-          content: Text('سيُحذف سجل المعلم «${teacher.name}» نهائيًا إذا سمحت علاقات قاعدة البيانات بذلك.'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف نهائي')),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-    }
+    if (action != 'archive') return;
     try {
-      if (action == 'archive') {
-        await db.rpc('archive_person', params: {
-          'p_kind': 'teacher',
-          'p_id': teacher.id,
-          'p_reason': 'other',
-          'p_note': '',
-        });
-      } else {
-        await db.from('teachers').delete().eq('id', teacher.id);
-      }
+      await db.rpc('archive_person', params: {
+        'p_kind': 'teacher',
+        'p_id': teacher.id,
+        'p_reason': 'other',
+        'p_note': '',
+      });
       await load();
       await widget.onChanged();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -4190,7 +4157,7 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
     }
   }
 
-addTeacher() async {
+  addTeacher() async {
     final name = TextEditingController();
     final subject = TextEditingController();
     final phone = TextEditingController();
