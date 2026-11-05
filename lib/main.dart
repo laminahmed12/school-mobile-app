@@ -1930,6 +1930,8 @@ class _StudentsViewState extends State<StudentsView> {
                               );
                             } else if (action == 'edit') {
                               await editStudent(s);
+                            } else if (action == 'archive') {
+                              await deleteStudent(s);
                             }
                           },
                           itemBuilder: (_) => [
@@ -1937,12 +1939,16 @@ class _StudentsViewState extends State<StudentsView> {
                               value: 'profile',
                               child: Text('ملف الطالب'),
                             ),
-                            if (widget.canAdd)
+                            if (widget.canAdd) ...[
                               const PopupMenuItem(
                                 value: 'edit',
                                 child: Text('تعديل بيانات الطالب'),
                               ),
-
+                              const PopupMenuItem(
+                                value: 'archive',
+                                child: Text('أرشفة الطالب'),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -4348,14 +4354,21 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                           '${t.subject}${t.phone.isEmpty ? '' : ' • ${t.phone}'}',
                         ),
                         trailing: PopupMenuButton<String>(
-                          onSelected: (action) {
-                            if (action == 'edit') editTeacher(t);
-                            
+                          onSelected: (action) async {
+                            if (action == 'edit') {
+                              await editTeacher(t);
+                            } else if (action == 'archive') {
+                              await deleteTeacher(t);
+                            }
                           },
                           itemBuilder: (_) => const [
                             PopupMenuItem(
                               value: 'edit',
                               child: Text('تعديل بيانات المعلم'),
+                            ),
+                            PopupMenuItem(
+                              value: 'archive',
+                              child: Text('أرشفة المعلم'),
                             ),
                           ],
                         ),
