@@ -4846,6 +4846,42 @@ class _PayrollViewState extends State<PayrollView> {
     ),
   );
 
+  Future<void> archiveStaff(Map<String, dynamic> person) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('أرشفة الموظف'),
+        content: const Text('سيُنقل سجل الموظف إلى الأرشيف مع الاحتفاظ بتاريخ المرتبات والسلف.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('أرشفة')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.repo.db.rpc('archive_person', params: {
+        'p_kind': 'staff',
+        'p_id': person['id'].toString(),
+        'p_reason': 'other',
+        'p_note': '',
+      }).timeout(const Duration(seconds: 8));
+      await load();
+      await widget.onChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت أرشفة الموظف.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذرت أرشفة الموظف: ${friendlyError(e, fallback: 'تحقق من الصلاحيات وتطبيق تحديث قاعدة البيانات.')}')),
+        );
+      }
+    }
+  }
+
   Widget _payeeCard(Map<String, dynamic> person, {required bool isTeacher}) {
     final salary = _salary(person);
     final name = person['name']?.toString() ?? '—';
@@ -4892,10 +4928,21 @@ class _PayrollViewState extends State<PayrollView> {
                 '${remaining < -0.009 ? 'زيادة مصروفة' : 'المتبقي من الراتب'}: ${remaining.abs().toStringAsFixed(2)} د.ل',
               ),
               trailing: widget.canManagePayees
-                  ? IconButton(
-                      tooltip: 'تعديل بيانات',
-                      onPressed: () => editPayee(person, isTeacher: isTeacher),
-                      icon: const Icon(Icons.edit_outlined),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'تعديل بيانات',
+                          onPressed: () => editPayee(person, isTeacher: isTeacher),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        if (!isTeacher)
+                          IconButton(
+                            tooltip: 'أرشفة الموظف',
+                            onPressed: saving ? null : () => archiveStaff(person),
+                            icon: const Icon(Icons.archive_outlined),
+                          ),
+                      ],
                     )
                   : null,
             ),
