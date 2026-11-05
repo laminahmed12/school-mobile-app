@@ -1221,6 +1221,15 @@ class SchoolRepository {
 
 
 
+  Future<void> archivePerson({required String kind, required String id}) async {
+    await db.rpc('archive_person', params: {
+      'p_kind': kind,
+      'p_id': id,
+      'p_reason': 'other',
+      'p_note': '',
+    }).timeout(const Duration(seconds: 8));
+  }
+
   Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
     'staff',
     () => db.from('staff').select('id,name,role,phone,salary,active,created_at,archived_at').isFilter('archived_at', null).order('name'),
