@@ -964,3 +964,13 @@ Use these as standing execution instructions for future sessions:
 - The APK build and CI are verified, but archive behavior has not been physically tested on the user's phone or against live Supabase data. The archive RPC/migration deployment status in Supabase is not verified here.
 - Remaining archive scope is not complete: employee menu/flow, dedicated archive search/list, restore behavior where supported, complete removal of permanent-delete actions and direct DELETE paths, offline queue behavior, and regression coverage still require source/schema inspection and implementation. Do not claim the full archive lifecycle is complete.
 - No production database, secrets, default branch, or PR merge state was changed. The candidate is for testing, not a commercially signed release.
+
+
+## USER CONFIRMED — 2026-11-05 (restore workflow requested)
+
+- User physically tested the latest candidate and confirmed that archiving succeeds on the phone.
+- The user asked how to restore archived people. Inspection confirmed that migration `supabase/migrations/20261104000000_archive_only_no_hard_delete.sql` defines secured RPCs `list_archive(text)` and `restore_person(text,uuid)`, but `lib/main.dart` currently has no Archive screen, no `list_archive` call, and no `restore_person` call.
+- Next implementation: add an Archive entry in the admin More section, search archived students/teachers/staff through `list_archive`, and restore a selected record through `restore_person`, refreshing active lists afterward. Keep the operation online-only unless the existing offline queue can safely support these RPC semantics; never fake a local-only restore.
+- Preserve archive reason/note and history until restore is explicitly confirmed by the RPC; the existing restore RPC clears archive metadata as designed.
+- Current branch at this checkpoint: `fix/lamin-portal-crud-offline-20261030`. Recheck HEAD before source edits. Do not touch production DB, secrets, `main`, or PR merge state.
+- User reports archive succeeds, but the migration's deployment state in Supabase has not been independently inspected. Do not run production migrations.
