@@ -984,3 +984,11 @@ Use these as standing execution instructions for future sessions:
 - GitHub Actions portal validation for the current HEAD is queued as run `42112026306`; no successful format/analyze/test/APK result is claimed yet. Further branch workflows and build artifact must be checked before asking the user to install.
 - Source was re-fetched from GitHub and checked for ArchiveView, archivedPeople, restorePerson, and the Archive menu entry. No local Flutter formatter/analyzer/test command has been run in this environment.
 - Physical-device restore test and actual Supabase migration/RPC deployment remain unverified. Do not run production migrations.
+
+
+## PHONE TEST FAILURE — 2026-11-06 (archive RPC signature mismatch)
+
+- User tested the archive screen and supplied a screenshot showing PostgREST error `PGRST202`: app called `public.list_archive(p_query)`, but the live schema cache advertises `public.list_archive(p_kind)`.
+- This proves the database RPC contract currently exposed to the app differs from the migration definition in the repository. Do not claim the migration's `list_archive(p_query)` signature is deployed.
+- Added a compatibility fallback in `lib/repository.dart` commit `ebcaaf27f23d610a11234c355982af76a8c1d9fc`: try the query-based signature first; on PGRST202, query the older signature separately for student/teacher/staff, merge, locally filter by name, and sort by archive date. No production migration or database change was made.
+- Next: wait for CI and APK from this exact commit, then ask user to retry archive listing/search and restore. Restore RPC signature/deployment is not yet confirmed by the screenshot; if restore fails, inspect its exact PostgREST error before changing code/schema.
