@@ -1222,10 +1222,44 @@ class SchoolRepository {
 
 
   Future<List<Map<String, dynamic>>> archivedPeople({String query = ''}) async {
-    if (db.auth.currentSession == null) throw Exception('يلزم الاتصال بالإنترنت لعرض الأرشيف.');
-    final result = await db.rpc('list_archive', params: {'p_query': query.trim()})
-        .timeout(const Duration(seconds: 12));
-    return (result as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    if (db.auth.currentSession == null) {
+      throw Exception('يلزم الاتصال بالإنترنت لعرض الأرشيف.');
+    }
+    final normalizedQuery = query.trim();
+    try {
+      final result = await db.rpc('list_archive', params: {
+        'p_query': normalizedQuery,
+      }).timeout(const Duration(seconds: 12));
+      return (result as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+    } on PostgrestException catch (error) {
+      // Older deployed databases expose list_archive(p_kind), not
+      // list_archive(p_query). Support that signature without requiring
+      // a production migration during app startup.
+      if (error.code != 'PGRST202') rethrow;
+      final results = await Future.wait([
+        for (final kind in ['student', 'teacher', 'staff'])
+          db.rpc('list_archive', params: {'p_kind': kind})
+              .timeout(const Duration(seconds: 12)),
+      ]);
+      final rows = results
+          .expand((result) => result as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .where((row) {
+            if (normalizedQuery.isEmpty) return true;
+            final name = row['name']?.toString() ?? '';
+            return name.toLowerCase().contains(normalizedQuery.toLowerCase());
+          })
+          .toList();
+      rows.sort((a, b) {
+        final left = DateTime.tryParse(a['archived_at']?.toString() ?? '');
+        final right = DateTime.tryParse(b['archived_at']?.toString() ?? '');
+        return (right ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(left ?? DateTime.fromMillisecondsSinceEpoch(0));
+      });
+      return rows;
+    }
   }
 
   Future<void> restorePerson({required String kind, required String id}) async {
