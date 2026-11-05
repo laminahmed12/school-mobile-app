@@ -942,3 +942,25 @@ Use these as standing execution instructions for future sessions:
 - This update records the task and constraints only. No application code, database, workflow, or APK was changed or tested in this checkpoint.
 - The file contains conflicting historical HEAD entries; the current commit SHA has not yet been independently verified in this checkpoint. Re-check the actual branch HEAD and PR/Actions state before source edits; do not rely on old run IDs or commit claims.
 - Next: inspect exact schema/RPC signatures and current source paths, implement the archive-only flow with regression tests, run available CI, and use a successful candidate APK only if it matches the verified code HEAD. Report only checks actually completed.
+
+
+
+## VERIFIED SESSION UPDATE — 2026-11-05 (archive menu visibility and test APK)
+
+- Repository/branch: `laminahmed12/school-mobile-app`, `fix/lamin-portal-crud-offline-20261030`.
+- Verified branch HEAD for this update: `5c3678bd09e42601d6e945679ceee6b277a36c5f`.
+- User-provided phone screenshots showed that student and teacher overflow menus exposed edit/profile actions only; there was no archive option.
+- Updated `lib/main.dart` in commit `5c3678bd09e42601d6e945679ceee6b277a36c5f` to expose `أرشفة الطالب` and `أرشفة المعلم` in the respective record menus and route those actions to the existing archive handlers. This fixes the missing menu entries shown in the screenshots.
+- CI verified for this exact HEAD:
+  - Lamin development validation run `42096108453`: completed successfully; validation job succeeded.
+  - Lamin portal validation run `42096108589`: completed successfully.
+  - Lamin schema baseline acceptance run `42096108851`: completed successfully.
+  - Lamin RPC security ACL regression run `42096108410`: completed successfully.
+- A new Android test candidate was produced by development run `42096108453`, matching the verified HEAD above:
+  - Artifact: `lamin-development-candidate`, artifact ID `13448141851`, 29,220,014 bytes.
+  - SHA-256 of artifact ZIP: `bc3d2d7496c1677337befc6c3120e90b0b7877306e0759683147b170ed0a2a0e`.
+  - Expires: 2026-11-12 19:46:31 UTC.
+  - Download from Actions run: https://github.com/laminahmed12/school-mobile-app/actions/runs/42096108453 (Artifacts section).
+- The APK build and CI are verified, but archive behavior has not been physically tested on the user's phone or against live Supabase data. The archive RPC/migration deployment status in Supabase is not verified here.
+- Remaining archive scope is not complete: employee menu/flow, dedicated archive search/list, restore behavior where supported, complete removal of permanent-delete actions and direct DELETE paths, offline queue behavior, and regression coverage still require source/schema inspection and implementation. Do not claim the full archive lifecycle is complete.
+- No production database, secrets, default branch, or PR merge state was changed. The candidate is for testing, not a commercially signed release.
