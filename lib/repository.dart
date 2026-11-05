@@ -727,6 +727,7 @@ class SchoolRepository {
       final rows = await db
           .from('students')
           .select()
+          .isFilter('archived_at', null)
           .order('name')
           .timeout(const Duration(seconds: 4));
       final list = (rows as List)
@@ -1005,6 +1006,7 @@ class SchoolRepository {
       final rows = await db
           .from('teachers')
           .select()
+          .isFilter('archived_at', null)
           .order('name')
           .timeout(const Duration(seconds: 4));
       final raw = (rows as List)
@@ -1221,7 +1223,7 @@ class SchoolRepository {
 
   Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
     'staff',
-    () => db.from('staff').select('id,name,role,phone,salary,active,created_at').order('name'),
+    () => db.from('staff').select('id,name,role,phone,salary,active,created_at,archived_at').isFilter('archived_at', null).order('name'),
   );
 
   Future<void> addStaffMember({
