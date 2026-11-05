@@ -1221,6 +1221,19 @@ class SchoolRepository {
 
 
 
+  Future<List<Map<String, dynamic>>> archivedPeople({String query = ''}) async {
+    if (db.auth.currentSession == null) throw Exception('يلزم الاتصال بالإنترنت لعرض الأرشيف.');
+    final result = await db.rpc('list_archive', params: {'p_query': query.trim()})
+        .timeout(const Duration(seconds: 12));
+    return (result as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
+  Future<void> restorePerson({required String kind, required String id}) async {
+    if (db.auth.currentSession == null) throw Exception('يلزم الاتصال بالإنترنت لاستعادة السجل.');
+    await db.rpc('restore_person', params: {'p_kind': kind, 'p_id': id})
+        .timeout(const Duration(seconds: 12));
+  }
+
   Future<void> archivePerson({required String kind, required String id}) async {
     await db.rpc('archive_person', params: {
       'p_kind': kind,
