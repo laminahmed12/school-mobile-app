@@ -931,3 +931,14 @@ Use these as standing execution instructions for future sessions:
 - Work remains limited to `fix/lamin-portal-crud-offline-20261030` in this repository. Do not modify production, secrets, `main`, or PR merge state; commercial signing remains deferred.
 - This checkpoint is documentation-only. No application source, database, workflow, or APK was changed or tested as part of this file update.
 - Re-check actual branch HEAD and PR/Actions state before code edits; do not treat the historical commit/run information above as current unless independently verified.
+
+
+## DOCUMENTATION CHECKPOINT — 2026-11-05
+
+- User requested updating this canonical reference file before continuing implementation.
+- Repository and target branch were checked: `laminahmed12/school-mobile-app`, `fix/lamin-portal-crud-offline-20261030`; branch lookup confirms it exists.
+- Current archive task remains: archive/restore-only lifecycle for students, teachers, and employees; remove permanent-delete UI and direct DELETE paths; preserve linked records; filter archived people out of active lists; expose archived records only through search in the dedicated Archive section; use the actual schema/RPC contracts and keep offline behavior consistent.
+- Scope: this branch only. Do not modify `main`, merge PR #22, alter production Supabase or secrets, or initiate commercial signing.
+- This update records the task and constraints only. No application code, database, workflow, or APK was changed or tested in this checkpoint.
+- The file contains conflicting historical HEAD entries; the current commit SHA has not yet been independently verified in this checkpoint. Re-check the actual branch HEAD and PR/Actions state before source edits; do not rely on old run IDs or commit claims.
+- Next: inspect exact schema/RPC signatures and current source paths, implement the archive-only flow with regression tests, run available CI, and use a successful candidate APK only if it matches the verified code HEAD. Report only checks actually completed.
