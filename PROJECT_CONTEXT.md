@@ -974,3 +974,13 @@ Use these as standing execution instructions for future sessions:
 - Preserve archive reason/note and history until restore is explicitly confirmed by the RPC; the existing restore RPC clears archive metadata as designed.
 - Current branch at this checkpoint: `fix/lamin-portal-crud-offline-20261030`. Recheck HEAD before source edits. Do not touch production DB, secrets, `main`, or PR merge state.
 - User reports archive succeeds, but the migration's deployment state in Supabase has not been independently inspected. Do not run production migrations.
+
+
+## IMPLEMENTATION UPDATE — 2026-11-05 (archive search and restore UI)
+
+- Added `archivedPeople(query)` and `restorePerson(kind,id)` to `lib/repository.dart`. Both require an authenticated online session and use the existing `list_archive` and `restore_person` RPCs with bounded timeouts; restore is not queued offline.
+- Added admin-only `الأرشيف` entry under `المزيد` and a searchable archive screen in `lib/main.dart`. The screen lists archived students, teachers, and staff, shows record type/details/archive date, confirms restore, calls the restore RPC, reloads archive results, and refreshes active app data.
+- Commits: repository helper `609b821fd2043cd95a2a302168494823096c3631`; UI `e537cc15dcdd8069fa52fa2da99d8c7c48c2761c` (current branch HEAD checked at time of writing).
+- GitHub Actions portal validation for the current HEAD is queued as run `42112026306`; no successful format/analyze/test/APK result is claimed yet. Further branch workflows and build artifact must be checked before asking the user to install.
+- Source was re-fetched from GitHub and checked for ArchiveView, archivedPeople, restorePerson, and the Archive menu entry. No local Flutter formatter/analyzer/test command has been run in this environment.
+- Physical-device restore test and actual Supabase migration/RPC deployment remain unverified. Do not run production migrations.
