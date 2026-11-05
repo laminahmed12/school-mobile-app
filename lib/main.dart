@@ -4860,12 +4860,10 @@ class _PayrollViewState extends State<PayrollView> {
     );
     if (confirmed != true) return;
     try {
-      await widget.repo.db.rpc('archive_person', params: {
-        'p_kind': 'staff',
-        'p_id': person['id'].toString(),
-        'p_reason': 'other',
-        'p_note': '',
-      }).timeout(const Duration(seconds: 8));
+      await widget.repo.archivePerson(
+        kind: 'staff',
+        id: person['id'].toString(),
+      );
       await load();
       await widget.onChanged();
       if (mounted) {
