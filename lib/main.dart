@@ -4381,6 +4381,119 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
   );
 }
 
+class ArchiveView extends StatefulWidget {
+  final SchoolRepository repo;
+  final Future<void> Function() onChanged;
+  const ArchiveView({super.key, required this.repo, required this.onChanged});
+  @override
+  State<ArchiveView> createState() => _ArchiveViewState();
+}
+class _ArchiveViewState extends State<ArchiveView> {
+  final search = TextEditingController();
+  List<Map<String, dynamic>> records = [];
+  bool loading = true, restoring = false;
+  String? error;
+  @override
+  void initState() { super.initState(); load(); }
+  @override
+  void dispose() { search.dispose(); super.dispose(); }
+  Future<void> load() async {
+    setState(() { loading = true; error = null; });
+    try { records = await widget.repo.archivedPeople(query: search.text); }
+    catch (e) { error = friendlyError(e, fallback: 'تعذر تحميل الأرشيف. تحقق من الاتصال وتحديث قاعدة البيانات.'); }
+    finally { if (mounted) setState(() => loading = false); }
+  }
+  String kindLabel(String? kind) {
+    switch (kind) {
+      case 'student': return 'طالب';
+      case 'teacher': return 'معلم';
+      case 'staff': return 'موظف';
+      default: return 'سجل';
+    }
+  }
+  Future<void> restore(Map<String, dynamic> record) async {
+    final kind = record['kind']?.toString() ?? '';
+    final id = record['id']?.toString() ?? '';
+    if (id.isEmpty || !['student', 'teacher', 'staff'].contains(kind)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استعادة السجل'),
+        content: Text('هل تريد استعادة ' + (record['name']?.toString() ?? 'هذا السجل') + ' وإعادته إلى القائمة النشطة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => restoring = true);
+    try {
+      await widget.repo.restorePerson(kind: kind, id: id);
+      await load();
+      await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة السجل إلى القائمة النشطة.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت الاستعادة. تحقق من الصلاحيات والاتصال.'))));
+    } finally { if (mounted) setState(() => restoring = false); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('الأرشيف'), actions: [
+        IconButton(tooltip: 'تحديث', onPressed: loading || restoring ? null : load, icon: const Icon(Icons.refresh)),
+      ]),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: search,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => load(),
+            decoration: InputDecoration(
+              hintText: 'ابحث باسم الطالب أو المعلم أو الموظف',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: IconButton(tooltip: 'مسح البحث', onPressed: () { search.clear(); load(); }, icon: const Icon(Icons.clear)),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        if (loading) const Expanded(child: Center(child: CircularProgressIndicator()))
+        else if (error != null) Expanded(child: Center(child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(error!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.icon(onPressed: load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+          ]),
+        )))
+        else if (records.isEmpty) const Expanded(child: Center(child: Text('لا توجد سجلات مؤرشفة مطابقة للبحث.')))
+        else Expanded(child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          itemCount: records.length,
+          itemBuilder: (context, index) {
+            final record = records[index];
+            final date = DateTime.tryParse(record['archived_at']?.toString() ?? '');
+            final subtitle = kindLabel(record['kind']?.toString()) + ' • ' + (record['details']?.toString() ?? '') +
+              (date == null ? '' : '\nتاريخ الأرشفة: ' + date.toLocal().toString().substring(0, 16));
+            return Card(child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.archive_outlined)),
+              title: Text(record['name']?.toString() ?? '—'),
+              subtitle: Text(subtitle),
+              isThreeLine: true,
+              trailing: TextButton.icon(
+                onPressed: restoring ? null : () => restore(record),
+                icon: const Icon(Icons.unarchive_outlined),
+                label: const Text('استعادة'),
+              ),
+            ));
+          },
+        )),
+      ]),
+    );
+  }
+}
+
 class MoreView extends StatelessWidget {
   final SchoolRepository repo;
   final SharedPreferences prefs;
@@ -4407,6 +4520,18 @@ class MoreView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        if (isAdmin)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('الأرشيف'),
+              subtitle: const Text('البحث عن السجلات المؤرشفة واستعادتها'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ArchiveView(repo: repo, onChanged: onChanged),
+              )),
+            ),
+          ),
         if (isAdmin)
           Card(
             child: ListTile(
