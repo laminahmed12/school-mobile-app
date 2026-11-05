@@ -992,3 +992,17 @@ Use these as standing execution instructions for future sessions:
 - This proves the database RPC contract currently exposed to the app differs from the migration definition in the repository. Do not claim the migration's `list_archive(p_query)` signature is deployed.
 - Added a compatibility fallback in `lib/repository.dart` commit `ebcaaf27f23d610a11234c355982af76a8c1d9fc`: try the query-based signature first; on PGRST202, query the older signature separately for student/teacher/staff, merge, locally filter by name, and sort by archive date. No production migration or database change was made.
 - Next: wait for CI and APK from this exact commit, then ask user to retry archive listing/search and restore. Restore RPC signature/deployment is not yet confirmed by the screenshot; if restore fails, inspect its exact PostgREST error before changing code/schema.
+
+
+## VERIFIED BUILD — 2026-11-06 (archive RPC compatibility)
+
+- Fixed the missing `postgrest` package import required by the `PostgrestException` compatibility fallback. Commit: `a568079d0b63853e3661940add4908d1cee7f2e1`.
+- All four GitHub Actions workflows completed successfully on this exact commit:
+  - Development validation: `42128638017` — success (format, static analysis, tests, Android APK build/signature/package checks).
+  - RPC security ACL regression: `42128638047` — success.
+  - Schema baseline acceptance: `42128638052` — success.
+  - Portal validation: `42128637982` — success.
+- Verified APK artifact: `lamin-development-candidate`, artifact ID `13463095954`, 29,242,309 bytes; SHA-256 ZIP `92f08c2c1fad5db6e4d5957c7d412b903f67fab0bec3f952a8cbc0b1b02eb9ae`; expires 2026-11-12 23:26:19 UTC.
+- Download from Actions run: https://github.com/laminahmed12/school-mobile-app/actions/runs/42128638017 (Artifacts section).
+- This build includes fallback support for deployed `list_archive(p_kind)` RPC signature: separately fetches student/teacher/staff archive sets and filters by name locally when `list_archive(p_query)` is absent.
+- Still unverified: live RPC result column compatibility and actual restore operation on user's device. No production database/schema or secrets changed.
