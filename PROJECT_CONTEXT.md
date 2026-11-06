@@ -1018,3 +1018,14 @@ Use these as standing execution instructions for future sessions:
 - Latest branch commit: `4e6d026ceefe67c8f7f8c7d978785b6a579b5d86`.
 - CI status for this latest commit is not yet confirmed. Do not distribute an APK until formatting, analysis, tests, APK build and package/signature checks pass.
 - No production data, Supabase schema, secrets, or main branch changed.
+
+
+## OFFLINE STARTUP FIX — CI RESULT 2026-11-06
+
+- Latest PR #22 head: `6c4dd14208bf68b1da8f15f72a78798444a58040`.
+- GitHub Actions run `42140796628` (Lamin development validation, run 566) completed successfully.
+- Passed: dependency resolution, Dart formatting, format verification, Flutter static analysis, automated Flutter tests, Android platform preparation, NDK installation, APK build, APK signature verification, package identity/version verification, checksum generation, and artifact upload.
+- Candidate APK artifact: `lamin-development-candidate`, uploaded in run 42140796628. It is debug-signed for device testing, not production release-signed.
+- Additional PR checks passed: Lamin portal validation (run 42140796895), RPC security ACL regression (run 42140796818), Supabase schema baseline acceptance (run 42140796711). Vercel status is success.
+- Candidate build is available at: https://github.com/laminahmed12/school-mobile-app/actions/runs/42140796628 (Artifacts section).
+- Physical-device offline cold-start acceptance is still required. Production V1/V2/V3 release signing has not been run. Keep PR #22 unmerged and do not apply its branch-only database migration to production until the release gate is satisfied.
