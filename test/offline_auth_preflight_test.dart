@@ -89,4 +89,37 @@ void main() {
     });
   });
 
+
+  group('offline identity record validation', () {
+    test('rejects missing or unsupported identity records', () {
+      expect(isValidLaminOfflineIdentityRecord({}), isFalse);
+      expect(isValidLaminOfflineIdentityRecord({'version': 2}), isFalse);
+    });
+
+    test('rejects V3 records with malformed device identity fields', () {
+      expect(
+        isValidLaminOfflineIdentityRecord({
+          'version': 3,
+          'user_id': 'user',
+          'school_id': 'school',
+          'school_code': 'test',
+          'username': 'admin',
+          'role': 'admin',
+          'profile_active': true,
+          'must_change_password': false,
+          'school_active': true,
+          'licensed': true,
+          'iterations': laminOfflinePbkdf2Iterations,
+          'salt': 'AAAAAAAAAAAAAAAAAAAAAA==',
+          'verifier': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          'device_id': 'not-a-fingerprint',
+          'device_public_key': 'key',
+          'device_signature': 'signature',
+          'device_hardware_backed': false,
+        }),
+        isFalse,
+      );
+    });
+  });
+
 }
