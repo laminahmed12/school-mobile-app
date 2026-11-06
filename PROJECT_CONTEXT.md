@@ -1029,3 +1029,10 @@ Use these as standing execution instructions for future sessions:
 - Additional PR checks passed: Lamin portal validation (run 42140796895), RPC security ACL regression (run 42140796818), Supabase schema baseline acceptance (run 42140796711). Vercel status is success.
 - Candidate build is available at: https://github.com/laminahmed12/school-mobile-app/actions/runs/42140796628 (Artifacts section).
 - Physical-device offline cold-start acceptance is still required. Production V1/V2/V3 release signing has not been run. Keep PR #22 unmerged and do not apply its branch-only database migration to production until the release gate is satisfied.
+
+## OFFLINE CREDENTIAL ENROLLMENT RETRY — 2026-11-06
+- Commit `78b5891fafbb89aff2ec9f5669833384317d61f7` updates the successful online-login enrollment sequence.
+- The authenticated user ID is now persisted immediately after Supabase confirms login, before repository cache warm-up.
+- Profile and school reads are retried up to three times with bounded timeouts before local enrollment is abandoned.
+- After writing the device-bound credential, the app now verifies both record persistence/device binding and the supplied password verifier before marking online login preparation as ready.
+- This is a code-level hardening change; it is not yet accepted until GitHub Actions and physical-device offline login both pass. No production backend, schema, or secrets were changed.
