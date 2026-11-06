@@ -333,6 +333,35 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         }
       }
 
+      // Preserve the previously working offline-start contract: a user who
+      // has authenticated on this installation can reopen the cached account
+      // without a network request. The encrypted cache is scoped to that user,
+      // and inactive, password-change-pending, or unlicensed schools fail closed.
+      final cachedSchool = cached?.schoolId == null
+          ? null
+          : await repo.cachedSchoolForId(cached!.schoolId!);
+      final trialValid = schoolTrialEnd(cachedSchool)
+              ?.isAfter(DateTime.now().toUtc()) ??
+          false;
+      final cachedOfflineEligible = rememberedId != null &&
+          rememberedId.isNotEmpty &&
+          cached != null &&
+          cached.active &&
+          cached.schoolId != null &&
+          cached.schoolId!.isNotEmpty &&
+          cached.role != 'owner' ? (
+            cached.mustChangePassword != true &&
+            cachedSchool != null &&
+            cachedSchool['active'] != false &&
+            (cachedSchool['licensed'] == true || trialValid)
+          ) : cached != null &&
+              cached.role == 'owner' &&
+              cached.active &&
+              cached.schoolId != null &&
+              cached.schoolId!.isNotEmpty &&
+              cachedSchool != null &&
+              cachedSchool['active'] != false;
+
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
           cached?.mustChangePassword == true;
@@ -340,11 +369,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       setState(() {
         checking = false;
         if (isInitialStartupCheck) {
-          // Always require local password/device proof for an offline cold
-          // start, even if Supabase restored a persisted session.
-          offlineAccess = false;
-          startupRequiresOfflineCredentialProof =
-              db.auth.currentSession != null;
+          offlineAccess = session == null && cachedOfflineEligible;
+          // A restored authenticated session remains valid for offline startup;
+          // do not force a second, newly-enrolled local credential on upgrade.
+          startupRequiresOfflineCredentialProof = false;
         }
         locked = (session != null || offlineAccess) && enabled;
         mustChangePassword = forcePassword && session != null;
