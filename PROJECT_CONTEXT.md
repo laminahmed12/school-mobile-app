@@ -1036,3 +1036,14 @@ Use these as standing execution instructions for future sessions:
 - Profile and school reads are retried up to three times with bounded timeouts before local enrollment is abandoned.
 - After writing the device-bound credential, the app now verifies both record persistence/device binding and the supplied password verifier before marking online login preparation as ready.
 - This is a code-level hardening change; it is not yet accepted until GitHub Actions and physical-device offline login both pass. No production backend, schema, or secrets were changed.
+
+## OFFLINE CREDENTIAL ENROLLMENT RETRY — CI COMPLETE 2026-11-06
+- Validated branch HEAD before this documentation update: `4ec13c7ebe7013c8fef92cef229c7ad71607a810`.
+- Lamin development validation run `42173251542`: success. Formatting, Flutter static analysis, all automated tests, Android preparation, NDK installation, candidate APK build, APK signature/package identity verification, and artifact uploads all passed.
+- Lamin portal validation run `42173251280`: success.
+- Lamin RPC security ACL regression run `42173251268`: success.
+- Lamin schema baseline acceptance run `42173251518`: success.
+- Candidate APK artifact: `lamin-development-candidate`, artifact ID `13482376924`, in run `42173251542`. Debug-signed for device testing; not production release-signed.
+- Signing toolchain artifact: `lamin-apksigner-toolchain`, artifact ID `13482162564`.
+- PR #22 remains open; GitHub currently reports mergeable. Do not merge or apply branch migrations to production until device acceptance and production signing gates are completed.
+- No physical-device test result has been reported. Offline cold-start and post-login credential enrollment remain pending field acceptance.
