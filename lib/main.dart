@@ -343,18 +343,17 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       final trialValid = schoolTrialEnd(cachedSchool)
               ?.isAfter(DateTime.now().toUtc()) ??
           false;
-      final cachedAccountEligible = cached != null &&
-          cached.active &&
-          cached.schoolId != null &&
-          cached.schoolId!.isNotEmpty &&
-          (cached.role == 'owner' || cached.mustChangePassword != true);
-      final cachedLicenseEligible = cachedSchool != null &&
-          cachedSchool['active'] != false &&
-          (cachedSchool['licensed'] == true || trialValid);
-      final cachedOfflineEligible = rememberedId != null &&
-          rememberedId.isNotEmpty &&
-          cachedAccountEligible &&
-          cachedLicenseEligible;
+      final cachedOfflineEligible = canOpenCachedOfflineAccount(
+        hasRememberedUser: rememberedId != null && rememberedId.isNotEmpty,
+        profileActive: cached?.active == true,
+        hasSchoolId: cached?.schoolId?.isNotEmpty == true,
+        isOwner: cached?.role == 'owner',
+        mustChangePassword: cached?.mustChangePassword == true,
+        schoolActive: cachedSchool?['active'] != false &&
+            cachedSchool != null,
+        licensed: cachedSchool?['licensed'] == true,
+        trialValid: trialValid,
+      );
 
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
