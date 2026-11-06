@@ -1047,3 +1047,23 @@ Use these as standing execution instructions for future sessions:
 - Signing toolchain artifact: `lamin-apksigner-toolchain`, artifact ID `13482162564`.
 - PR #22 remains open; GitHub currently reports mergeable. Do not merge or apply branch migrations to production until device acceptance and production signing gates are completed.
 - No physical-device test result has been reported. Offline cold-start and post-login credential enrollment remain pending field acceptance.
+
+
+## VERIFIED SESSION UPDATE — 2026-11-06 (archive lifecycle handover recheck)
+
+- Re-read this canonical file from the target branch, then independently checked the branch ref. Current branch HEAD before this documentation-only update: `628634f6e6f23cdf0dba84a108031cd499c3c65c`. The HEAD commit message is `Record offline credential CI validation result`; it changes only `PROJECT_CONTEXT.md`.
+- PR #22 is OPEN and UNMERGED. Its base remains `feature/lamin-desktop-portal-2026-10-29`; no merge, retarget, or main-branch change was made.
+- Latest Actions for exact HEAD `628634f6e6f23cdf0dba84a108031cd499c3c65c` all completed successfully on 2026-11-06:
+  - Development validation `42174910040`: SUCCESS. Verified dependency resolution, Dart formatting and format verification, Flutter static analysis, automated Flutter tests, Android preparation, debug-signed APK build, APK signature/package identity verification, checksum generation, and artifact uploads.
+  - Portal validation `42174910125`: SUCCESS.
+  - RPC security ACL regression `42174910021`: SUCCESS.
+  - Schema baseline acceptance `42174910026`: SUCCESS.
+- Development run `42174910040` artifacts: `lamin-development-candidate` (ID `13482742031`, 29,248,073 bytes) and `lamin-apksigner-toolchain` (ID `13483356081`, 16,933,712 bytes). Candidate is a debug-signed testing APK, not a commercial release. Download via the run's Artifacts section: https://github.com/laminahmed12/school-mobile-app/actions/runs/42174910040.
+- Archive implementation rechecked in current branch source:
+  - Migration `supabase/migrations/20261104000000_archive_only_no_hard_delete.sql` adds archive metadata for `students`, `teachers`, and `staff`; provides `archive_person`, `restore_person`, and `list_archive`; scopes RPC access to authenticated admin/owner users and current school; revokes client DELETE privileges; and retains original rows/foreign-key relationships.
+  - `lib/repository.dart` filters archived students, teachers, and staff from active reads; queries the archive with the current `list_archive(p_query)` RPC and a compatibility fallback for the live older `list_archive(p_kind)` signature; and calls `restore_person`.
+  - `lib/main.dart` exposes archive actions for students and teachers, the admin-only archive search/restore screen, and the staff archive action. Restore refreshes archive results and active app data.
+- The user had previously confirmed on-device that archive listing, search, archive, and restore work on the installed candidate. This session did not repeat a physical-device test or inspect production Supabase deployment state. The compatibility fallback exists specifically because the live PostgREST schema previously exposed `list_archive(p_kind)`; do not claim the repository migration has been applied to production.
+- No application source, Supabase database, production configuration, GitHub secrets, or signing material was changed in this session. No commercial release signing was initiated: the prior handover's release hold remains in force pending the separate offline cold-start/device acceptance gate.
+- Existing signed release reference remains the previously verified `lamin-school-2.0.3-13-v1-v2-v3-signed.apk` (version `2.0.3+13`, SHA-256 `f0d4dc99410bcd741386ecd69da040f72bbe16754ba82af00f0af744ac97f7da`, certificate SHA-256 fingerprint `7B:9C:F1:1E:AF:AB:48:01:BE:68:21:D6:92:ED:AE:34:75:61:8F:CB:51:BE:21:86:B0:F5:86:6B:24:41:88:1A`). These values are historical verified reference data, not a newly downloaded APK in this session. No GitHub Release asset for it was found.
+- No standalone archive-specific automated test file exists in the current `test/` tree. CI's general Flutter tests, schema baseline, and RPC ACL checks passed; a dedicated archive regression suite and production migration-state verification remain outstanding.
