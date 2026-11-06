@@ -343,24 +343,18 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       final trialValid = schoolTrialEnd(cachedSchool)
               ?.isAfter(DateTime.now().toUtc()) ??
           false;
-      final cachedOfflineEligible = rememberedId != null &&
-          rememberedId.isNotEmpty &&
-          cached != null &&
+      final cachedAccountEligible = cached != null &&
           cached.active &&
           cached.schoolId != null &&
           cached.schoolId!.isNotEmpty &&
-          cached.role != 'owner' ? (
-            cached.mustChangePassword != true &&
-            cachedSchool != null &&
-            cachedSchool['active'] != false &&
-            (cachedSchool['licensed'] == true || trialValid)
-          ) : cached != null &&
-              cached.role == 'owner' &&
-              cached.active &&
-              cached.schoolId != null &&
-              cached.schoolId!.isNotEmpty &&
-              cachedSchool != null &&
-              cachedSchool['active'] != false;
+          (cached.role == 'owner' || cached.mustChangePassword != true);
+      final cachedLicenseEligible = cachedSchool != null &&
+          cachedSchool['active'] != false &&
+          (cachedSchool['licensed'] == true || trialValid);
+      final cachedOfflineEligible = rememberedId != null &&
+          rememberedId.isNotEmpty &&
+          cachedAccountEligible &&
+          cachedLicenseEligible;
 
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
@@ -390,9 +384,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
       setState(() {
         checking = false;
-        if (isInitialStartupCheck && db.auth.currentSession != null) {
+        if (isInitialStartupCheck) {
+          // Do not invalidate a persisted Supabase session because a cache
+          // refresh failed; the session remains locally authenticated.
           offlineAccess = false;
-          startupRequiresOfflineCredentialProof = true;
+          startupRequiresOfflineCredentialProof = false;
         }
         locked = keepBiometricLock;
         mustChangePassword = false;
