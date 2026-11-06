@@ -413,7 +413,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       final offlineStore = LaminOfflineCredentialStore();
       final identity = await offlineStore.readIdentity();
       if (identity == null) {
-        return 'لم يُحفظ اعتماد الدخول المحلي على هذا الجهاز. يلزم إتمام دخول متصل ناجح بعد تثبيت النسخة الحالية.';
+        final diagnosis = await offlineStore.diagnoseIdentity();
+        return 'تعذر العثور على اعتماد الدخول المحلي. $diagnosis';
       }
 
       final userId = identity['user_id']?.toString() ?? '';
