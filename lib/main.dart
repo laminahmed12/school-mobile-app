@@ -1406,14 +1406,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
-      final offlineUserId = db.auth.currentUser?.id ??
-          await const FlutterSecureStorage().read(
-            key: 'lamin.offline.user.id',
-          );
-      if (offlineUserId != null && offlineUserId.isNotEmpty) {
-        await LaminOfflineCredentialStore().remove(offlineUserId);
-      }
-      await const FlutterSecureStorage().delete(key: 'lamin.offline.user.id');
+      // Explicit logout ends the authenticated Supabase session, but retains
+      // the device-bound offline credential. Offline access is separately
+      // gated by the saved password verifier and Android Keystore proof.
+      // Removing either secure-storage key here makes offline login impossible
+      // immediately after a normal logout.
       await db.auth
           .signOut(scope: SignOutScope.local)
           .timeout(const Duration(seconds: 5));
