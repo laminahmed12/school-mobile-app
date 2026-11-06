@@ -12,7 +12,7 @@ void main() {
           onlineLoginPreparationFailed: false,
           requiresOfflineCredentialProof: false,
         ),
-        isTrue,
+        isFalse,
       );
     });
 
@@ -41,4 +41,52 @@ void main() {
       );
     });
   });
+  group('cached offline account eligibility', () {
+    test('allows a previously authenticated, active, licensed account', () {
+      expect(canOpenCachedOfflineAccount(
+        hasRememberedUser: true,
+        profileActive: true,
+        hasSchoolId: true,
+        isOwner: false,
+        mustChangePassword: false,
+        schoolActive: true,
+        licensed: true,
+        trialValid: false,
+      ), isTrue);
+    });
+
+    test('rejects missing identity, inactive school, or expired license', () {
+      expect(canOpenCachedOfflineAccount(
+        hasRememberedUser: false,
+        profileActive: true,
+        hasSchoolId: true,
+        isOwner: false,
+        mustChangePassword: false,
+        schoolActive: true,
+        licensed: true,
+        trialValid: false,
+      ), isFalse);
+      expect(canOpenCachedOfflineAccount(
+        hasRememberedUser: true,
+        profileActive: true,
+        hasSchoolId: true,
+        isOwner: false,
+        mustChangePassword: false,
+        schoolActive: false,
+        licensed: true,
+        trialValid: false,
+      ), isFalse);
+      expect(canOpenCachedOfflineAccount(
+        hasRememberedUser: true,
+        profileActive: true,
+        hasSchoolId: true,
+        isOwner: false,
+        mustChangePassword: false,
+        schoolActive: true,
+        licensed: false,
+        trialValid: false,
+      ), isFalse);
+    });
+  });
+
 }
