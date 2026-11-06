@@ -61,6 +61,23 @@ bool isValidLaminOfflineIdentityRecord(Map<String, dynamic> saved) {
   }
 }
 
+bool canOpenCachedOfflineAccount({
+  required bool hasRememberedUser,
+  required bool profileActive,
+  required bool hasSchoolId,
+  required bool isOwner,
+  required bool mustChangePassword,
+  required bool schoolActive,
+  required bool licensed,
+  required bool trialValid,
+}) =>
+    hasRememberedUser &&
+    profileActive &&
+    hasSchoolId &&
+    (isOwner || !mustChangePassword) &&
+    schoolActive &&
+    (licensed || trialValid);
+
 enum OnlineLoginPreparationState { idle, preparing, ready, failed }
 
 bool shouldShowLoginForm({
