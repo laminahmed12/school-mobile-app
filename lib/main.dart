@@ -939,22 +939,53 @@ class _LoginPageState extends State<LoginPage> {
       if (r.ok) {
         // Prime the encrypted identity/profile/school cache before the user
         // can leave the online session and later start the app offline.
-        final repo = SchoolRepository(widget.prefs);
-        final profile = await repo.profile().timeout(
-          const Duration(seconds: 5),
-        );
-        if (profile?.schoolId == null || profile!.schoolId!.isEmpty) {
-          throw StateError('تعذر حفظ بيانات المستخدم محليًا.');
-        }
-        final schoolData = await repo.school().timeout(
-          const Duration(seconds: 5),
-        );
-        if (schoolData == null) {
-          throw StateError('تعذر حفظ بيانات المدرسة محليًا.');
-        }
-        final authenticatedUserId = db.auth.currentUser?.id;
+        final authenticatedUserId =
+            db.auth.currentUser?.id ?? db.auth.currentSession?.user.id;
         if (authenticatedUserId == null || authenticatedUserId.isEmpty) {
           throw StateError('تعذر تحديد حساب المستخدم لحفظ الدخول المحلي.');
+        }
+        // Persist identity immediately after authentication; allow repository
+        // cache warm-up to settle before enrolling the offline credential.
+        await auth.rememberOfflineUser(authenticatedUserId);
+        final repo = SchoolRepository(widget.prefs);
+        SchoolProfile? profile;
+        Map<String, dynamic>? schoolData;
+        Object? enrollmentReadError;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            profile = await repo.profile().timeout(
+              const Duration(seconds: 6),
+            );
+            if (profile?.schoolId != null && profile!.schoolId!.isNotEmpty) {
+              schoolData = await repo.school().timeout(
+                const Duration(seconds: 6),
+              );
+            }
+            if (profile?.schoolId != null &&
+                profile!.schoolId!.isNotEmpty &&
+                schoolData != null) {
+              break;
+            }
+          } catch (readError) {
+            enrollmentReadError = readError;
+          }
+          if (attempt < 2) {
+            await Future<void>.delayed(
+              Duration(milliseconds: 350 * (attempt + 1)),
+            );
+          }
+        }
+        if (profile?.schoolId == null || profile!.schoolId!.isEmpty) {
+          throw StateError(
+            'نجح الاتصال لكن تعذر تحميل ملف المستخدم لتجهيز الدخول المحلي. ' +
+            (enrollmentReadError?.toString() ?? ''),
+          );
+        }
+        if (schoolData == null) {
+          throw StateError(
+            'نجح الاتصال لكن تعذر تحميل بيانات المدرسة لتجهيز الدخول المحلي. ' +
+            (enrollmentReadError?.toString() ?? ''),
+          );
         }
         final offlineSchoolCode =
             (schoolData['code']?.toString() ?? school.text).trim();
@@ -982,6 +1013,17 @@ class _LoginPageState extends State<LoginPage> {
         ).timeout(const Duration(seconds: 5), onTimeout: () => false);
         if (!credentialPersisted) {
           throw StateError('لم يتم التحقق من حفظ اعتماد الدخول دون اتصال.');
+        }
+        final passwordVerifierValid = await offlineStore.verify(
+          userId: authenticatedUserId,
+          schoolCode: offlineSchoolCode,
+          username: profile.username,
+          password: password.text,
+        ).timeout(const Duration(seconds: 12), onTimeout: () => false);
+        if (!passwordVerifierValid) {
+          throw StateError(
+            'حُفظ سجل الدخول المحلي لكن فشل اختبار كلمة المرور ومفتاح الجهاز.',
+          );
         }
         final enrolledIdentity = await offlineStore.readIdentity();
         final enrolledDeviceId = enrolledIdentity?['device_id']?.toString();
