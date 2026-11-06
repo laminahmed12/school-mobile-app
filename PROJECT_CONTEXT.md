@@ -1077,3 +1077,16 @@ Use these as standing execution instructions for future sessions:
 - Updated `lib/main.dart` via commit `3a10fcda60483e6afa9859c0e3209e8a003eca91` to show the precise non-sensitive diagnosis when the offline identity cannot be loaded.
 - This is a diagnostic hardening change, not yet a proven root-cause fix. CI must pass and the resulting candidate must be installed before the exact failure category can be observed. Do not claim offline login repaired yet.
 - No production/Supabase data, secrets, signing keys, or release workflow were changed. No local Flutter SDK/build environment was available in this session; rely on the triggered GitHub Actions checks for format/analyze/tests/APK validation.
+
+
+## OFFLINE CREDENTIAL DIAGNOSTIC BUILD RESULT — 2026-11-06
+
+- Latest application/test source commit: `c7fba5d95f990d78e503a17255ab4a1ec3209b9c`.
+- GitHub Actions for that exact source commit all completed successfully:
+  - Development validation run `42195810157`: SUCCESS. Dart formatting, static analysis, all Flutter automated tests, Android platform preparation, Android Keystore identity integration preparation, NDK installation, APK build, APK signature/package verification, and artifact uploads all passed.
+  - Portal validation run `42195809873`: SUCCESS.
+  - RPC security ACL regression run `42195809838`: SUCCESS.
+  - Schema baseline acceptance run `42195809834`: SUCCESS.
+- New testing APK artifact: `lamin-development-candidate`, artifact ID `13491359331`, 29,251,796 bytes. It is a debug-signed testing candidate, not a commercially release-signed APK. Download from https://github.com/laminahmed12/school-mobile-app/actions/runs/42195810157 (Artifacts section).
+- Signing toolchain artifact: `lamin-apksigner-toolchain`, ID `13492950120`; no signing secrets or release keystore were accessed or modified.
+- The diagnostic change is built and CI-verified, but the actual on-device cause is not yet identified. The new APK changes the offline-login failure message to reveal the non-sensitive category (secure storage read, absent/malformed/invalid V3 record, missing/mismatched Android Keystore key, failed key-binding proof, or valid record). A phone test with this exact candidate is required to observe the category; do not report offline login as fixed until it passes an offline relaunch test.
