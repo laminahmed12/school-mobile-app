@@ -133,6 +133,44 @@ class LaminOfflineCredentialStore {
     'device_public_key': payload['device_public_key'],
   });
 
+  /// Returns a non-sensitive diagnosis for support; never exposes stored fields.
+  Future<String> diagnoseIdentity() async {
+    String? raw;
+    try {
+      raw = await _storage.read(key: _identityKey);
+    } catch (error) {
+      return 'تعذرت قراءة التخزين الآمن: ${error.runtimeType}';
+    }
+    if (raw == null) {
+      return 'لا يوجد سجل اعتماد V3 في التخزين الآمن لهذا التطبيق.';
+    }
+    Map<String, dynamic> saved;
+    try {
+      saved = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (error) {
+      return 'سجل اعتماد V3 موجود لكنه غير قابل للقراءة: ${error.runtimeType}';
+    }
+    if (!isValidLaminOfflineIdentityRecord(saved)) {
+      return 'سجل اعتماد V3 موجود لكنه لا يجتاز فحص البنية أو الإصدار.';
+    }
+    try {
+      final device = await _deviceIdentity.getExisting();
+      if (device == null) {
+        return 'سجل الاعتماد موجود، لكن مفتاح Android Keystore غير موجود.';
+      }
+      if (device.deviceId != saved['device_id'] ||
+          device.publicKey != saved['device_public_key']) {
+        return 'سجل الاعتماد موجود، لكن مفتاح الجهاز لا يطابق المفتاح المسجل.';
+      }
+      if (!await _isBoundToCurrentDevice(saved)) {
+        return 'سجل الاعتماد ومفتاح الجهاز موجودان، لكن إثبات ملكية المفتاح فشل.';
+      }
+      return 'سجل الاعتماد المحلي V3 ومفتاح الجهاز صالحان.';
+    } catch (error) {
+      return 'تعذر فحص مفتاح Android Keystore: ${error.runtimeType}';
+    }
+  }
+
   Future<Map<String, dynamic>?> readIdentity() async {
     try {
       final raw = await _storage.read(key: _identityKey);
