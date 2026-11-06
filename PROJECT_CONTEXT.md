@@ -1006,3 +1006,15 @@ Use these as standing execution instructions for future sessions:
 - Download from Actions run: https://github.com/laminahmed12/school-mobile-app/actions/runs/42128638017 (Artifacts section).
 - This build includes fallback support for deployed `list_archive(p_kind)` RPC signature: separately fetches student/teacher/staff archive sets and filters by name locally when `list_archive(p_query)` is absent.
 - Still unverified: live RPC result column compatibility and actual restore operation on user's device. No production database/schema or secrets changed.
+
+
+## OFFLINE STARTUP REGRESSION — 2026-11-06
+
+- User confirmed archive listing, search, archive and restore all work on the installed development candidate.
+- Remaining device issue: app opens the login screen when launched without internet; UI reports no local offline credential.
+- Root cause identified in the PR #22 change relative to its base commit `9dbd7f61aeb7e68295fdbfebe348d3ee7dee4b72`: the prior AuthGate opened an already-authenticated cached account offline using the securely stored `lamin.offline.user.id`, cached profile and cached school/license/trial checks. The PR changed cold start to always require a newly enrolled v3 password verifier + Android Keystore proof, even when a valid Supabase session and cached account already existed. This is the behavior regression.
+- Restored the prior cached-account startup path on the development branch, while retaining account-active, school-active, license/trial, and forced-password-change checks. The new eligibility policy is isolated in `canOpenCachedOfflineAccount` and covered by unit tests.
+- Updated `lib/main.dart`, `lib/offline_credentials.dart`, and `test/offline_auth_preflight_test.dart`.
+- Latest branch commit: `4e6d026ceefe67c8f7f8c7d978785b6a579b5d86`.
+- CI status for this latest commit is not yet confirmed. Do not distribute an APK until formatting, analysis, tests, APK build and package/signature checks pass.
+- No production data, Supabase schema, secrets, or main branch changed.
