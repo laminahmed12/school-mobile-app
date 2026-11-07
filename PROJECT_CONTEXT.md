@@ -1134,3 +1134,12 @@ Use these as standing execution instructions for future sessions:
 8. Final release acceptance: once gates 1–7 are closed, obtain explicit go-ahead for commercial release, run the existing manual Build signed Lamin release APK workflow against the approved commit, verify certificate fingerprint/package/version/SHA-256, and perform final install/update and smoke test. Do not merge PR #22 or publish a release without explicit authorization.
 
 - No production database, release secret, signing material, PR merge, or commercial release was changed or performed while recording this acceptance result.
+
+
+## FOLLOW-UP TEST ACCESS CHECK — 2026-11-07
+
+- Confirmed the connected Supabase account still lists the isolated staging project `Lamin-Test` (`iijngozcfzskhvxrmlwi`) as `ACTIVE_HEALTHY`; production `School-Management` was not selected or modified.
+- Attempted read-only inspection of Lamin-Test migrations and tables, then a non-mutating `SELECT current_database(), current_user, current_setting('server_version')`. The Supabase connector woke the project, but database operations failed with PostgreSQL `28P01 password authentication failed` for `postgres` / `supabase_read_only_user`. No SQL changes or test data writes were executed. This is a connector/database credential failure, not evidence of an application defect.
+- Current branch HEAD before this note: `ebc0d15b9a002ee3663055d9932b36f8c2da82ee`. On that HEAD, portal validation `42316907382`, schema baseline acceptance `42316907377`, and RPC security ACL regression `42316907423` completed successfully. Development validation `42316907375` was still building/verifying the debug candidate at inspection time; run URL: https://github.com/laminahmed12/school-mobile-app/actions/runs/42316907375.
+- The schema baseline workflow runs against disposable PostgreSQL 17 CI databases; the current workflow does not yet apply the archive lifecycle migration or run archive-specific lifecycle assertions. Do not treat general schema/RPC CI as a dedicated archive test.
+- This tool session has no attached Android emulator/device control. User-confirmed physical-device acceptance remains the source of truth for phone-only flows; CI can validate source, database routines and APK build/signature, but cannot independently exercise the user's installed Android app.
