@@ -232,7 +232,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool checking = true;
   bool mustChangePassword = false;
   bool offlineAccess = false;
-  bool startupRequiresOfflineCredentialProof = false;
+  bool startupRequiresOfflineCredentialProof = true;
   bool _startupAuthCheckCompleted = false;
   int _lifecycleLockRevision = 0;
   OnlineLoginPreparationState onlineLoginState =
@@ -362,10 +362,11 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       setState(() {
         checking = false;
         if (isInitialStartupCheck) {
-          offlineAccess = session == null && cachedOfflineEligible;
-          // A restored authenticated session remains valid for offline startup;
-          // do not force a second, newly-enrolled local credential on upgrade.
-          startupRequiresOfflineCredentialProof = false;
+          // A persisted Supabase session or cached profile is not proof that
+          // the person holding the device is the account owner. Require an
+          // explicit online login or verified offline password on every cold start.
+          offlineAccess = false;
+          startupRequiresOfflineCredentialProof = true;
         }
         locked = (session != null || offlineAccess) && enabled;
         mustChangePassword = forcePassword && session != null;
@@ -387,7 +388,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           // Do not invalidate a persisted Supabase session because a cache
           // refresh failed; the session remains locally authenticated.
           offlineAccess = false;
-          startupRequiresOfflineCredentialProof = false;
+          startupRequiresOfflineCredentialProof = true;
         }
         locked = keepBiometricLock;
         mustChangePassword = false;
