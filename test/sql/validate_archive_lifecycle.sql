@@ -46,9 +46,15 @@ BEGIN
  IF has_function_privilege('anon','public.archive_person(text,uuid,text,text)','EXECUTE')
  OR has_function_privilege('anon','public.restore_person(text,uuid)','EXECUTE')
  OR has_function_privilege('anon','public.list_archive(text)','EXECUTE')
- OR has_function_privilege('public','public.archive_person(text,uuid,text,text)','EXECUTE')
- OR has_function_privilege('public','public.restore_person(text,uuid)','EXECUTE')
- OR has_function_privilege('public','public.list_archive(text)','EXECUTE') THEN
+ OR EXISTS (
+   SELECT 1 FROM pg_proc p
+   CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f',p.proowner))) a
+   WHERE p.oid IN (
+     'public.archive_person(text,uuid,text,text)'::regprocedure,
+     'public.restore_person(text,uuid)'::regprocedure,
+     'public.list_archive(text)'::regprocedure
+   ) AND a.grantee=0 AND a.privilege_type='EXECUTE'
+ ) THEN
    RAISE EXCEPTION 'archive RPC is executable by anon or PUBLIC';
  END IF;
  IF NOT has_function_privilege('authenticated','public.archive_person(text,uuid,text,text)','EXECUTE')
