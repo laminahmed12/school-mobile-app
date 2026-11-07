@@ -333,28 +333,9 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
         }
       }
 
-      // Preserve the previously working offline-start contract: a user who
-      // has authenticated on this installation can reopen the cached account
-      // without a network request. The encrypted cache is scoped to that user,
-      // and inactive, password-change-pending, or unlicensed schools fail closed.
-      final cachedSchool = cached?.schoolId == null
-          ? null
-          : await repo.cachedSchoolForId(cached!.schoolId!);
-      final trialValid = schoolTrialEnd(cachedSchool)
-              ?.isAfter(DateTime.now().toUtc()) ??
-          false;
-      final cachedOfflineEligible = canOpenCachedOfflineAccount(
-        hasRememberedUser: rememberedId != null && rememberedId.isNotEmpty,
-        profileActive: cached?.active == true,
-        hasSchoolId: cached?.schoolId?.isNotEmpty == true,
-        isOwner: cached?.role == 'owner',
-        mustChangePassword: cached?.mustChangePassword == true,
-        schoolActive: cachedSchool?['active'] != false &&
-            cachedSchool != null,
-        licensed: cachedSchool?['licensed'] == true,
-        trialValid: trialValid,
-      );
-
+      // Cached profile data is used only for the forced-password-change guard.
+      // It never grants access: cold starts require an online session or the
+      // password-verified offline flow below.
       final forcePassword = cached?.active == true &&
           cached?.role != 'owner' &&
           cached?.mustChangePassword == true;
