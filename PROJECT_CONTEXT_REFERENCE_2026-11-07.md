@@ -1200,3 +1200,17 @@ All four workflows completed with SUCCESS:
 2. Install it only in a safe test context compatible with its debug signature.
 3. Verify logout and force-close/reopen both return to login; verify correct offline password succeeds and wrong password is rejected.
 4. Keep PR #22 open. Commercial release still requires the established release certificate fingerprint, release workflow, version-code policy, and explicit authorization. Do not change signing identity or production.
+
+
+---
+
+# AUTHORIZATION REVIEW — 2026-11-07
+
+- Corrected role boundary: `owner` is a global platform-owner identity, not a school administrator. The schema/bootstrap migration `20261016013326_fix_owner_school_bootstrap_scope_20261016.sql` explicitly requires owner profiles to have `school_id IS NULL`.
+- Removed `owner` from school-admin UI capability checks and school finance totals. Only `admin` receives school-admin UI capabilities; `accountant` and `supervisor` remain separate roles.
+- Global owner and any malformed school profile without a school scope are blocked from loading the school dashboard, cached school data, and remote school snapshot. The app presents a dedicated explanation and logout path to the separate PIN-protected Owner Console.
+- Added `SchoolRoleAccess` capability helpers and unit coverage for owner/admin/accountant/supervisor separation.
+- No SQL migration, Supabase project, production data, credentials, or secrets were changed. Existing SQL owner policies remain tenant-scoped; because global owner has no school_id, those policies do not grant access to a school's rows.
+- Implementation commits on branch `fix/lamin-portal-crud-offline-20261030`: `67068452` (role capability model), `b938b762` (tests), `84a9c0ba` (UI isolation). Current HEAD: `84a9c0ba75afc14043d371d6d1c051b67cd7b7bd`.
+- CI runs for current HEAD: development validation `42399611667` (queued), portal validation `42399611603` (validation steps passed; run finishing), schema baseline acceptance `42399611734` (queued), RPC security ACL regression `42399611871` (queued). Do not call the change verified until all finish successfully.
+- Phone acceptance still required: sign in as a global owner and confirm school dashboard is never shown; sign out and enter Owner Console through the login-screen Adreemk triple-tap plus PIN; sign in as school admin and confirm normal school administration remains available.
