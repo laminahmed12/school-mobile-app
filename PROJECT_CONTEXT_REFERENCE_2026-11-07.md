@@ -1214,3 +1214,13 @@ All four workflows completed with SUCCESS:
 - Implementation commits on branch `fix/lamin-portal-crud-offline-20261030`: `67068452` (role capability model), `b938b762` (tests), `84a9c0ba` (UI isolation). Current HEAD: `84a9c0ba75afc14043d371d6d1c051b67cd7b7bd`.
 - CI runs for current HEAD: development validation `42399611667` (queued), portal validation `42399611603` (validation steps passed; run finishing), schema baseline acceptance `42399611734` (queued), RPC security ACL regression `42399611871` (queued). Do not call the change verified until all finish successfully.
 - Phone acceptance still required: sign in as a global owner and confirm school dashboard is never shown; sign out and enter Owner Console through the login-screen Adreemk triple-tap plus PIN; sign in as school admin and confirm normal school administration remains available.
+
+
+## USER-REPORTED PHYSICAL-DEVICE ACCEPTANCE — 2026-11-08
+
+- The user reports that all requested phone checks passed on the installed test candidate. Screenshots supplied show the Owner Center for school code `test` with trial status, a return to the school login screen, a successful school-admin dashboard session, and the archive screen listing teacher `Test102` with a restore action.
+- User-confirmed checks: global owner remains in the Owner Center and does not enter the school dashboard; school admin can sign in and access the school dashboard; logout returns to the login screen; offline access/password checks passed; archive and restore checks for students, teachers, and staff passed; the user reports the complete checklist succeeded.
+- Treat these as USER-REPORTED device acceptance, not independent device automation. The supplied screenshots corroborate the visible screens and archive entry; they do not independently prove every tap or offline condition.
+- Owner Center shows 7 students while the school dashboard shows 6. This may reflect total versus active/non-archived counts; do not change code or data based on this difference without checking the intended count semantics.
+- This update records the user's test result only. No application source, Supabase database, production environment, secrets, signing identity, or release workflow was changed. PR #22 remains OPEN and UNMERGED.
+- Commercial release is still a separate gate: use the existing release certificate and approved signing workflow, verify the APK/version/package/fingerprint, and obtain explicit release authorization. A debug-signed candidate is not a commercial release.
