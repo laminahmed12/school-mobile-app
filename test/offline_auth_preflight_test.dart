@@ -3,29 +3,29 @@ import 'package:lamin_school/offline_credentials.dart';
 
 void main() {
   group('cold-start offline authentication contract', () {
-    test('restored Supabase session does not require a new local enrollment', () {
+    test('restored Supabase session still requires explicit identity proof', () {
       expect(
         shouldShowLoginForm(
           hasAuthenticatedSession: true,
           offlineAccess: false,
           preparingOnlineLogin: false,
           onlineLoginPreparationFailed: false,
-          requiresOfflineCredentialProof: false,
+          requiresOfflineCredentialProof: true,
         ),
-        isFalse,
+        isTrue,
       );
     });
 
-    test('cached authenticated session closes login form', () {
+    test('cached profile does not bypass offline password proof', () {
       expect(
         shouldShowLoginForm(
           hasAuthenticatedSession: true,
-          offlineAccess: true,
+          offlineAccess: false,
           preparingOnlineLogin: false,
           onlineLoginPreparationFailed: false,
-          requiresOfflineCredentialProof: false,
+          requiresOfflineCredentialProof: true,
         ),
-        isFalse,
+        isTrue,
       );
     });
 
