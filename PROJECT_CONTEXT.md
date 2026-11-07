@@ -1155,3 +1155,48 @@ Use these as standing execution instructions for future sessions:
 - Dedicated archive test and workflow changes are committed, but archive lifecycle behavior is NOT yet claimed passing until the run on HEAD `51f0725...` completes successfully.
 - Supabase connector database login remained unavailable due PostgreSQL credential-authentication errors; no migrations or SQL writes were attempted against Lamin-Test or production. The archive test is instead being run on the disposable CI database.
 - Physical Android acceptance remains pending. Keep signed release on hold; do not run release signing or remove the existing app from the user's phone.
+
+
+---
+
+# AUTHORITATIVE SESSION UPDATE — 2026-11-07 (latest; supersedes all earlier status entries)
+
+## Verified repository state
+- Repository: `laminahmed12/school-mobile-app`; project is Lamīn School / Supabase only.
+- Active branch: `fix/lamin-portal-crud-offline-20261030`.
+- Verified source HEAD before this documentation update: `d0547645a09f934179315ee839b02ee0669dff7b`.
+- PR #22 remains OPEN and UNMERGED. No merge, retarget, or production change was made.
+- App version in `pubspec.yaml`: `2.0.3+15`; package identity remains `com.adreemk.school.lamin_school` (candidate workflow's package/signature verification step passed).
+
+## Authentication correction for unexpected dashboard reopening
+- On cold start, a persisted Supabase session or cached profile is no longer treated as sufficient identity proof to enter the dashboard.
+- Startup now displays the login form until an online authenticated session is established or the user completes the explicit offline credential flow.
+- Offline credential flow continues to verify the supplied password against the device-bound PBKDF2/HMAC-SHA256 verifier, school/user identity, device binding, account and school activation, and licensing/trial conditions.
+- A biometric lock remains enforced after successful authentication where enabled.
+- Removed the obsolete cached auto-access eligibility calculation after static analysis identified it as unused.
+- Tests in `test/offline_auth_preflight_test.dart` were updated to assert that restored sessions/cached profiles do not bypass explicit identity proof.
+- This is code and CI validation. The user's phone must still confirm: logout -> login screen; force-close/reopen -> login screen; correct offline password -> access; incorrect password -> denied; biometric behavior.
+
+## Exact GitHub Actions acceptance on HEAD `d0547645...`
+All four workflows completed with SUCCESS:
+- Lamin development validation: run `42391728754` — SUCCESS.
+  - Dependency resolution, Dart formatting, format verification, `flutter analyze --no-pub --fatal-infos --fatal-warnings`, `flutter test), Android preparation, Android NDK `27.0.12077973`, Android candidate build, APK package/signature verification, signing-toolchain packaging, and artifact uploads all succeeded.
+  - Run URL: https://github.com/laminahmed12/school-mobile-app/actions/runs/42391728754
+- Lamin portal validation: run `42391728818` — SUCCESS.
+- Lamin RPC security ACL regression: run `42391728890` — SUCCESS.
+- Lamin schema baseline acceptance: run `42391728899` — SUCCESS; includes archive lifecycle migration and disposable PostgreSQL archive/list/restore, validation, tenant isolation, role denial, ACL, and no-hard-delete assertions.
+- The previous long wait was caused by the Android NDK installation step. It eventually completed successfully; Android candidate build then completed successfully. No failure remains in these four runs.
+
+## Candidate artifacts (not a commercial release)
+- Candidate workflow run: `42391728754`.
+- APK candidate artifact: `lamin-development-candidate`, artifact ID `13581718181`, archive SHA-256 digest `849f97b6619dcb198cd4b10cc711d3ee401cf5958e541d3b9d3924b492007433`.
+- Signing toolchain artifact: `lamin-apksigner-toolchain`, artifact ID `13582261785`, archive SHA-256 digest `6878bb460a5975ce9bbc1ec0b8e593f00a188a32d58ffc17ee360a68faec5e64`.
+- Candidate was built and passed workflow package/signature verification. It is a DEBUG-SIGNED TEST CANDIDATE, not a commercially signed release APK. Do not install it over an existing production-signed app unless Android confirms compatible signing; use a separate test installation/device or uninstall only with explicit user consent and after protecting local data.
+- Artifact expiry at creation: candidate 2026-11-14T16:38:07Z; signing toolchain 2026-11-08T16:38:04Z. Download/archive and preserve the candidate artifact before expiry if it is needed later.
+- No claim of physical-device validation is made. No release signing, secret access/change, Supabase project write, or production action was performed.
+
+## Next acceptance
+1. Download and preserve the verified candidate artifact before expiry if required.
+2. Install it only in a safe test context compatible with its debug signature.
+3. Verify logout and force-close/reopen both return to login; verify correct offline password succeeds and wrong password is rejected.
+4. Keep PR #22 open. Commercial release still requires the established release certificate fingerprint, release workflow, version-code policy, and explicit authorization. Do not change signing identity or production.
