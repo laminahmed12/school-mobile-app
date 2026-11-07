@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - development/lamin-after-obour-2026-10-28
+      - fix/lamin-portal-crud-offline-20261030
   pull_request:
     branches:
       - main
       - development/lamin-after-obour-2026-10-28
+      - feature/lamin-desktop-portal-2026-10-29
 permissions:
   contents: read
 
@@ -25,7 +27,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.4'
           cache: true
       - name: Resolve dependencies
         run: flutter pub get
@@ -40,6 +42,7 @@ jobs:
       - name: Prepare Android platform files and Lamin identity
         run: |
           flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+          install -D tooling/android/MainActivity.kt android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt
           rm -f test/widget_test.dart
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26 android/app/src/main/res/drawable android/app/src/main/res/values
           cat > android/app/src/main/res/values/lamin_launcher.xml <<'EOF'
@@ -78,14 +81,81 @@ jobs:
           </adaptive-icon>
           EOF
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
-      - name: Build Android candidate (unsigned)
+          grep -q 'android:allowBackup=' android/app/src/main/AndroidManifest.xml || sed -i 's/<application/<application android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
+      - name: Install Android NDK 27.0.12077973 (retry corrupted SDK downloads)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK_VERSION="27.0.12077973"
+          NDK_DIR="$ANDROID_HOME/ndk/$NDK_VERSION"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          for attempt in 1 2 3; do
+            if [ -s "$NDK_DIR/source.properties" ] && \
+               grep -Fq "Pkg.Revision = $NDK_VERSION" "$NDK_DIR/source.properties"; then
+              echo "NDK $NDK_VERSION is installed and verified."
+              exit 0
+            fi
+            echo "Installing NDK $NDK_VERSION (attempt $attempt/3)."
+            rm -rf "$NDK_DIR"
+            if "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "ndk;$NDK_VERSION" && \
+               [ -s "$NDK_DIR/source.properties" ] && \
+               grep -Fq "Pkg.Revision = $NDK_VERSION" "$NDK_DIR/source.properties"; then
+              echo "NDK $NDK_VERSION installation verified."
+              exit 0
+            fi
+            rm -rf "$NDK_DIR"
+            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 5)); fi
+          done
+          echo "NDK $NDK_VERSION could not be installed after three attempts." >&2
+          exit 1
+      - name: Build Android candidate (debug-signed for testing)
         env:
           GOOGLE_SERVER_CLIENT_ID: 207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
-      - name: Upload candidate APK
+      - name: Verify candidate APK signature and package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          test -n "$AAPT"
+          "$APKSIGNER" verify --verbose "$APK"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          APP_VERSION="$(awk '/^version:/ {print $2; exit}' pubspec.yaml | tr -d '"')"
+          IFS='+' read -r VERSION_NAME VERSION_CODE <<< "$APP_VERSION"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          EXPECTED_BADGING="package: name='com.adreemk.school.lamin_school' versionCode='${VERSION_CODE}' versionName='${VERSION_NAME}'"
+          grep -Fq "$EXPECTED_BADGING" <<< "$BADGING"
+          sha256sum "$APK" | tee "$RUNNER_TEMP/lamin-candidate-sha256.txt"
+      - name: Package Android signing toolchain for release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS_DIR/apksigner"
+          mkdir -p "$RUNNER_TEMP/apksigner-tools"
+          cp "$BUILD_TOOLS_DIR/apksigner" "$RUNNER_TEMP/apksigner-tools/"
+          cp -a "$BUILD_TOOLS_DIR/lib" "$RUNNER_TEMP/apksigner-tools/"
+          tar -czf "$RUNNER_TEMP/apksigner-tools.tar.gz" -C "$RUNNER_TEMP" apksigner-tools
+      - name: Upload Android signing toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamin-apksigner-toolchain
+          path: ${{ runner.temp }}/apksigner-tools.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload candidate APK and checksum
         uses: actions/upload-artifact@v4
         with:
           name: lamin-development-candidate
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            ${{ runner.temp }}/lamin-candidate-sha256.txt
           if-no-files-found: error
           retention-days: 7
