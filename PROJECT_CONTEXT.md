@@ -1108,3 +1108,29 @@ Use these as standing execution instructions for future sessions:
 - Fixed in commit `c7991dce1279ff97e3693de0305fe26dc1144b97`: explicit logout now ends only the local Supabase authenticated session and retains the device-bound offline credential and remembered user ID. Offline access remains gated by the saved password verifier, school/account status and Android Keystore proof. No server session, Supabase data, production configuration, secrets, or signing material is modified.
 - Expected behavior after this change: normal app close/reopen remains as before; explicit logout returns to login but preserves offline enrollment, allowing the user to select “متابعة دون اتصال” and authenticate with the enrolled password on the same device.
 - CI/build for this fix has not yet been verified at the time of this note. Do not ask the user to repeat tests on the old APK. Test the new candidate built from this commit: online login once if needed to enroll, explicit logout, disable internet, then offline login. Verify that the V3 record persists after logout and offline access succeeds.
+
+
+## USER-VERIFIED OFFLINE LOGOUT/LOGIN ACCEPTANCE — 2026-11-07
+
+- User explicitly confirmed on the newly built candidate that **offline login succeeds after the explicit logout flow**. This closes the previously reported blocker where logout() deleted lamin.offline.identity.v3 and lamin.offline.user.id.
+- Fix commit: c7991dce1279ff97e3693de0305fe26dc1144b97. This handover update is documentation-only; current HEAD before this update: 545f0d79d32cf3de7c06f91696feb2eb008471ae.
+- All four GitHub Actions workflows completed successfully for fix source commit c7991dce1279ff97e3693de0305fe26dc1144b97:
+  - Development validation 42273016806: SUCCESS (attempt 2); Flutter format, static analysis, automated tests, Android candidate build, APK signature/package verification, and artifact upload passed.
+  - Portal validation 42273016742: SUCCESS.
+  - Schema baseline acceptance 42273016776: SUCCESS.
+  - RPC security ACL regression 42273016813: SUCCESS.
+- Development APK artifact: lamin-development-candidate, artifact ID 13532018150, 29,249,980 bytes, from https://github.com/laminahmed12/school-mobile-app/actions/runs/42273016806. This is a debug-signed validation APK, not the commercial release artifact.
+- PR #22 remains open and unmerged.
+
+## COMMERCIAL RELEASE GATES STILL OPEN — 2026-11-07
+
+1. Physical-device regression pass: explicit logout -> offline login is now user-confirmed passed; still verify cold start after force-close in airplane mode, incorrect offline password rejection, biometric lock/unlock, valid and expired license/trial states, reconnect and queued-operation replay, and long-operation/loading behavior. Earlier handover records unresolved cold-start airplane-mode, slow replay/read operations, and restore/export acceptance; close each with actual device results.
+2. Archive lifecycle: verify archive/list/search/restore for students, teachers, and staff against the target Supabase environment; prove no duplicates or relationship/data loss. General schema/RPC CI passed, but a dedicated archive regression test suite is still absent.
+3. Supabase production schema state: migration supabase/migrations/20261104000000_archive_only_no_hard_delete.sql is in the repository, but its deployment to production Supabase has not been verified. Do not apply it to production without controlled approval and a backup/rollback plan.
+4. Backup and recovery: complete a real backup export and restore test on-device, including recovery of related data; previous acceptance remains outstanding.
+5. Performance and sync integrity: measure and resolve previously observed long waits (offline replay timeouts around 15–20 seconds and sequential financial reads); test retry/idempotency and no duplicate writes after connectivity returns.
+6. Release workflow configuration: .github/workflows/release-signed-apk.yml requires the established signing secrets LAMIN_KEYSTORE_BASE64, LAMIN_KEYSTORE_PASSWORD, LAMIN_KEY_ALIAS, LAMIN_KEY_PASSWORD and repository variable GOOGLE_SERVER_CLIENT_ID. Values must not be exposed. Presence/validity is checked by the release workflow itself; this session did not inspect or change secrets and did not run commercial signing.
+7. Release identity and version: preserve package com.adreemk.school.lamin_school and the existing release certificate fingerprint recorded above. Before signing, select a versionCode greater than every APK already distributed (current source version 2.0.3+15; prior handover warns +14/+15 candidates may already have been handed out). Build and verify install-over-existing update with the same release certificate. Never substitute the debug signing certificate.
+8. Final release acceptance: once gates 1–7 are closed, obtain explicit go-ahead for commercial release, run the existing manual Build signed Lamin release APK workflow against the approved commit, verify certificate fingerprint/package/version/SHA-256, and perform final install/update and smoke test. Do not merge PR #22 or publish a release without explicit authorization.
+
+- No production database, release secret, signing material, PR merge, or commercial release was changed or performed while recording this acceptance result.
