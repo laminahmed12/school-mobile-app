@@ -1526,7 +1526,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       students = values[1] as List<Student>;
       teachers = values[2] as List<Teacher>;
       final role = profile?.role ?? '';
-      if (role == 'admin' || role == 'owner' || role == 'accountant') {
+      if (role == 'admin' || role == 'accountant') {
         payments = values[3] as double;
         expenses = values[4] as double;
       } else {
@@ -1550,18 +1550,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // needed to populate the home screen or the queued-operation counter.
       online = await _hasInternetConnection();
       profile = await repo.cachedProfile();
-      schoolInfo = await repo.cachedSchool();
       final role = profile?.role ?? '';
+      if (SchoolRoleAccess.isGlobalOwner(role) || (profile != null && (profile!.schoolId == null || profile!.schoolId!.isEmpty))) {
+        schoolInfo = null; students = []; teachers = []; payments = 0; expenses = 0; pendingOperations = 0;
+        if (mounted) setState(() => loading = false);
+        return;
+      }
+      schoolInfo = await repo.cachedSchool();
 
       final cachedValues = await Future.wait<Object?>([
         repo.students(cacheOnly: true),
         role == 'supervisor'
             ? Future<List<Teacher>>.value([])
             : repo.teachers(cacheOnly: true),
-        (role == 'admin' || role == 'owner' || role == 'accountant')
+        (role == 'admin' || role == 'accountant')
             ? repo.paymentsTotal(cacheOnly: true)
             : Future<double>.value(0),
-        (role == 'admin' || role == 'owner' || role == 'accountant')
+        (role == 'admin' || role == 'accountant')
             ? repo.expensesTotal(cacheOnly: true)
             : Future<double>.value(0),
         repo.pendingOfflineOperationCount(),
@@ -1590,9 +1595,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final role = profile?.role ?? '';
-    final isAdmin = role == 'admin' || role == 'owner';
-    final isSupervisor = role == 'supervisor';
-    final isAccountant = role == 'accountant';
+    final isAdmin = role == 'admin';
+    final isSupervisor = SchoolRoleAccess.isSchoolSupervisor(role);
+    final isAccountant = SchoolRoleAccess.isSchoolAccountant(role);
     final pages = <Widget>[
       DashboardView(
         profile: profile,
@@ -1869,9 +1874,7 @@ class DashboardView extends StatelessWidget {
         stat('الطلاب', '${students.length}', Icons.groups),
         if (profile?.role != 'supervisor')
           stat('المعلمون', '${teachers.length}', Icons.school),
-        if (profile?.role == 'admin' ||
-            profile?.role == 'owner' ||
-            profile?.role == 'accountant') ...[
+        if (profile?.role == 'admin' || profile?.role == 'accountant') ...[
           stat(
             'إجمالي المدفوعات',
             '${payments.toStringAsFixed(2)} د.ل',
@@ -4559,7 +4562,7 @@ class MoreView extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final isAdmin = role == 'admin' || role == 'owner';
+    final isAdmin = role == 'admin';
     final isSupervisor = role == 'supervisor';
     final isAccountant = role == 'accountant';
     return ListView(
