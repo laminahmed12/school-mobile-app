@@ -123,6 +123,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031180000_offline_student_create_idempotency.sql
       - name: Verify offline student creation idempotency
         run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_offline_student_idempotency.sql
+      - name: Apply archive-only lifecycle migration in disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104000000_archive_only_no_hard_delete.sql
+      - name: Verify archive, restore, tenant isolation, and ACL lifecycle
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_archive_lifecycle.sql
       - name: Validate reconstructed bridge on a third disposable database
         run: |
           set -euo pipefail
