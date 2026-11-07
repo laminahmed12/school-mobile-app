@@ -1458,7 +1458,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshRemoteSnapshot() async {
-    if (refreshingRemote || !mounted || !online) return;
+    if (refreshingRemote || !mounted || !online ||
+        SchoolRoleAccess.isGlobalOwner(profile?.role) ||
+        profile?.schoolId == null || profile!.schoolId!.isEmpty) return;
     refreshingRemote = true;
     try {
       // With autoRefreshToken disabled, an expired session remains available
@@ -1595,6 +1597,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final role = profile?.role ?? '';
+    if (SchoolRoleAccess.isGlobalOwner(role) ||
+        (profile != null && (profile!.schoolId == null || profile!.schoolId!.isEmpty))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('بوابة مالك النظام')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shield_outlined, size: 56),
+                const SizedBox(height: 16),
+                const Text('هذا الحساب مخصص لإدارة المنصة والمدارس، وليس لإدارة مدرسة بعينها.', textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                const Text('للوصول إلى بوابة المالك، سجّل الخروج وافتحها من شاشة الدخول عبر الضغط ثلاث مرات على Adreemk.', textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                FilledButton.icon(onPressed: logout, icon: const Icon(Icons.logout), label: const Text('تسجيل الخروج')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final isAdmin = role == 'admin';
     final isSupervisor = SchoolRoleAccess.isSchoolSupervisor(role);
     final isAccountant = SchoolRoleAccess.isSchoolAccountant(role);
