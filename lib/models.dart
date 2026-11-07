@@ -93,3 +93,14 @@ class ResultItem {
     maxScore: (m['max_score'] as num?)?.toDouble() ?? 100,
   );
 }
+
+
+/// School roles are tenant-scoped. The global platform owner is deliberately
+/// excluded from school administration and must use the separate owner portal.
+class SchoolRoleAccess {
+  static bool isGlobalOwner(String? role) => role == 'owner';
+  static bool isSchoolAdmin(String? role) => role == 'admin';
+  static bool isSchoolAccountant(String? role) => role == 'accountant';
+  static bool isSchoolSupervisor(String? role) => role == 'supervisor';
+  static bool hasSchoolScope(String? role) => isSchoolAdmin(role) || isSchoolAccountant(role) || isSchoolSupervisor(role);
+}
