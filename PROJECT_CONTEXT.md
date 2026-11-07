@@ -1143,3 +1143,15 @@ Use these as standing execution instructions for future sessions:
 - Current branch HEAD before this note: `ebc0d15b9a002ee3663055d9932b36f8c2da82ee`. On that HEAD, portal validation `42316907382`, schema baseline acceptance `42316907377`, and RPC security ACL regression `42316907423` completed successfully. Development validation `42316907375` was still building/verifying the debug candidate at inspection time; run URL: https://github.com/laminahmed12/school-mobile-app/actions/runs/42316907375.
 - The schema baseline workflow runs against disposable PostgreSQL 17 CI databases; the current workflow does not yet apply the archive lifecycle migration or run archive-specific lifecycle assertions. Do not treat general schema/RPC CI as a dedicated archive test.
 - This tool session has no attached Android emulator/device control. User-confirmed physical-device acceptance remains the source of truth for phone-only flows; CI can validate source, database routines and APK build/signature, but cannot independently exercise the user's installed Android app.
+
+## Session update — 2026-11-07 archive lifecycle CI coverage
+
+- Working branch HEAD at handover update: `51f0725cb9af5d63456f7022f5b646ddb4b37c68`.
+- Added `test/sql/validate_archive_lifecycle.sql` to exercise the archive-only migration against disposable PostgreSQL: archive/list/restore for students, teachers, and staff; search; invalid reason rejection; cross-school isolation; accountant role denial; authenticated DELETE privilege/policy removal; archive RPC ACL; staff insert/update policy continuity; and preservation of underlying rows.
+- Updated `.github/workflows/lamin-schema-baseline-acceptance.yml` to apply `20261104000000_archive_only_no_hard_delete.sql` and execute the dedicated lifecycle test after the existing schema/idempotency validations. This workflow uses its own ephemeral PostgreSQL service; no Supabase project was modified.
+- Intermediate workflow commit `becf0d08fbc34a78ef91d8d2e14964e712f4e01b` triggered CI before a test ACL assertion was corrected. The correction is included in HEAD `51f0725...`; only runs whose `head_sha` exactly matches this final HEAD count as validation.
+- PR #22 was verified OPEN and UNMERGED; no changes to `main`, production Supabase, secrets, or release signing.
+- Earlier CI on `b8f5a07...`: portal validation, schema baseline, and RPC security ACL completed successfully; development validation was still in progress at last check. Recheck exact-HEAD runs and artifacts before reporting a final build result.
+- Dedicated archive test and workflow changes are committed, but archive lifecycle behavior is NOT yet claimed passing until the run on HEAD `51f0725...` completes successfully.
+- Supabase connector database login remained unavailable due PostgreSQL credential-authentication errors; no migrations or SQL writes were attempted against Lamin-Test or production. The archive test is instead being run on the disposable CI database.
+- Physical Android acceptance remains pending. Keep signed release on hold; do not run release signing or remove the existing app from the user's phone.
