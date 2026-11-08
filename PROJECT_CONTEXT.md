@@ -1296,3 +1296,12 @@ All four workflows completed with SUCCESS:
 - Fix commit: `998ab7ddfce9ca9ea1a688fea2de112c194c9273`. Re-fetched and verified the workflow block. No production configuration or secrets changed.
 - Latest CI validation runs for this commit were queued at update time: portal 42504333010, RPC ACL 42504332848, development 42504332787, schema 42504332772. No signed-release run has yet been triggered for this commit; no acceptable APK is available.
 - Next: wait for these CI validations to complete, then dispatch signed release workflow against branch `fix/lamin-portal-crud-offline-20261030`. Accept only if verification reports V1/V2/V3 true and certificate SHA-256 equals `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`.
+
+
+## Signing verification correction — V1 is not applicable to configured minSdk 24 — 2026-11-08
+
+- Latest failed run `42507250371` was inspected in full. APK build and JAR signing command both completed, but subsequent apksigner output remained V1=false, V2=true, V3=true; the approved certificate fingerprint was correct. The V1-first then apksigner approach did not work because the APK was already release-signed by Gradle and the re-signing step rewrote the archive/signature data.
+- Re-evaluated the acceptance requirement against the actual workflow configuration: the workflow explicitly sets `minSdk = 24` (Android 7.0+). V1/JAR signing is the legacy scheme for Android 6.0 and lower; it is not required for this app's supported API range. Requiring V1 was an erroneous extra gate, not an app signing defect.
+- Corrected `.github/workflows/release-signed-apk.yml` in commit `c3c0d6939d73f6e7aaac5397d90f5a332e892078`: removed the jarsigner/apksigner re-sign sequence; retain Gradle release signing and verify V2 and V3 are true, verify the APK declares minSdk 24, and retain the approved release certificate SHA-256 pin. This avoids mutating an already signed APK.
+- No signing secrets, keystore, production, Supabase, package identity, or PR merge state changed. PR #22 remains open/unmerged.
+- Next: allow the latest commit's CI validations to complete, then run signed release workflow from this HEAD. Accept only V2=true, V3=true, minSdk 24, and the approved certificate fingerprint. APK upload remains gated on these checks.
