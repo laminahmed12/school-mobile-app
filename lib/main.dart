@@ -1400,13 +1400,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // gated by the saved password verifier and Android Keystore proof.
       // Removing either secure-storage key here makes offline login impossible
       // immediately after a normal logout.
-      await db.auth
-          .signOut(scope: SignOutScope.local)
-          .timeout(const Duration(seconds: 5));
       if (db.auth.currentSession != null) {
-        throw Exception(
-          'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
-        );
+        await db.auth
+            .signOut(scope: SignOutScope.local)
+            .timeout(const Duration(seconds: 5));
+        if (db.auth.currentSession != null) {
+          throw Exception(
+            'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
+          );
+        }
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
