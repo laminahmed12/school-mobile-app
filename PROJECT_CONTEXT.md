@@ -1339,3 +1339,13 @@ All four workflows completed with SUCCESS:
 - Latest source HEAD remains `12e7a796e71dffe4b0087b49177c77160740f380`. All four CI workflows on that exact HEAD passed: development validation, portal validation, schema baseline acceptance, RPC security ACL regression. Development validation also passed formatting, static analysis, automated tests, debug candidate APK build, candidate signature/package identity checks, and artifact uploads. Candidate artifact `lamin-development-candidate` is for development/testing only, not the signed release APK.
 - PR #22 remains OPEN / UNMERGED. A signed release APK for HEAD `12e7a796` has not yet been built. The previous successful signed release APK corresponds to older HEAD `399af863`; do not confuse it with the current finance/sync code.
 - Next recommended step: run the signed release workflow from the latest green HEAD `12e7a796`, then verify V2/V3 and the pinned approved certificate fingerprint before distributing the updated commercial APK. Do not ask the user to repeat the login/sync test unless the new release APK changes that flow.
+
+
+## Latest signed release installed successfully by user — 2026-11-08
+
+- User confirms the signed release APK was downloaded and installed as an in-place update over the previous app successfully.
+- Signed release workflow run: `42512323177`, conclusion SUCCESS, source HEAD `f3a73849ab4c8b704ba412ac669faa096c25c52c` on `fix/lamin-portal-crud-offline-20261030`.
+- Release build dependencies, formatting, static analysis, Flutter tests, Android build, signature verification, and artifact upload all succeeded. V2 and V3 signatures verified true. Certificate SHA-256 matches approved release certificate `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`.
+- Artifact `lamin-signed-release-apk`, artifact ID `13629059968`, size 29,302,863 bytes, expires `2026-12-08T19:01:41Z`. Artifact archive digest `4d81561e1dbe8622475640b80bac3f30451413d605a0870c001ec3b43db008dc`.
+- CI on the same HEAD `f3a73849`: development, portal, schema baseline, and RPC security ACL all SUCCESS. PR #22 remains OPEN / UNMERGED.
+- User already validated the earlier finance/sync fix on device: pending operation synchronized and finance values appeared. Next acceptance on newly installed signed APK: confirm app opens and retains signed-in account/local data, finance page still loads correct figures, one fresh online sync works, and then airplane-mode read-only access works. Do not initiate duplicate payments or delete app data. If those checks pass, proceed to broader regression and PR review; do not merge without explicit authorization.
