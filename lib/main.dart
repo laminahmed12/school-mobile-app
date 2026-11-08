@@ -2149,6 +2149,12 @@ class _StudentsViewState extends State<StudentsView> {
       ),
     );
     if (action != 'archive') return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت وتسجيل الدخول إلى حساب المدرسة. لم يتم تغيير السجل.')),
+      );
+      return;
+    }
     try {
       await db.rpc('archive_person', params: {
         'p_kind': 'student',
@@ -4307,6 +4313,12 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
       ),
     );
     if (action != 'archive') return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت وتسجيل الدخول إلى حساب المدرسة. لم يتم تغيير السجل.')),
+      );
+      return;
+    }
     try {
       await db.rpc('archive_person', params: {
         'p_kind': 'teacher',
