@@ -1235,3 +1235,12 @@ All four workflows completed with SUCCESS:
 - Development candidate artifact `lamin-development-candidate`, artifact ID `13611271321`, archive SHA-256 `8440d2dfb3a2f6ebc6d2d8830ae7ae691e6696f5be41dd908021f8c8f2fc03`, expires 2026-11-15T08:45:45Z. It is a DEBUG-SIGNED test candidate, not a commercial release APK. Signing toolchain artifact `lamin-apksigner-toolchain`, artifact ID `13611396090`, expires 2026-11-09T08:45:43Z.
 - Release workflow run #12 still failed on the previous commit; no run exists yet on `b2013cc...` because `release-signed-apk.yml` is `workflow_dispatch` only. The connected GitHub actions do not expose a workflow-dispatch action; the REST fetch integration is GET-only. A manual dispatch on this branch is still required to execute the corrected signed-release workflow.
 - At this checkpoint PR #22 remains OPEN and UNMERGED. No production branch, Supabase project/data, secrets, or signing credentials were changed. The existing release certificate setup step passed in previous release attempts; a signed APK has not yet been produced.
+---
+
+# SIGNED RELEASE WORKFLOW FOLLOW-UP — 2026-11-08
+
+- Release workflow run #13 (`42494726709`) failed at `Apply premium Lamin launcher icon and app name` because it attempted to edit `android/app/src/main/AndroidManifest.xml` before the Android platform directory existed. The workflow had moved Flutter validation before Android generation but left the Android resource/manifest customization steps ahead of generation.
+- Fixed ordering in `.github/workflows/release-signed-apk.yml`, commit `152fc837a53c67cbe75da9bb0b264507360238bd`: dependency resolution, Dart format, strict static analysis, and Flutter tests now run first; Android platform files are generated next; then the sample test is removed and launcher resources, Android identity, release signing, OAuth validation, APK build, signature verification, and artifact upload run in order.
+- Verified the committed workflow file and exact step order via GitHub API. No production branch, Supabase project/data, repository secrets, or signing identity was modified.
+- Run #13 is a failed run on the previous workflow ordering. A new manual `workflow_dispatch` on branch `fix/lamin-portal-crud-offline-20261030` is required to execute commit `152fc837...`; the connected GitHub toolset exposes workflow-run reads and reruns but no dispatch action.
+- No signed release APK has been produced yet. Previous exact-HEAD development CI checks passed, and a debug-signed candidate exists; neither substitutes for a signed release APK.
