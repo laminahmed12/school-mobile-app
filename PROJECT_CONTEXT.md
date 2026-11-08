@@ -1244,3 +1244,17 @@ All four workflows completed with SUCCESS:
 - Verified the committed workflow file and exact step order via GitHub API. No production branch, Supabase project/data, repository secrets, or signing identity was modified.
 - Run #13 is a failed run on the previous workflow ordering. A new manual `workflow_dispatch` on branch `fix/lamin-portal-crud-offline-20261030` is required to execute commit `152fc837...`; the connected GitHub toolset exposes workflow-run reads and reruns but no dispatch action.
 - No signed release APK has been produced yet. Previous exact-HEAD development CI checks passed, and a debug-signed candidate exists; neither substitutes for a signed release APK.
+
+---
+
+## Session update — 2026-11-08 (signed-release Gradle failure)
+
+- Verified PR #22 remains OPEN / UNMERGED. Work remains only on `fix/lamin-portal-crud-offline-20261030`.
+- Latest branch HEAD: `729f0dcabe3f9233cca241119e6f4b3fb1b4ca94`.
+- Inspected failed signed-release run 42495521988 on prior HEAD `7bc18b703ebd7e726d0df157deaf8979f4056e6e`. Dependency resolution, Dart formatting, Flutter static analysis, and Flutter tests all passed; the release build then failed during Gradle Kotlin DSL compilation at generated `android/app/build.gradle.kts:11`: `java.util.Properties()` resolved `java` as a Gradle Kotlin DSL accessor, producing `Unresolved reference: util`. APK signature verification and artifact upload were skipped.
+- Updated `.github/workflows/release-signed-apk.yml` to inject an explicit `import java.util.Properties` and instantiate `Properties()`, avoiding the Kotlin DSL name-resolution collision. Verified the corrected workflow text on the branch. This is a workflow-only change; generated Android platform files are still produced during CI.
+- Commit `8230b978dd9c4641a9c4dc198e6b0cb6a876401f` was an intermediate workflow edit with an incorrectly escaped newline; immediately corrected in `729f0dcabe3f9233cca241119e6f4b3fb1b4ca94`. The current workflow contains the proper Python string escape `\\n` and was re-fetched for verification.
+- Validation on HEAD `729f0dc...`: Lamin portal validation run 42495943380 SUCCESS. Development validation 42495943388, RPC security ACL 42495943367, and schema baseline 42495943445 were still in progress at handover; do not claim results until checked.
+- No signed APK has been produced by the failed run. Signature verification, certificate fingerprint comparison, APK checksum, and artifact upload remain outstanding.
+- The connected GitHub actions tools support reading runs and rerunning failed jobs but do not expose workflow_dispatch. Do not rerun the failed run because that would reuse the old workflow revision. To execute the corrected signed workflow, manually dispatch `.github/workflows/release-signed-apk.yml` from GitHub Actions with source_ref `fix/lamin-portal-crud-offline-20261030` after the pending validations finish.
+- Preserve the established signing certificate and the existing release gates; do not change production, secrets, package identity, or PR merge state.
