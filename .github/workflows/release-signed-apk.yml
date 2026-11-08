@@ -135,7 +135,7 @@ jobs:
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
-          import_line = "import java.util.Properties\\n"
+          import_line = "import java.util.Properties\n"
           if import_line not in s:
               s = import_line + s
           s = s.replace("java.util.Properties()", "Properties()")
