@@ -1278,3 +1278,12 @@ All four workflows completed with SUCCESS:
 - Tightened `.github/workflows/release-signed-apk.yml`: explicitly enable V1/V2/V3 on the release signing config, and fail verification unless all three schemes are reported true and the APK certificate SHA-256 matches the approved fingerprint. Verified workflow text after editing, including corrected shell newline escapes.
 - Latest branch HEAD: `2260c16fb8f8e317fe5f960a3438e38c0ae973d5`. PR #22 remains open/unmerged. CI validations for this latest commit were queued/in progress at note time.
 - Next action: after latest CI validations finish successfully, manually dispatch `Build signed Lamin release APK` using source_ref `fix/lamin-portal-crud-offline-20261030`. Only install the newly generated artifact if the stricter workflow passes V1/V2/V3 and certificate fingerprint checks. No production changes or secret changes were made.
+
+
+## Follow-up — V1 signing failure and explicit final APK re-signing — 2026-11-08
+
+- Inspected signed-release run `42499940364` and its logs. Gradle build succeeded; APK verification failed solely because V1/JAR signing was false while V2=true and V3=true. Certificate remained the approved Lamin SHA-256 `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`.
+- Root cause: setting Gradle `enableV1Signing = true` did not result in V1 signatures in the generated APK. The strict verifier correctly blocked artifact upload.
+- Updated the verification step to explicitly invoke Android `apksigner sign` on the built APK with V1, V2, and V3 enabled, using the existing keystore and secrets via environment references (no secrets logged or changed). It replaces the final APK, then verifies all three schemes and the approved certificate fingerprint before upload.
+- Latest branch HEAD: `cb9a14f1545dc25518b3e96b5328129fce2b8f17`. PR #22 remains open/unmerged. The workflow file was re-fetched and the explicit signing block verified. CI validation runs on this commit were queued at the time of this update.
+- Do not install the earlier downloaded artifact: it failed the required V1/V2/V3 acceptance gate and was not uploaded by the failed run. Next: after CI passes, manually dispatch signed release workflow against the latest branch HEAD; confirm V1/V2/V3 true and certificate fingerprint matches before downloading/installing.
