@@ -46,12 +46,6 @@ jobs:
           flutter-version: '3.35.4'
           cache: true
 
-      - name: Generate Android platform files
-        run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
-
-      - name: Remove generated Flutter sample test
-        run: rm -f test/widget_test.dart
-
       - name: Apply premium Lamin launcher icon and app name
         shell: bash
         run: |
@@ -163,8 +157,14 @@ jobs:
           flutter pub get
           dart format lib test
           dart format --output=none --set-exit-if-changed lib test
-          flutter analyze --fatal-warnings
-          flutter test
+          flutter analyze --no-pub --fatal-infos --fatal-warnings
+          flutter test --no-pub
+
+      - name: Generate Android platform files
+        run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+
+      - name: Remove generated Flutter sample test
+        run: rm -f test/widget_test.dart
 
       - name: Validate Google Drive OAuth configuration
         env:
