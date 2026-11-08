@@ -1376,3 +1376,12 @@ This confirms update compatibility, authenticated finance reads, queue replay, a
 - No Supabase migration, production SQL write, privilege grant, data mutation, secret change, PR merge, or release signing was performed.
 - Required next verification: run development validation (format/analyze/tests/Android candidate), portal validation, schema baseline and RPC ACL workflows on the new HEAD. Then test with a valid online Supabase session: archive student and teacher as owner/admin; verify archived_at/reason/audit record and restore visibility; open manager requirements/finance; verify no anon 42501. Separately test Drive restore by choosing a real same-school JSON backup and confirming; cancel path must remain non-destructive.
 - Release signing remains on hold; no APK generated or claimed in this update.
+
+
+## 2026-11-08 — Optional student guardian phone
+
+- User reported student creation fails when no phone number is entered.
+- The add-student form did not enforce a phone validator, but its label did not communicate optionality. Updated it to explicitly mark guardian WhatsApp as optional and clarify that a number can be added later. The create call now trims whitespace so an empty/whitespace-only field is sent as an empty string.
+- Repository addStudent already accepts an empty phone string and passes it to the idempotent RPC. Production read-only inspection confirmed students.phone is NOT NULL, but the production create_student_with_fee function explicitly coalesces a missing phone to '' and inserts that empty string; this is compatible with the schema. Do not change production nullability or weaken validation. The branch migration 20261030230000 also explicitly allows '' while retaining 8–15 digit validation for non-empty values.
+- Commit: 3b2fa03fa5a1d5623a328ab347773f988bdb6e3d. CI on this exact commit is pending; earlier workflows on 79bd42c succeeded and do not validate this UI-only change.
+- Still required: test creating a student with the phone field left blank on the next APK; if it still fails, capture the exact error text because the inspected form, client repository, and production RPC all support empty phone strings, and the actual cause would then be another server-side rule or a different create path.
