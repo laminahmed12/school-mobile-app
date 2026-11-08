@@ -1268,3 +1268,13 @@ All four workflows completed with SUCCESS:
 - Verified the live workflow file on branch contains the corrected template and guard. Fix commit: `c8a6611bfbc08246cae97ec055a67a43e3dc5335`.
 - CI for this fix HEAD: portal validation run 42496601452 SUCCESS. Development validation 42496601538, schema baseline 42496601371, and RPC security ACL 42496601369 were still running at the time of this note.
 - The failed release run did not reach APK creation, signature verification, or artifact upload. No new signed APK is available yet. Dispatch the signed-release workflow against the corrected branch HEAD only after the pending validations complete; the failed run must not be rerun because it pins the old workflow revision.
+
+
+## Signed APK result and stricter release gate — 2026-11-08
+
+- Signed workflow run `42497018546` on source HEAD `5e6eab15e9ed3747b6ab22f927cbd9a69736898c` completed SUCCESS. Build, APK verification, and artifact upload all succeeded. Artifact: `lamin-signed-release-apk`, 29,249,211 bytes, retained until 2026-12-08. APK SHA-256: `a57a92b21d6c60e27c351b7f65b40035f7e1405439ec2915b1b7fbbdd239e380`.
+- APK signer certificate SHA-256 exactly matched the approved existing Lamin certificate: `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`. Package/build artifact is signed with the correct key.
+- Important qualification: apksigner output showed V2=true, but V1=false and V3=false. Thus this artifact did NOT satisfy the PR's documented release gate requiring V1/V2/V3. Do not treat it as final accepted release APK or install it for acceptance testing yet.
+- Tightened `.github/workflows/release-signed-apk.yml`: explicitly enable V1/V2/V3 on the release signing config, and fail verification unless all three schemes are reported true and the APK certificate SHA-256 matches the approved fingerprint. Verified workflow text after editing, including corrected shell newline escapes.
+- Latest branch HEAD: `2260c16fb8f8e317fe5f960a3438e38c0ae973d5`. PR #22 remains open/unmerged. CI validations for this latest commit were queued/in progress at note time.
+- Next action: after latest CI validations finish successfully, manually dispatch `Build signed Lamin release APK` using source_ref `fix/lamin-portal-crud-offline-20261030`. Only install the newly generated artifact if the stricter workflow passes V1/V2/V3 and certificate fingerprint checks. No production changes or secret changes were made.
