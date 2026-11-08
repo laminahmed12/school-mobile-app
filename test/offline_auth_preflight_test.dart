@@ -1,7 +1,48 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamin_school/offline_credentials.dart';
+import 'package:lamin_school/repository.dart';
 
 void main() {
+  group('pending offline synchronization authentication gate', () {
+    test('requests online login when internet exists but no Supabase session', () {
+      expect(
+        shouldPromptOnlineLoginForPendingSync(
+          hasInternet: true,
+          hasAuthenticatedSession: false,
+          pendingCount: 1,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not request login when queue is empty or session exists', () {
+      expect(
+        shouldPromptOnlineLoginForPendingSync(
+          hasInternet: true,
+          hasAuthenticatedSession: false,
+          pendingCount: 0,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldPromptOnlineLoginForPendingSync(
+          hasInternet: true,
+          hasAuthenticatedSession: true,
+          pendingCount: 1,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldPromptOnlineLoginForPendingSync(
+          hasInternet: false,
+          hasAuthenticatedSession: false,
+          pendingCount: 1,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('cold-start offline authentication contract', () {
     test('restored Supabase session still requires explicit identity proof', () {
       expect(
