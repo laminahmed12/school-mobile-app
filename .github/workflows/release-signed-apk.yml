@@ -202,31 +202,12 @@ jobs:
           test -n "$AAPT"
           "$AAPT" dump permissions "$APK" | grep -q "android.permission.USE_BIOMETRIC" || { echo "::error::USE_BIOMETRIC missing from APK"; exit 1; }
           "$AAPT" dump permissions "$APK" | grep -q "android.permission.INTERNET" || { echo "::error::INTERNET missing from APK"; exit 1; }
-          V1_SIGNED_APK="$RUNNER_TEMP/lamin-release-v1.apk"
-          SIGNED_APK="$RUNNER_TEMP/lamin-release-v1-v2-v3.apk"
-          jarsigner \
-            -keystore "$RUNNER_TEMP/lamin-release.jks" \
-            -storepass:env KEYSTORE_PASSWORD \
-            -keypass:env KEY_PASSWORD \
-            -digestalg SHA-256 \
-            -sigalg SHA256withRSA \
-            -signedjar "$V1_SIGNED_APK" "$APK" "$KEY_ALIAS"
-          test -s "$V1_SIGNED_APK"
-          "$APKSIGNER" sign \
-            --ks "$RUNNER_TEMP/lamin-release.jks" \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass env:KEYSTORE_PASSWORD \
-            --key-pass env:KEY_PASSWORD \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled true \
-            --out "$SIGNED_APK" "$V1_SIGNED_APK"
-          test -s "$SIGNED_APK"
-          mv "$SIGNED_APK" "$APK"
-          rm -f "$V1_SIGNED_APK"
+          # The app's configured minSdk is 24 (Android 7.0+); V1/JAR is the legacy
+          # scheme for Android 6.0 and lower. Gradle signs the release APK with V2/V3.
+          "$AAPT" dump badging "$APK" | grep -q "sdkVersion:'24'" || { echo "::error::Unexpected APK minSdk; review required signature schemes"; exit 1; }
           VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
           printf '%s\n' "$VERIFY_OUTPUT"
-          for SCHEME in "Verified using v1 scheme (JAR signing): true" "Verified using v2 scheme (APK Signature Scheme v2): true" "Verified using v3 scheme (APK Signature Scheme v3): true"; do
+          for SCHEME in "Verified using v2 scheme (APK Signature Scheme v2): true" "Verified using v3 scheme (APK Signature Scheme v3): true"; do
             printf '%s\n' "$VERIFY_OUTPUT" | grep -Fq "$SCHEME" || { echo "::error::Required APK signature scheme missing: $SCHEME"; exit 1; }
           done
           CERT_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr '[:upper:]' '[:lower:]')"
