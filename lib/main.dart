@@ -2201,7 +2201,8 @@ class _StudentsViewState extends State<StudentsView> {
                   controller: p,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                    labelText: 'WhatsApp ولي الأمر',
+                    labelText: 'WhatsApp ولي الأمر (اختياري)',
+                    helperText: 'يمكن إضافة الطالب دون رقم هاتف، وإضافته لاحقًا.',
                   ),
                 ),
                 if (widget.canSetFees) ...[
@@ -2267,7 +2268,7 @@ class _StudentsViewState extends State<StudentsView> {
                   final studentId = await widget.repo.addStudent(
                     name: n.text,
                     className: cl.text,
-                    phone: p.text,
+                    phone: p.text.trim(),
                     termFee: amount,
                     term: term,
                   );
