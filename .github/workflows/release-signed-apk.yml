@@ -202,11 +202,11 @@ jobs:
           "$AAPT" dump permissions "$APK" | grep -q "android.permission.USE_BIOMETRIC" || { echo "::error::USE_BIOMETRIC missing from APK"; exit 1; }
           "$AAPT" dump permissions "$APK" | grep -q "android.permission.INTERNET" || { echo "::error::INTERNET missing from APK"; exit 1; }
           VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
-          printf '%s\\n' "$VERIFY_OUTPUT"
+          printf '%s\n' "$VERIFY_OUTPUT"
           for SCHEME in "Verified using v1 scheme (JAR signing): true" "Verified using v2 scheme (APK Signature Scheme v2): true" "Verified using v3 scheme (APK Signature Scheme v3): true"; do
-            printf '%s\\n' "$VERIFY_OUTPUT" | grep -Fq "$SCHEME" || { echo "::error::Required APK signature scheme missing: $SCHEME"; exit 1; }
+            printf '%s\n' "$VERIFY_OUTPUT" | grep -Fq "$SCHEME" || { echo "::error::Required APK signature scheme missing: $SCHEME"; exit 1; }
           done
-          CERT_SHA256="$(printf '%s\\n' "$VERIFY_OUTPUT" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr '[:upper:]' '[:lower:]')"
+          CERT_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr '[:upper:]' '[:lower:]')"
           EXPECTED_CERT_SHA256="7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a"
           test "$CERT_SHA256" = "$EXPECTED_CERT_SHA256" || { echo "::error::APK signing certificate does not match the previously approved Lamin release certificate"; exit 1; }
           sha256sum "$APK" | tee "$RUNNER_TEMP/apk-sha256.txt"
