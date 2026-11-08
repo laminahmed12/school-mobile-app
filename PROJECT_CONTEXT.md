@@ -1305,3 +1305,14 @@ All four workflows completed with SUCCESS:
 - Corrected `.github/workflows/release-signed-apk.yml` in commit `c3c0d6939d73f6e7aaac5397d90f5a332e892078`: removed the jarsigner/apksigner re-sign sequence; retain Gradle release signing and verify V2 and V3 are true, verify the APK declares minSdk 24, and retain the approved release certificate SHA-256 pin. This avoids mutating an already signed APK.
 - No signing secrets, keystore, production, Supabase, package identity, or PR merge state changed. PR #22 remains open/unmerged.
 - Next: allow the latest commit's CI validations to complete, then run signed release workflow from this HEAD. Accept only V2=true, V3=true, minSdk 24, and the approved certificate fingerprint. APK upload remains gated on these checks.
+
+
+## Signed commercial APK successfully built — 2026-11-08
+
+- Final signed release workflow run `42508386142` completed SUCCESS on branch `fix/lamin-portal-crud-offline-20261030`, source HEAD `399af86310d2e992d2bd656875bdbb2dc9d2ee02`.
+- Build, APK signature/certificate verification, and artifact upload all succeeded. The verifier reported V2=true and V3=true; V1=false as expected for configured minSdk 24 (Android 7.0+). The release certificate SHA-256 exactly matched the approved fingerprint `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`.
+- APK SHA-256: `c7bad55715e8b1c634e3f2ef1e8dfae26b94dd6359ca59f8e096ae595d41e5fb`.
+- Uploaded artifact `lamin-signed-release-apk`, artifact ID `13628393132`, size 29,293,970 bytes, expires `2026-12-08T18:13:23Z`. Artifact archive digest: `66801635907d342f85f46951fe1989303f98f0d0faac5e3fdddb3356b54a785e`.
+- All four CI validation workflows on the same HEAD passed: development, portal, schema baseline, and RPC security ACL.
+- PR #22 remains OPEN / UNMERGED. No production/Supabase changes or secret changes were made.
+- Next: download the artifact from the successful run. Before installing over an existing app, confirm package identity/version and preserve local app data. Test update installation and critical login/offline flows on the phone; do not uninstall the existing app as a troubleshooting shortcut.
