@@ -10,6 +10,13 @@ import 'models.dart';
 import 'supabase_config.dart';
 import 'student_creation_rpc.dart';
 
+bool shouldPromptOnlineLoginForPendingSync({
+  required bool hasInternet,
+  required bool hasAuthenticatedSession,
+  required int pendingCount,
+}) =>
+    hasInternet && !hasAuthenticatedSession && pendingCount > 0;
+
 class OfflineSyncResult {
   final int synced;
   final int pending;
@@ -1496,6 +1503,9 @@ class SchoolRepository {
   ) async {
     final schoolId = await _schoolId();
     if (schoolId == null) return [];
+    if (db.auth.currentSession == null) {
+      return _cachedRows(schoolId, 'fees_$studentId');
+    }
     try {
       final year = await db.from('academic_years').select('id')
           .eq('active', true).order('created_at', ascending: false)
@@ -1519,6 +1529,9 @@ class SchoolRepository {
   Future<List<Map<String, dynamic>>> studentPayments(String studentId) async {
     final schoolId = await _schoolId();
     if (schoolId == null) return [];
+    if (db.auth.currentSession == null) {
+      return _cachedRows(schoolId, 'payments_$studentId');
+    }
     try {
       final year = await db.from('academic_years').select('id')
           .eq('active', true).order('created_at', ascending: false)
@@ -1542,6 +1555,56 @@ class SchoolRepository {
   Future<Map<String, dynamic>> studentFinancialSummary(String studentId) async {
     final schoolId = await _schoolId();
     final cacheKey = schoolId == null ? null : _tenantCacheKey(schoolId, 'financial_summary_$studentId');
+
+    // Local offline authentication is not a Supabase session. Never issue
+    // finance queries with the anonymous role or present missing remote data
+    // as a genuine zero balance.
+    if (db.auth.currentSession == null) {
+      if (cacheKey != null) {
+        final raw = await _readCacheString(cacheKey);
+        if (raw != null) {
+          try {
+            return {
+              ...Map<String, dynamic>.from(jsonDecode(raw)),
+              'requires_online_session': true,
+              'has_cached_financial_data': true,
+            };
+          } catch (_) {
+            await _removeCache(cacheKey);
+          }
+        }
+      }
+
+      final fees = schoolId == null
+          ? <Map<String, dynamic>>[]
+          : await _cachedRows(schoolId, 'fees_$studentId');
+      final paymentRows = schoolId == null
+          ? <Map<String, dynamic>>[]
+          : await _cachedRows(schoolId, 'payments_$studentId');
+      double totalFee = 0, discount = 0, paid = 0;
+      for (final row in fees) {
+        totalFee += (row['total_fee'] as num?)?.toDouble() ?? 0;
+        discount += (row['discount'] as num?)?.toDouble() ?? 0;
+      }
+      for (final row in paymentRows) {
+        paid += (row['amount'] as num?)?.toDouble() ?? 0;
+      }
+      return {
+        'academic_year': fees.isNotEmpty
+            ? fees.first['academic_year_label']?.toString()
+            : 'غير محدد',
+        'fees': totalFee,
+        'discount': discount,
+        'opening_balance': 0,
+        'paid': paid,
+        'remaining': totalFee - discount - paid,
+        'assessments': fees,
+        'payments': paymentRows,
+        'requires_online_session': true,
+        'has_cached_financial_data': fees.isNotEmpty || paymentRows.isNotEmpty,
+      };
+    }
+
     try {
       final details = await Future.wait<Object?>([
         studentFeeAssessments(studentId),
@@ -1579,6 +1642,8 @@ class SchoolRepository {
         'fees': totalFee, 'discount': discount, 'opening_balance': opening,
         'paid': paid, 'remaining': due - paid,
         'assessments': fees, 'payments': paymentRows,
+        'requires_online_session': false,
+        'has_cached_financial_data': true,
       };
       if (cacheKey != null) await _writeCacheString(cacheKey, jsonEncode(summary));
       return summary;
