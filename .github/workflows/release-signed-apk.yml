@@ -158,6 +158,7 @@ jobs:
       - name: Resolve dependencies and run tests
         run: |
           flutter pub get
+          dart format lib test
           dart format --output=none --set-exit-if-changed lib test
           flutter analyze --fatal-infos --fatal-warnings
           flutter test
