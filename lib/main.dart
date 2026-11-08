@@ -3016,6 +3016,10 @@ class _StudentAccountViewState extends State<StudentAccountView> {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
     final remaining = money('remaining');
+    final requiresOnlineSession =
+        summary['requires_online_session'] == true;
+    final hasCachedFinancialData =
+        summary['has_cached_financial_data'] == true;
     return Scaffold(
       appBar: AppBar(
         title: const Text('كشف حساب ولي الأمر'),
@@ -3094,15 +3098,33 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                             'السنة الدراسية: ${summary['academic_year'] ?? 'غير محدد'}',
                           ),
                           const Divider(),
-                          _summaryRow('إجمالي الرسوم', money('fees')),
-                          _summaryRow('الخصومات', money('discount')),
-                          _summaryRow('رصيد مرحّل', money('opening_balance')),
-                          _summaryRow('إجمالي المدفوع', money('paid')),
-                          _summaryRow(
-                            remaining < 0 ? 'رصيد دائن' : 'المتبقي',
-                            remaining.abs(),
-                            bold: true,
-                          ),
+                          if (requiresOnlineSession && !hasCachedFinancialData)
+                            const Text(
+                              'القيم المالية غير محفوظة محلياً. سجّل الدخول بالإنترنت لعرض الرسوم والدفعات والرصيد الفعلي.',
+                              style: TextStyle(
+                                color: Color(0xFF795B16),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          else ...[
+                            if (requiresOnlineSession)
+                              const Text(
+                                'هذه آخر بيانات مالية محفوظة على الجهاز وليست تحديثاً مباشراً.',
+                                style: TextStyle(
+                                  color: Color(0xFF795B16),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            _summaryRow('إجمالي الرسوم', money('fees')),
+                            _summaryRow('الخصومات', money('discount')),
+                            _summaryRow('رصيد مرحّل', money('opening_balance')),
+                            _summaryRow('إجمالي المدفوع', money('paid')),
+                            _summaryRow(
+                              remaining < 0 ? 'رصيد دائن' : 'المتبقي',
+                              remaining.abs(),
+                              bold: true,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -3136,9 +3158,13 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                     ),
                   ),
                   if (assessments.isEmpty)
-                    const Card(
+                    Card(
                       child: ListTile(
-                        title: Text('لا توجد رسوم مسجلة لهذه السنة الدراسية.'),
+                        title: Text(
+                          requiresOnlineSession && !hasCachedFinancialData
+                              ? 'سجّل الدخول بالإنترنت لتحميل الرسوم المسجلة.'
+                              : 'لا توجد رسوم مسجلة لهذه السنة الدراسية.',
+                        ),
                       ),
                     )
                   else
@@ -3184,8 +3210,14 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                     ),
                   ),
                   if (payments.isEmpty)
-                    const Card(
-                      child: ListTile(title: Text('لا توجد دفعات مسجلة.')),
+                    Card(
+                      child: ListTile(
+                        title: Text(
+                          requiresOnlineSession && !hasCachedFinancialData
+                              ? 'سجّل الدخول بالإنترنت لتحميل سجل الدفعات.'
+                              : 'لا توجد دفعات مسجلة.',
+                        ),
+                      ),
                     )
                   else
                     ...payments.map(
