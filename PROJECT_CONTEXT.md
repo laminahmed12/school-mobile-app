@@ -1330,3 +1330,12 @@ All four workflows completed with SUCCESS:
 - Current source HEAD after these changes: `b5f07447c8f9a4f7fa3afe3f31d33c3a0fac7c55`. CI runs on this exact HEAD: development `42510822537`, portal `42510822535`, schema baseline `42510822585`, RPC security ACL `42510822528`; all were queued/pending at the time of this note. Do not report them passed until checked.
 - PR #22 remains OPEN / UNMERGED. No production Supabase writes, migrations, secret changes, or release signing were performed.
 - Next device action after a new APK is built from a green CI HEAD: use the pending banner's `دخول للمزامنة` action, sign in with the account online, then confirm the pending count falls to zero and the student's 1,000.00 fee appears. Do not tap payment/retry repeatedly before sync confirms the first operation, to avoid duplicate financial actions.
+
+
+## Device acceptance — finance sync and student balances confirmed — 2026-11-08
+
+- User tested the currently installed app on the phone after online sign-in and explicitly confirmed that the pending operation synchronized successfully and the financial data appeared.
+- This validates the immediate production symptom and the diagnosis: online reauthentication establishes the Supabase session needed to replay the local pending queue and read finance data. No production DB writes were performed by the assistant; the user's normal app sync completed.
+- Latest source HEAD remains `12e7a796e71dffe4b0087b49177c77160740f380`. All four CI workflows on that exact HEAD passed: development validation, portal validation, schema baseline acceptance, RPC security ACL regression. Development validation also passed formatting, static analysis, automated tests, debug candidate APK build, candidate signature/package identity checks, and artifact uploads. Candidate artifact `lamin-development-candidate` is for development/testing only, not the signed release APK.
+- PR #22 remains OPEN / UNMERGED. A signed release APK for HEAD `12e7a796` has not yet been built. The previous successful signed release APK corresponds to older HEAD `399af863`; do not confuse it with the current finance/sync code.
+- Next recommended step: run the signed release workflow from the latest green HEAD `12e7a796`, then verify V2/V3 and the pinned approved certificate fingerprint before distributing the updated commercial APK. Do not ask the user to repeat the login/sync test unless the new release APK changes that flow.
