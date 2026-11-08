@@ -1287,3 +1287,12 @@ All four workflows completed with SUCCESS:
 - Updated the verification step to explicitly invoke Android `apksigner sign` on the built APK with V1, V2, and V3 enabled, using the existing keystore and secrets via environment references (no secrets logged or changed). It replaces the final APK, then verifies all three schemes and the approved certificate fingerprint before upload.
 - Latest branch HEAD: `cb9a14f1545dc25518b3e96b5328129fce2b8f17`. PR #22 remains open/unmerged. The workflow file was re-fetched and the explicit signing block verified. CI validation runs on this commit were queued at the time of this update.
 - Do not install the earlier downloaded artifact: it failed the required V1/V2/V3 acceptance gate and was not uploaded by the failed run. Next: after CI passes, manually dispatch signed release workflow against the latest branch HEAD; confirm V1/V2/V3 true and certificate fingerprint matches before downloading/installing.
+
+
+## Follow-up — V1 still absent after apksigner explicit flags; JAR-first correction — 2026-11-08
+
+- Inspected latest failed signed workflow run `42502678341` on source SHA `eb2f3f414fa8bf22d13875d02696e9e92f8e4a45`. Build succeeded; verification reported V1=false, V2=true, V3=true. The explicit `apksigner sign --v1-signing-enabled true` step completed but did not produce JAR/V1 signatures, so the strict gate correctly blocked artifact upload.
+- Updated the signing pipeline to create the JAR/V1 signature first using JDK `jarsigner` with the same existing keystore/alias and secrets passed only via environment-variable password modifiers; then apply APK V2/V3 (and V1 enabled) using `apksigner`. This preserves the META-INF JAR signature entries while adding APK signing-block schemes. The final verification still requires V1, V2, V3 and the pinned approved certificate fingerprint.
+- Fix commit: `998ab7ddfce9ca9ea1a688fea2de112c194c9273`. Re-fetched and verified the workflow block. No production configuration or secrets changed.
+- Latest CI validation runs for this commit were queued at update time: portal 42504333010, RPC ACL 42504332848, development 42504332787, schema 42504332772. No signed-release run has yet been triggered for this commit; no acceptable APK is available.
+- Next: wait for these CI validations to complete, then dispatch signed release workflow against branch `fix/lamin-portal-crud-offline-20261030`. Accept only if verification reports V1/V2/V3 true and certificate SHA-256 equals `7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a`.
