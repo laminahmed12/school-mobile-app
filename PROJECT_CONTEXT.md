@@ -1349,3 +1349,14 @@ All four workflows completed with SUCCESS:
 - Artifact `lamin-signed-release-apk`, artifact ID `13629059968`, size 29,302,863 bytes, expires `2026-12-08T19:01:41Z`. Artifact archive digest `4d81561e1dbe8622475640b80bac3f30451413d605a0870c001ec3b43db008dc`.
 - CI on the same HEAD `f3a73849`: development, portal, schema baseline, and RPC security ACL all SUCCESS. PR #22 remains OPEN / UNMERGED.
 - User already validated the earlier finance/sync fix on device: pending operation synchronized and finance values appeared. Next acceptance on newly installed signed APK: confirm app opens and retains signed-in account/local data, finance page still loads correct figures, one fresh online sync works, and then airplane-mode read-only access works. Do not initiate duplicate payments or delete app data. If those checks pass, proceed to broader regression and PR review; do not merge without explicit authorization.
+
+
+## Final on-device acceptance passed — signed release HEAD f3a73849 — 2026-11-08
+
+User confirms all post-update acceptance checks passed on the newly installed signed APK:
+1. App opened successfully; account and prior data remained intact after in-place update.
+2. Finance page displays all expected financial data.
+3. Online synchronization completed successfully; pending queue is empty.
+4. Offline/airplane-mode access works and all expected data remains available.
+
+This confirms update compatibility, authenticated finance reads, queue replay, and offline cached-data access on the user's device for release source HEAD `f3a73849ab4c8b704ba412ac669faa096c25c52c`. The signed release workflow run `42512323177` and all four CI validations on that HEAD succeeded; signature V2/V3 and approved certificate fingerprint were verified. PR #22 is still open/unmerged. No production schema/secrets changes were made in this acceptance phase. Do not merge PR #22 or modify production without explicit user authorization. Next phase is a full pre-commercial-release regression/security review of CRUD/archive/restore, roles/RLS/RPC, backups/restore, and data integrity; preserve the current passing signed APK as the known-good baseline.
