@@ -1358,6 +1358,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool refreshingRemote = false;
   String? offlineSyncError;
 
+  bool get _needsOnlineLoginForSync =>
+      shouldPromptOnlineLoginForPendingSync(
+        hasInternet: online,
+        hasAuthenticatedSession: db.auth.currentSession != null,
+        pendingCount: pendingOperations,
+      );
+
   @override
   void initState() {
     super.initState();
@@ -1762,18 +1769,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              'عمليات معلّقة: $pendingOperations',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: brandGreen,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'عمليات معلّقة: $pendingOperations',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: brandGreen,
+                                  ),
+                                ),
+                                if (_needsOnlineLoginForSync)
+                                  const Text(
+                                    'الإنترنت متاح؛ سجّل الدخول بالإنترنت لتأكيد الهوية ومزامنة العمليات.',
+                                    style: TextStyle(
+                                      color: Color(0xFF624A13),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           TextButton.icon(
-                            onPressed: loading ? null : refresh,
-                            icon: const Icon(Icons.sync, size: 18),
-                            label: const Text('إعادة المحاولة'),
+                            onPressed: loading
+                                ? null
+                                : _needsOnlineLoginForSync
+                                    ? logout
+                                    : refresh,
+                            icon: Icon(
+                              _needsOnlineLoginForSync
+                                  ? Icons.login
+                                  : Icons.sync,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _needsOnlineLoginForSync
+                                  ? 'دخول للمزامنة'
+                                  : 'إعادة المحاولة',
+                            ),
                           ),
                         ],
                       ),
@@ -2623,6 +2656,10 @@ class _FinanceViewState extends State<FinanceView> {
                               final remaining =
                                   (summary?['remaining'] as num?)?.toDouble() ??
                                   0;
+                              final requiresOnlineSession =
+                                  summary?['requires_online_session'] == true;
+                              final hasCachedFinancialData =
+                                  summary?['has_cached_financial_data'] == true;
                               final hasCredit = remaining < -0.009;
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2650,7 +2687,27 @@ class _FinanceViewState extends State<FinanceView> {
                                       'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
                                       style: TextStyle(color: Colors.red),
                                     )
-                                  else
+                                  else if (requiresOnlineSession &&
+                                      !hasCachedFinancialData)
+                                    const Text(
+                                      'القيم المالية غير محفوظة على هذا الجهاز. سجّل الدخول بالإنترنت لعرض الحساب الحقيقي.',
+                                      style: TextStyle(
+                                        color: Color(0xFF795B16),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )
+                                  else ...[
+                                    if (requiresOnlineSession)
+                                      const Padding(
+                                        padding: EdgeInsets.only(bottom: 6),
+                                        child: Text(
+                                          'آخر بيانات مالية محفوظة محلياً؛ يلزم الدخول بالإنترنت للتحديث.',
+                                          style: TextStyle(
+                                            color: Color(0xFF795B16),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
                                     Wrap(
                                       spacing: 8,
                                       runSpacing: 8,
@@ -2666,6 +2723,7 @@ class _FinanceViewState extends State<FinanceView> {
                                         ),
                                       ],
                                     ),
+                                  ],
                                 ],
                               );
                             },
