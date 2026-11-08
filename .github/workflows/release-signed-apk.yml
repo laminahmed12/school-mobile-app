@@ -135,6 +135,10 @@ jobs:
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
+          import_line = "import java.util.Properties\\n"
+          if import_line not in s:
+              s = import_line + s
+          s = s.replace("java.util.Properties()", "Properties()")
           if 'signingConfigs.create("release")' in s:
               raise SystemExit("Release signing config already exists; refusing duplicate injection")
           marker = "android {"
