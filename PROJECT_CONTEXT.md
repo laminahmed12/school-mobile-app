@@ -4113,3 +4113,13 @@ This confirms update compatibility, authenticated finance reads, queue replay, a
 - Repository addStudent already accepts an empty phone string and passes it to the idempotent RPC. Production read-only inspection confirmed students.phone is NOT NULL, but the production create_student_with_fee function explicitly coalesces a missing phone to '' and inserts that empty string; this is compatible with the schema. Do not change production nullability or weaken validation. The branch migration 20261030230000 also explicitly allows '' while retaining 8–15 digit validation for non-empty values.
 - Commit: 3b2fa03fa5a1d5623a328ab347773f988bdb6e3d. CI on this exact commit is pending; earlier workflows on 79bd42c succeeded and do not validate this UI-only change.
 - Still required: test creating a student with the phone field left blank on the next APK; if it still fails, capture the exact error text because the inspected form, client repository, and production RPC all support empty phone strings, and the actual cause would then be another server-side rule or a different create path.
+
+
+## Device acceptance update — user report (2026-11-09)
+- User reports on the newly installed build: student registration works online and offline; archive and restore work; financial entry works online and offline; offline login succeeds.
+- Treat these as user-confirmed device results, not independently instrumented backend assertions.
+- Remaining high-priority phone acceptance: reconnect after creating student/financial operations offline, establish a fresh online authenticated session if prompted, verify pending queue reaches zero, and confirm each operation appears exactly once with correct student/financial values.
+- Then test encrypted local backup creation and restore fully offline, plus an actual same-school JSON/Drive backup restore if that flow is intended; confirm no records are duplicated or lost.
+- Also verify wrong offline password is rejected and biometric lock/resume behaves correctly if enabled. Do not delete app data or uninstall the known-good app during these tests.
+- Commercial release/PR status must be checked against the actual current HEAD and CI before any distribution decision; do not merge PR #22 without explicit authorization.
+
