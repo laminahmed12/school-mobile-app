@@ -147,7 +147,7 @@ jobs:
           s = s.replace(marker, '''android {
               signingConfigs {
                   create("release") {
-                      val props = java.util.Properties()
+                      val props = Properties()
                       val propsFile = rootProject.file("key.properties")
                       propsFile.inputStream().use { props.load(it) }
                       storeFile = file(props.getProperty("storeFile"))
@@ -160,6 +160,8 @@ jobs:
           if old not in s:
               raise SystemExit("Expected Flutter release debug-signing default was not found")
           s = s.replace(old, 'signingConfig = signingConfigs.getByName("release")', 1)
+          if "java.util.Properties()" in s or "val props = Properties()" not in s:
+              raise SystemExit("Kotlin DSL signing properties injection did not produce the expected source")
           p.write_text(s)
           PY
           rm -f android/key.properties
