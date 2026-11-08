@@ -1258,3 +1258,13 @@ All four workflows completed with SUCCESS:
 - No signed APK has been produced by the failed run. Signature verification, certificate fingerprint comparison, APK checksum, and artifact upload remain outstanding.
 - The connected GitHub actions tools support reading runs and rerunning failed jobs but do not expose workflow_dispatch. Do not rerun the failed run because that would reuse the old workflow revision. To execute the corrected signed workflow, manually dispatch `.github/workflows/release-signed-apk.yml` from GitHub Actions with source_ref `fix/lamin-portal-crud-offline-20261030` after the pending validations finish.
 - Preserve the established signing certificate and the existing release gates; do not change production, secrets, package identity, or PR merge state.
+
+
+## Follow-up — 2026-11-08 signed-build retry diagnosis and correction
+
+- The user's subsequent signed workflow run was `42496106562`, checked out HEAD `69d95e6c614e08d74fc3d92b460b91bafcb2b854`. It failed with the SAME Gradle error at generated `android/app/build.gradle.kts:12`: `val props = java.util.Properties()` / `Unresolved reference: util`.
+- Root cause of the ineffective first correction: the Python workflow script called `s.replace("java.util.Properties()", "Properties()")` BEFORE injecting the signing-config Kotlin block. The injected block therefore reintroduced `java.util.Properties()` after the replacement had already run. The import alone did not change that expression's name resolution.
+- Corrected the actual injected Kotlin template itself to use the imported `Properties()` constructor, and added a Python guard that aborts if the generated script still contains `java.util.Properties()` or lacks `val props = Properties()`.
+- Verified the live workflow file on branch contains the corrected template and guard. Fix commit: `c8a6611bfbc08246cae97ec055a67a43e3dc5335`.
+- CI for this fix HEAD: portal validation run 42496601452 SUCCESS. Development validation 42496601538, schema baseline 42496601371, and RPC security ACL 42496601369 were still running at the time of this note.
+- The failed release run did not reach APK creation, signature verification, or artifact upload. No new signed APK is available yet. Dispatch the signed-release workflow against the corrected branch HEAD only after the pending validations complete; the failed run must not be rerun because it pins the old workflow revision.
