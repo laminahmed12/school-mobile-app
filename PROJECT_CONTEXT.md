@@ -4123,3 +4123,13 @@ This confirms update compatibility, authenticated finance reads, queue replay, a
 - Also verify wrong offline password is rejected and biometric lock/resume behaves correctly if enabled. Do not delete app data or uninstall the known-good app during these tests.
 - Commercial release/PR status must be checked against the actual current HEAD and CI before any distribution decision; do not merge PR #22 without explicit authorization.
 
+
+
+## Cloudflare Pages migration — parallel deployment (2026-11-09)
+- Created Cloudflare Pages project `lamin-school-portal` in the owner's Cloudflare account, connected to GitHub repository `laminahmed12/school-mobile-app`.
+- Production branch: `fix/lamin-portal-crud-offline-20261030`; site root: `/web`; no build command; output directory: `/`.
+- Successful deployment: `7068473b-70aa-437c-bcfd-8dc33bf074ca`, commit `4c8bc303194666c271901c5b828739c581e13c57`; all stages queued/initialize/clone/build/deploy succeeded.
+- Cloudflare project URL: https://lamin-school-portal.pages.dev (deployment URL: https://7068473b.lamin-school-portal.pages.dev).
+- Vercel project `lamin-school-portal` and its domains remain intact and unchanged. Do not disable/remove Vercel until the Cloudflare site is manually checked for login, student/staff/finance, reports, backup/restore, and Supabase connectivity.
+- Cloudflare deployment was made from the existing web folder; this does not yet include public privacy-policy/terms pages. Existing `PRIVACY_POLICY.md` and `TERMS_OF_USE.md` remain drafts requiring owner review and approval before publication.
+- Cloudflare Git integration path filters were cleared to avoid skipped deployments. Subsequent pushes to the production branch may trigger Pages deployments even for non-web changes; review this behavior before future workflow changes.
