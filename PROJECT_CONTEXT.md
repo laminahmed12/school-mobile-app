@@ -4133,3 +4133,17 @@ This confirms update compatibility, authenticated finance reads, queue replay, a
 - Vercel project `lamin-school-portal` and its domains remain intact and unchanged. Do not disable/remove Vercel until the Cloudflare site is manually checked for login, student/staff/finance, reports, backup/restore, and Supabase connectivity.
 - Cloudflare deployment was made from the existing web folder; this does not yet include public privacy-policy/terms pages. Existing `PRIVACY_POLICY.md` and `TERMS_OF_USE.md` remain drafts requiring owner review and approval before publication.
 - Cloudflare Git integration path filters were cleared to avoid skipped deployments. Subsequent pushes to the production branch may trigger Pages deployments even for non-web changes; review this behavior before future workflow changes.
+
+
+## Hosting authority update — Cloudflare Pages is primary (2026-11-09)
+
+- User explicitly instructed to transfer the portal's hosting authority from Vercel to Cloudflare.
+- **Canonical production portal URL:** https://lamin-school-portal.pages.dev
+- Cloudflare Pages project: `lamin-school-portal`; account ID is managed in the connected Cloudflare account and must not be copied into application source.
+- Repository: `laminahmed12/school-mobile-app`; production branch: `fix/lamin-portal-crud-offline-20261030`; root directory: `/web`; output directory: `/`; build command empty.
+- Confirmed successful canonical Cloudflare deployment: `7068473b-70aa-437c-bcfd-8dc33bf074ca`, commit `4c8bc303194666c271901c5b828739c581e13c57`, all deployment stages successful.
+- A newer documentation-only commit was skipped by Cloudflare Pages path filtering; the canonical successful deployment remains the active production deployment. Do not interpret a skipped docs-only deployment as a broken site.
+- Updated `web/README.md` to designate Cloudflare Pages as the primary/official host and Vercel as non-authoritative standby only.
+- Vercel project lookup from the currently connected Vercel team returned no matching project; the earlier Vercel project identifier did not resolve. Therefore no Vercel project was paused, deleted, or altered. Do not disable Vercel until its exact project/team identity and custom-domain bindings are verified. This avoids accidentally disrupting an unrelated project or active domain.
+- No custom domain or DNS was changed. The official URL remains the Cloudflare Pages subdomain above.
+- Operational status: deployment infrastructure and canonical URL are switched to Cloudflare. Functional production acceptance (login, roles/RLS, student/staff CRUD/archive, finance, reports, backup/restore) still requires owner testing at the canonical URL; deployment success alone is not proof of these workflows.
