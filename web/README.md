@@ -29,3 +29,5 @@
 - تبقى استضافة Vercel الحالية دون تغيير إلى أن يجتاز عنوان Cloudflare اختبار الدخول والوظائف والتقارير والنسخ والاستعادة؛ لا تُحذف ولا تُحوّل حركة المستخدمين قبل الاعتماد.
 
 - مسارات تغييرات النشر في Cloudflare Pages تُحسب نسبةً إلى مجلد الجذر `web/`.
+
+- Cloudflare Pages build path filters are cleared so the production branch can deploy the web root on repository updates.
