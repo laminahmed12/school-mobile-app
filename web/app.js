@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4?bundle";
 
 // The publishable key is intended for browser clients. Database access remains
 // protected by Supabase Auth, RLS, and the server-side RPC permission checks.
