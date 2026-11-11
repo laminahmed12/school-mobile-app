@@ -730,7 +730,6 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false, hide = true, schoolLocked = false;
   bool checkingOffline = false;
   bool rememberUsername = false;
-  String? deviceId;
   static const _rememberUsernameKey = 'lamin_remember_username';
   static const _savedUsernameKey = 'lamin_saved_username';
   static const _secureSavedUsernameKey = 'lamin.login.saved_username.v1';
@@ -861,7 +860,6 @@ class _LoginPageState extends State<LoginPage> {
       school.text = savedCode;
       username.text = savedUsername;
       schoolLocked = true;
-      setState(() => deviceId = identity['device_id']?.toString());
       return true;
     } catch (storageError) {
       debugPrint('Offline identity preflight failed: $storageError');
@@ -1013,7 +1011,6 @@ class _LoginPageState extends State<LoginPage> {
         if (enrolledDeviceId == null || enrolledDeviceId.length != 64) {
           throw StateError('لم يتم تسجيل معرّف الجهاز الآمن.');
         }
-        if (mounted) setState(() => deviceId = enrolledDeviceId);
         await auth.rememberOfflineUser(authenticatedUserId);
         await _saveUsernamePreference();
         widget.onOnlineLoginPreparationChanged(
@@ -1209,17 +1206,6 @@ class _LoginPageState extends State<LoginPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12),
                 ),
-                if (deviceId != null) ...[
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    'معرّف الجهاز: $deviceId',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 22),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
