@@ -4199,3 +4199,59 @@ The user requested a complete pre-sale readiness audit covering both Flutter And
 8. Produce a go/no-go commercial launch report. Do not invent a readiness percentage; define a weighted checklist and calculate only from audited evidence.
 
 No commercial readiness percentage or final go-live approval has been established yet.
+
+
+---
+
+## Supabase November 2026 review — 2026-11-11
+
+### Repository and validation baseline
+- Review started from code commit `50b6bfa8b07ba8d2a48d70c13b0a24841740b2e9` on `fix/lamin-portal-crud-offline-20261030`; PR #22 remained OPEN / UNMERGED.
+- On that exact commit, all four GitHub Actions workflows completed successfully:
+  - Development validation: `42684202750` — dependency resolution, Dart format verification, Flutter analyze, Flutter tests, Android candidate build, APK package/signature identity checks and artifact upload all passed.
+  - Portal validation: `42684202281` — JavaScript syntax, commercial release regression gates, offline queue and form-presence checks passed.
+  - RPC security ACL regression: `42684202538` — disposable PostgreSQL baseline, RPC grants, negative authorization, cross-tenant protections, backup/restore and rollover checks passed.
+  - Schema baseline acceptance: `42684202179` — clean baseline reconstruction, schema fingerprint, tenant/finance/backup/restore, payment guards, RLS consolidation, idempotency, archive lifecycle and upgrade-path checks passed.
+- The Android artifact from this workflow is a debug-signed testing candidate for version `2.0.3+15`; it is not the commercial release APK. The existing release-signing hold remains in force.
+- This review did not alter application source, production data, production schema, credentials, signing secrets, hosting, or PR merge state.
+
+### Supabase MCP and Knowledge Base
+- Supabase MCP connection resolves the correct project: `School-Management`, project ref `stbrhcgzfxvpayfnnqfl`, status `ACTIVE_HEALTHY`, region `eu-central-1`, PostgreSQL `17.6.1.166`.
+- Read-only project inspection used `list_tables`, `list_migrations`, advisors and SELECT-only catalog queries. No SQL write, migration apply, project branch creation, or production mutation was performed.
+- Supabase `search_docs` is available and was used to consult the official Supabase MCP, API security and TLS documentation. The Knowledge Base is useful for troubleshooting but does not replace inspection of Lamīn's actual schema and policies.
+- Important MCP boundary: the connected account exposes account-level and write-capable tools; this session restricted itself to read-only calls, but did not verify that the MCP server itself is configured with `read_only=true` and a single `project_ref`. Prefer a project-scoped, read-only MCP configuration for any future production inspection. Do not use MCP to apply production migrations.
+
+### RLS, tenant isolation and RPC access
+- Live catalog inspection found 45 tables in the exposed `public` schema; all 45 have RLS enabled.
+- Three RLS-enabled tables have no policies: `license_codes`, `login_attempts`, and `owner_gate_attempts`. This is fail-closed behavior, not a reason to add broad policies.
+- Sampled policies consistently scope school-owned data through `private.my_school()` and apply role checks through `private.my_role()`. Examples include student, teacher, attendance, fee and payment tables. Do not replace these with generic `TO authenticated` policies.
+- The live catalog reports 30 SECURITY DEFINER functions in `public`; 16 are executable by `authenticated`, and none is executable by `anon`. Seven SECURITY DEFINER helpers are in `private`; none is executable by `anon`. Sampled privileged RPC bodies check the authenticated user, school scope and role, and use a hardened search path. The Supabase advisor warning is therefore a review signal, not proof that these RPCs should have EXECUTE revoked: doing so blindly would break legitimate app functions.
+- The dedicated RPC ACL regression workflow passed on the reviewed code commit. Do not weaken RLS, grant anon access to tenant tables, or remove RPC grants without a function-by-function authorization test.
+- Supabase Auth leaked-password protection is currently disabled according to the security advisor. Enabling it changes production Auth behavior and was intentionally not changed; schedule it as a separately reviewed production setting change.
+- No cross-school live data mutation was attempted. Database catalog inspection and disposable CI tests support the tenant-isolation design, but they are not a substitute for a signed-in two-school negative API test using distinct real test accounts.
+
+### Performance advisor findings
+- Live advisor reported nine foreign keys without covering indexes, five multiple-permissive-policy warnings, one duplicate index on `audit_log`, and 20 currently unused indexes.
+- Do not drop unused indexes based only on advisor counters; they may support infrequent reports, maintenance or future workloads. Likewise, consolidate policies or add production indexes only after query-plan review and a reviewed migration. No production performance changes were made.
+
+### TLS and SDK compatibility
+- App Supabase endpoint is HTTPS; `pubspec.yaml` currently declares `supabase_flutter: ^2.17.2`. The successful Android CI build used Flutter `3.35.4`.
+- No custom TLS downgrade, custom cipher-suite list, certificate bypass, or `HttpOverrides` implementation was found in the inspected Supabase config/code-search results. Leave TLS defaults intact; do not add custom cipher settings.
+- Supabase project APIs accept TLS 1.2 and TLS 1.3. The announced removal (starting 2026-11-10 at the earliest) concerns four legacy CBC-mode TLS 1.2 suites; modern TLS 1.3 and TLS 1.2 GCM/ChaCha suites remain supported. Direct Postgres and pooler connections are not affected. Official reference: https://supabase.com/docs/guides/security/tls
+- The app delegates HTTPS negotiation to the Android/Flutter platform stack. CI proves the candidate builds, not that every older customer handset supports a remaining cipher. Validate the oldest supported physical Android OS/device fleet after update; do not infer device compatibility from the build alone.
+
+### Production migration reconciliation — important drift
+- Production migration history currently reaches `20261108213336` (`allow_optional_student_phone`). The live `students_phone_check` constraint is exactly `phone = '' OR phone ~ '^[0-9]{8,15}$'`; repository file `20261108212500_allow_optional_student_phone.sql` has the same effect but a different version timestamp.
+- Production migration `20261101030857` records `010_create_student_with_fee_idempotent`. Its live RPC is SECURITY INVOKER and uses the school-scoped `public.client_operations` table. This is not the same implementation as branch-only `20261031180000_offline_student_create_idempotency.sql`, which creates a separate locked-down receipt table and a SECURITY DEFINER entry point. Keep the branch migration marked branch-only; do not apply it to production or assume it is byte-for-byte represented by production history. Test any future staging upgrade for function-overload resolution before use.
+- Production archive migration `20261104002434` (`archive_individuals`) is not equivalent to repository file `20261104000000_archive_only_no_hard_delete.sql`. Live RPCs support archiving user profiles, write `audit_log`, change active/status fields and return JSONB; the repository migration currently supports students/teachers/staff only and has different return shapes/reason values. This is an unresolved source-of-truth drift and must be reconciled before using the repository migration to reconstruct or upgrade a staging database.
+- These differences are recorded in `supabase/migration_history_map.csv`. Never attempt to repair migration history by editing production records or reapplying these migrations to production.
+
+### Safe repository improvement in this review
+- Updated `.github/workflows/lamin-schema-baseline-acceptance.yml` to apply the latest repository optional-phone migration `20261108212500_allow_optional_student_phone.sql` and rerun its SQL acceptance test in the disposable CI database. The earlier workflow only exercised the older equivalent migration.
+- Updated `supabase/migration_history_map.csv` with the observed production/repository migration divergences and the confirmed optional-phone constraint match.
+- These are repository-only changes. The new workflow run must be checked on the resulting commit before treating the added step as validated.
+
+### Outstanding acceptance and controls
+- No production RLS/Auth/migration/index change was made. Auth leaked-password protection and performance advisor items remain review tasks requiring a controlled production change plan.
+- Physical Android checks remain required for the oldest supported OS, offline cold-start/login, queue replay exactly once, and encrypted backup/restore.
+- PR #22 remains OPEN / UNMERGED. Preserve the existing release signing identity and do not run the signed release workflow until the established offline/performance release gates and device acceptance are satisfied.
