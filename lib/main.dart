@@ -5162,21 +5162,35 @@ class _PayrollViewState extends State<PayrollView> {
     );
     if (confirmed != true) return;
     try {
-      await widget.repo.archivePerson(
-        kind: 'staff',
-        id: person['id'].toString(),
-      );
-      await load();
-      await widget.onChanged();
+      final staffId = person['id']?.toString() ?? '';
+      if (staffId.isEmpty) throw StateError('معرّف الموظف غير موجود.');
+      await widget.repo.archivePerson(kind: 'staff', id: staffId);
+
+      // Reflect the confirmed archive immediately. Refresh failures must not
+      // be reported as a failed archive after the server has committed it.
       if (mounted) {
+        setState(() => staff.removeWhere((row) => row['id']?.toString() == staffId));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تمت أرشفة الموظف.')),
+          const SnackBar(content: Text('تمت أرشفة الموظف والاحتفاظ بسجل مرتباته.')),
         );
+      }
+      try {
+        await load();
+        await widget.onChanged();
+      } catch (refreshError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('أُرشِف الموظف، لكن تعذّر تحديث بعض الملخصات: ${refreshError.toString()}')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
+        final detail = e is PostgrestException
+            ? '${e.message} [${e.code ?? 'بدون رمز'}]'
+            : e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تعذرت أرشفة الموظف: ${friendlyError(e, fallback: 'تحقق من الصلاحيات وتطبيق تحديث قاعدة البيانات.')}')),
+          SnackBar(content: Text('تعذرت أرشفة الموظف: $detail')),
         );
       }
     }
