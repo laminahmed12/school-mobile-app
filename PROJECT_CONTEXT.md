@@ -4147,3 +4147,55 @@ This confirms update compatibility, authenticated finance reads, queue replay, a
 - Vercel project lookup from the currently connected Vercel team returned no matching project; the earlier Vercel project identifier did not resolve. Therefore no Vercel project was paused, deleted, or altered. Do not disable Vercel until its exact project/team identity and custom-domain bindings are verified. This avoids accidentally disrupting an unrelated project or active domain.
 - No custom domain or DNS was changed. The official URL remains the Cloudflare Pages subdomain above.
 - Operational status: deployment infrastructure and canonical URL are switched to Cloudflare. Functional production acceptance (login, roles/RLS, student/staff CRUD/archive, finance, reports, backup/restore) still requires owner testing at the canonical URL; deployment success alone is not proof of these workflows.
+
+
+## Commercial readiness review initiated — 2026-11-11
+
+### Verified repository state at review start
+- Repository: `laminahmed12/school-mobile-app`; target branch: `fix/lamin-portal-crud-offline-20261030`.
+- PR #22 remains OPEN and UNMERGED; base branch is `feature/lamin-desktop-portal-2026-10-29`.
+- PR head observed during this reference update: `50b6bfa8b07ba8d2a48d70c13b0a24841740b2e9`.
+- Canonical portal URL remains https://lamin-school-portal.pages.dev (Cloudflare Pages, root `/web`).
+- No production, secrets, signing configuration, or database changes were made in this update.
+
+### Latest user-reported portal acceptance
+The user tested the canonical portal and reported all four checks successful:
+1. Login and initial school data display.
+2. Refreshing the portal preserves successful login/data behavior.
+3. After the first load, the portal interface opens with the internet disconnected.
+4. An online add/edit operation succeeds and the change reaches Supabase.
+
+These are user-reported phone/browser acceptance results, not independently instrumented tests. They do not establish that every portal workflow or every offline mutation is production-ready. In particular, archive/restore while offline and subsequent synchronization still require explicit acceptance.
+
+### Commercial launch assessment — not yet completed
+The user requested a complete pre-sale readiness audit covering both Flutter Android app and web portal. Required review scope:
+- Functional coverage and CRUD/archive/restore for students, teachers, staff, classes, attendance, finance, results, guardians, reports, notifications, search/export/printing.
+- Offline behavior independently for mobile and web: persistence, queue replay, idempotency, conflict handling, restart survival, sync status/error visibility, backup and restore.
+- Supabase security: tenant isolation / RLS, RPC and Edge Function authorization, role boundaries, session lifecycle, audit trail, local/exported backup protection, and dependency vulnerabilities.
+- Commercial multi-school readiness: school provisioning, strict tenant isolation, branding/configuration, subscription lifecycle and plan limits, onboarding, import/export, offboarding/data portability, and central operator administration.
+- UX, accessibility, RTL, responsive layouts, performance, and removal of demo/inert controls.
+- Android release: versioning, existing-certificate signature, APK/AAB, in-place update, permissions, privacy disclosures, and distribution readiness.
+- Web/PWA: Cloudflare deployment source, service-worker cache/update behavior, offline shell, HTTPS, domain readiness, and browser compatibility.
+- Legal/operational: privacy policy and terms (existing files are drafts requiring owner review), student/minor data handling, support, SLA, retention/deletion, backup/restore, and pricing/contract materials.
+
+### Important known constraints and caveats
+- PR #22 is not merged. Do not merge without explicit user authorization.
+- Branch-only migration `20261031180000_offline_student_create_idempotency.sql` remains unapplied to production. Full offline student-create/reconnect acceptance depends on that RPC/migration and must use a separate staging Supabase backend/build or await explicit authorization; never silently apply it to production.
+- The mobile app uses Supabase; do not introduce Firebase or conflate it with Lamīn Management.
+- Offline login is supported only after a previous successful login and valid cached profile/school/license state; first-ever login without internet is not supported.
+- The encrypted local snapshot is device-local and tied to secure-storage key material; it is not equivalent to a full server export or portable cross-device backup. User-exported / Drive JSON is readable by design and needs clear disclosure.
+- The prior successful signed APK and CI evidence recorded above relate to their explicitly stated historical commit(s), not automatically to current HEAD `50b6bfa8...`. Recheck workflows and release artifacts against the exact current source before claiming the current release is validated.
+- The previous project notes contain historical version references (2.0.3+13, +14, +15) from different points in time. Read the current `pubspec.yaml` and workflow configuration before deciding the current version; do not rely on stale notes.
+- Cloudflare's recorded successful deployment is from commit `4c8bc303194666c271901c5b828739c581e13c57`. Verify a newer deployment before claiming the latest portal changes are live.
+
+### Next execution sequence
+1. Inspect current HEAD files and workflows; enumerate actual app/portal features and map each to implementation, tests, and authorization boundaries.
+2. Inspect latest GitHub Actions for the exact current HEAD and rerun applicable safe validation workflows if needed.
+3. Review Supabase migrations, RLS policies, RPCs, Edge Functions, and tenant scoping without mutating production.
+4. Audit backup/restore, archive/restore, offline queues, conflict handling, and cross-school isolation; add regression tests and fix safe branch-only defects.
+5. Verify current Cloudflare deployment status and PWA behavior; do not change hosting or DNS without need and authorization.
+6. Inspect current Android version/signing/build workflows; build only through the repository's existing safe workflow and preserve the approved signing certificate.
+7. Update this file with evidence, exact commit hashes, test run IDs/results, artifacts, unresolved blockers, and user-only device acceptance steps.
+8. Produce a go/no-go commercial launch report. Do not invent a readiness percentage; define a weighted checklist and calculate only from audited evidence.
+
+No commercial readiness percentage or final go-live approval has been established yet.
