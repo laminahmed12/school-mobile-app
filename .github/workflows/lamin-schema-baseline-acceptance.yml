@@ -167,3 +167,7 @@ jobs:
         run: |
           PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_upgrade.sql
           PGDATABASE=lamin_upgrade_test psql -v ON_ERROR_STOP=1 -f supabase/baselines/20261015/validate_baseline.sql
+      - name: Apply latest optional student phone migration in disposable database
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261108212500_allow_optional_student_phone.sql
+      - name: Verify latest optional student phone migration
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/validate_optional_student_phone.sql
