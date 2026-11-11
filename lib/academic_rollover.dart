@@ -89,6 +89,444 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
     return 'طالب غير معروف';
   }
 
+  Future<void> createTargetYear() async {
+    if (sourceYear == null) {
+      _message('لا توجد سنة دراسية حالية يمكن إنشاء سنة تالية لها.');
+      return;
+    }
+    final source = years.where((y) => y['id'].toString() == sourceYear).firstOrNull;
+    final sourceName = source?['name']?.toString() ?? '';
+    final match = RegExp(r'^(\\d{4})\\s*[/\\-]\\s*(\\d{4})    if (sourceYear == null || targetYear == null || sourceYear == targetYear) {
+      _message('اختر السنة الحالية وسنة جديدة مختلفة.');
+      return;
+    }
+    setState(() {
+      busy = true;
+    });
+    try {
+      final id = await db.rpc(
+        'prepare_academic_rollover',
+        params: {'p_source_year': sourceYear, 'p_target_year': targetYear},
+      );
+      batchId = id.toString();
+      completed = false;
+      await _loadItems();
+    } catch (e) {
+      _message('تعذر إعداد المعاينة: ${e.toString()}');
+    } finally {
+      if (mounted)
+        setState(() {
+          busy = false;
+        });
+    }
+  }
+
+  Future<void> _loadItems() async {
+    if (batchId == null) return;
+    final rows = await db
+        .from('rollover_items')
+        .select(
+          'id,student_id,decision,target_class_id,source_balance,reviewed',
+        )
+        .eq('batch_id', batchId!)
+        .order('created_at');
+    items = (rows as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    decisions = {
+      for (final i in items) i['id'].toString(): i['decision'].toString(),
+    };
+    targetClasses = {
+      for (final i in items)
+        i['id'].toString(): i['target_class_id']?.toString(),
+    };
+    if (mounted) setState(() {});
+  }
+
+  Future<void> saveItem(Map<String, dynamic> item) async {
+    final id = item['id'].toString();
+    final decision = decisions[id] ?? 'exclude';
+    final classId = targetClasses[id];
+    if ((decision == 'promote' || decision == 'repeat') && classId == null) {
+      _message('حدد الصف الجديد للطالب قبل اعتماد قراره.');
+      return;
+    }
+    setState(() {
+      busy = true;
+    });
+    try {
+      await db
+          .from('rollover_items')
+          .update({
+            'decision': decision,
+            'target_class_id': (decision == 'promote' || decision == 'repeat')
+                ? classId
+                : null,
+            'reviewed': true,
+            'reviewed_by': db.auth.currentUser?.id,
+            'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', id)
+          .eq('batch_id', batchId!);
+      await _loadItems();
+      _message('تم حفظ قرار ${_studentName(item['student_id']?.toString())}.');
+    } catch (e) {
+      _message('تعذر حفظ القرار: ${e.toString()}');
+    } finally {
+      if (mounted)
+        setState(() {
+          busy = false;
+        });
+    }
+  }
+
+  Future<void> execute() async {
+    if (items.isEmpty || items.any((i) => i['reviewed'] != true)) {
+      _message('راجع قرار كل طالب أولًا؛ لا يمكن ترحيل بيانات غير مراجعة.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد الترحيل النهائي'),
+        content: const Text(
+          'سيتم تفعيل السنة الجديدة وإقفال السنة السابقة وترحيل الأرصدة المستحقة. لا تبدأ قبل مراجعة جميع الطلاب.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('مراجعة لاحقًا'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد الترحيل'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      busy = true;
+    });
+    try {
+      final result = await db.rpc(
+        'execute_academic_rollover',
+        params: {'p_batch_id': batchId},
+      );
+      completed = true;
+      _message(
+        (result is Map ? result['message']?.toString() : null) ??
+            'اكتمل الترحيل.',
+      );
+      await load();
+      items = [];
+    } catch (e) {
+      _message('لم يكتمل الترحيل: ${e.toString()}');
+    } finally {
+      if (mounted)
+        setState(() {
+          busy = false;
+        });
+    }
+  }
+
+  void _message(String value) {
+    if (mounted)
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(value)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final targetClassesList = classes
+        .where(
+          (c) =>
+              c['academic_year_id'] == targetYear ||
+              c['academic_year_id'] == null,
+        )
+        .toList();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ترحيل السنة الدراسية'),
+        actions: [
+          IconButton(
+            onPressed: loading || busy ? null : load,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(12),
+              children: [
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'تتم مراجعة كل طالب بشكل مستقل. تبقى السجلات القديمة محفوظة، ويُنقل الدين المستحق للسنة الجديدة دون تكراره.',
+                    ),
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: sourceYear,
+                  decoration: const InputDecoration(
+                    labelText: 'السنة الحالية (المصدر)',
+                  ),
+                  items: years
+                      .where(
+                        (y) => y['active'] == true && y['is_closed'] != true,
+                      )
+                      .map(
+                        (y) => DropdownMenuItem(
+                          value: y['id'].toString(),
+                          child: Text(y['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: busy
+                      ? null
+                      : (v) => setState(() => sourceYear = v),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: targetYear,
+                  decoration: const InputDecoration(
+                    labelText: 'السنة الجديدة (الهدف)',
+                  ),
+                  items: years
+                      .where(
+                        (y) => y['active'] != true && y['is_closed'] != true,
+                      )
+                      .map(
+                        (y) => DropdownMenuItem(
+                          value: y['id'].toString(),
+                          child: Text(y['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: busy
+                      ? null
+                      : (v) => setState(() => targetYear = v),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: busy || loading ? null : createTargetYear,
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('إنشاء سنة دراسية جديدة'),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: busy ? null : prepare,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text('إعداد المعاينة ومراجعة الطلاب'),
+                ),
+                if (items.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      title: Text('عدد الطلاب: ${items.length}'),
+                      subtitle: Text(
+                        'تمت مراجعة ${items.where((i) => i['reviewed'] == true).length} من ${items.length}',
+                      ),
+                      leading: const Icon(Icons.people_alt_outlined),
+                    ),
+                  ),
+                  ...items.map((item) {
+                    final id = item['id'].toString();
+                    final decision = decisions[id] ?? 'exclude';
+                    final needsClass =
+                        decision == 'promote' || decision == 'repeat';
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _studentName(item['student_id']?.toString()),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'الدين المرحّل: ${((item['source_balance'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} د.ل',
+                            ),
+                            DropdownButtonFormField<String>(
+                              initialValue: decision,
+                              decoration: const InputDecoration(
+                                labelText: 'النتيجة / القرار',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'promote',
+                                  child: Text('ناجح'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'repeat',
+                                  child: Text('راسب'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'graduate',
+                                  child: Text('متخرج'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'transfer',
+                                  child: Text('منتقل'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'exclude',
+                                  child: Text('عدم الترحيل'),
+                                ),
+                              ],
+                              onChanged: busy
+                                  ? null
+                                  : (v) => setState(() {
+                                      decisions[id] = v ?? 'exclude';
+                                      item['reviewed'] = false;
+                                    }),
+                            ),
+                            if (needsClass)
+                              DropdownButtonFormField<String>(
+                                initialValue:
+                                    targetClassesList.any(
+                                      (c) =>
+                                          c['id'].toString() ==
+                                          targetClasses[id],
+                                    )
+                                    ? targetClasses[id]
+                                    : null,
+                                decoration: const InputDecoration(
+                                  labelText: 'الصف في السنة الجديدة',
+                                ),
+                                items: targetClassesList
+                                    .map(
+                                      (c) => DropdownMenuItem(
+                                        value: c['id'].toString(),
+                                        child: Text(
+                                          '${c['name']}${(c['section'] ?? '').toString().isEmpty ? '' : ' — ${c['section']}'}',
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: busy
+                                    ? null
+                                    : (v) => setState(() {
+                                        targetClasses[id] = v;
+                                        item['reviewed'] = false;
+                                      }),
+                              ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item['reviewed'] == true
+                                        ? 'تمت المراجعة'
+                                        : 'بانتظار المراجعة',
+                                    style: TextStyle(
+                                      color: item['reviewed'] == true
+                                          ? Colors.green
+                                          : Colors.orange,
+                                    ),
+                                  ),
+                                ),
+                                FilledButton.tonal(
+                                  onPressed: busy ? null : () => saveItem(item),
+                                  child: const Text('حفظ القرار'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: busy ? null : execute,
+                    icon: const Icon(Icons.school),
+                    label: const Text('تنفيذ الترحيل واعتماد السنة الجديدة'),
+                  ),
+                ],
+                if (completed)
+                  const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.check_circle),
+                      title: Text('اكتمل ترحيل السنة بنجاح.'),
+                    ),
+                  ),
+                if (busy)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+).firstMatch(sourceName);
+    final suggested = match == null
+        ? '$sourceName - الجديدة'
+        : '${int.parse(match.group(1)!) + 1}/${int.parse(match.group(2)!) + 1}';
+    final controller = TextEditingController(text: suggested);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إنشاء سنة دراسية جديدة'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 60,
+          decoration: const InputDecoration(
+            labelText: 'اسم السنة الجديدة',
+            hintText: '2028/2029',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('إنشاء'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null) return;
+    if (name.trim().length < 3) {
+      _message('اسم السنة الدراسية يجب ألا يقل عن 3 أحرف.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final id = await db.rpc(
+        'create_next_academic_year',
+        params: {
+          'p_name': name.trim(),
+          'p_starts_on': null,
+          'p_ends_on': null,
+          'p_migrate_students': false,
+          'p_migrate_staff': false,
+        },
+      ).timeout(const Duration(seconds: 10));
+      await load();
+      if (mounted) {
+        setState(() => targetYear = id.toString());
+        _message('أُنشئت السنة الجديدة كمسودة غير مفعّلة. لم يبدأ ترحيل الطلاب أو الموظفين.');
+      }
+    } catch (e) {
+      _message('تعذر إنشاء السنة الجديدة: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   Future<void> prepare() async {
     if (sourceYear == null || targetYear == null || sourceYear == targetYear) {
       _message('اختر السنة الحالية وسنة جديدة مختلفة.');
