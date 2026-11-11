@@ -498,6 +498,14 @@ class SchoolRepository {
             throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
           }
 
+          // A successful replay must also refresh the encrypted financial
+          // snapshot so the next offline session can show the confirmed payment.
+          try {
+            await studentFinancialSummary(resolve(item['student_id']).toString());
+          } catch (cacheError) {
+            debugPrint('Post-sync financial cache refresh failed: $cacheError');
+          }
+
           const secure = FlutterSecureStorage();
           final pendingKey = 'lamin.pending_payments.v1_$schoolId';
           try {
@@ -1285,12 +1293,24 @@ class SchoolRepository {
   }
 
   Future<void> archivePerson({required String kind, required String id}) async {
-    await db.rpc('archive_person', params: {
+    if (db.auth.currentSession == null) {
+      throw StateError('أرشفة السجلات تتطلب اتصالاً بالإنترنت وتسجيل دخول صالحاً.');
+    }
+    if (!const {'student', 'teacher', 'staff', 'user'}.contains(kind)) {
+      throw ArgumentError.value(kind, 'kind', 'نوع سجل غير صالح');
+    }
+    if (id.trim().isEmpty) {
+      throw ArgumentError.value(id, 'id', 'معرّف السجل مفقود');
+    }
+    final result = await db.rpc('archive_person', params: {
       'p_kind': kind,
       'p_id': id,
       'p_reason': 'other',
       'p_note': '',
     }).timeout(const Duration(seconds: 8));
+    if (result is Map && result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'لم يؤكد الخادم أرشفة السجل.');
+    }
   }
 
   Future<List<Map<String, dynamic>>> staffMembers() => _readRows(
