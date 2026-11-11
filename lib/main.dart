@@ -5242,19 +5242,31 @@ class _PayrollViewState extends State<PayrollView> {
                 '${remaining < -0.009 ? 'زيادة مصروفة' : 'المتبقي من الراتب'}: ${remaining.abs().toStringAsFixed(2)} د.ل',
               ),
               trailing: widget.canManagePayees
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: 'تعديل بيانات',
-                          onPressed: () => editPayee(person, isTeacher: isTeacher),
-                          icon: const Icon(Icons.edit_outlined),
+                  ? PopupMenuButton<String>(
+                      tooltip: 'إجراءات',
+                      enabled: !saving,
+                      onSelected: (action) async {
+                        if (action == 'edit') {
+                          await editPayee(person, isTeacher: isTeacher);
+                        } else if (action == 'archive' && !isTeacher) {
+                          await archiveStaff(person);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('تعديل البيانات'),
                         ),
                         if (!isTeacher)
-                          IconButton(
-                            tooltip: 'أرشفة الموظف',
-                            onPressed: saving ? null : () => archiveStaff(person),
-                            icon: const Icon(Icons.archive_outlined),
+                          const PopupMenuItem(
+                            value: 'archive',
+                            child: Row(
+                              children: [
+                                Icon(Icons.archive_outlined),
+                                SizedBox(width: 8),
+                                Text('أرشفة الموظف'),
+                              ],
+                            ),
                           ),
                       ],
                     )
