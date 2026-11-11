@@ -7,6 +7,7 @@ ALTER TABLE public.students ADD COLUMN IF NOT EXISTS archived_by uuid REFERENCES
 ALTER TABLE public.students ADD COLUMN IF NOT EXISTS archive_reason text;
 ALTER TABLE public.students ADD COLUMN IF NOT EXISTS archive_note text;
 
+ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
 ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS archived_at timestamptz;
 ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS archived_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE public.teachers ADD COLUMN IF NOT EXISTS archive_reason text;
