@@ -1,3 +1,34 @@
+# Latest verified engineering update — 2026-11-11
+
+Branch: `fix/lamin-portal-crud-offline-20261030`
+Verified HEAD before this reference-file update: `0d6fa68baac8faf05412e16a9f5e9a27be2056c4`
+PR #22 remains open and unmerged. Production Supabase, main, release secrets, and signing keys were not changed.
+
+## Confirmed migration drift fixes in repository source
+
+- Offline student idempotency source now reconstructs `public.client_operations` with the production columns, school-scoped RLS policies, authenticated SELECT/INSERT grants, and the production RPC argument order. The RPC is SECURITY INVOKER and uses the same ledger as production rather than creating a competing private receipt table. It checks the current user when reading an idempotency receipt.
+- Offline student SQL regression now checks the single RPC overload, SECURITY INVOKER, authenticated/anon grants, ledger RLS, and exactly-once replay.
+- Archive lifecycle source now matches the production JSONB RPC contracts and includes students, teachers, staff, and eligible user profiles; it writes audit_log entries, updates active/status fields, preserves school scoping, validates production archive reasons, and adds missing archive columns including teacher active and profile archive metadata.
+- Mobile archive response normalization now accepts the production `detail` field as the UI's `details` field. Both the primary and compatibility response paths are normalized.
+- `supabase/migration_history_map.csv` now records these production contracts as mapped/aligned. Version timestamps differ from production history; the repository migrations remain un-applied to production.
+
+## CI verification at HEAD 0d6fa68baac8faf05412e16a9f5e9a27be2056c4
+
+- Lamin portal validation: SUCCESS — push run 42964754088; PR run 42964759499.
+- Lamin schema baseline acceptance: SUCCESS — push run 42964761672; PR run 42964759778. This includes the offline idempotency and archive lifecycle SQL tests.
+- Lamin RPC security ACL regression: SUCCESS — push run 42964753974; PR run 42964759510.
+- Lamin development validation: Dart format, format verification, static analysis and automated tests passed; Android candidate build run 42964754064 was still building at the time of this update. No artifact was yet available.
+- Candidate build is debug-signed for testing only; it is not a production-signed update. Do not dispatch release signing or merge PR #22 until build verification and physical-device acceptance are complete.
+
+## Remaining acceptance gates
+
+1. Wait for development validation run 42964754064 to complete; verify APK package identity, signature and checksum, then download the candidate artifact.
+2. Physical Android acceptance is still required: reopen offline after a prior successful login; test correct/wrong credentials and license state; create student/fee/payment/attendance offline; restore local snapshot offline; reconnect and confirm queue drains exactly once without lost or duplicated data.
+3. Validate archive and restore against a dedicated staging tenant with synthetic accounts before any production migration.
+4. Keep production read-only. No production schema changes, auth setting changes, data writes, releases, merges, or signing operations were performed in this update.
+
+---
+
 # Lamīn School — Canonical Project Context
 
 ## Project identity
