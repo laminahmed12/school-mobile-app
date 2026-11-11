@@ -1,9 +1,9 @@
--- Disposable PostgreSQL CI only. Exercises archive/restore lifecycle and authorization.
--- Never run this fixture against Lamin-Test or production.
+-- Disposable PostgreSQL CI only. Exercises production-compatible archive/restore lifecycle.
 INSERT INTO auth.users(id) VALUES
  ('00000000-0000-4000-8000-000000000101'),
  ('00000000-0000-4000-8000-000000000102'),
- ('00000000-0000-4000-8000-000000000103')
+ ('00000000-0000-4000-8000-000000000103'),
+ ('00000000-0000-4000-8000-000000000104')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.schools(id,code,name,licensed,active)
@@ -16,7 +16,8 @@ INSERT INTO public.profiles(user_id,school_id,username,role,active,must_change_p
 VALUES
  ('00000000-0000-4000-8000-000000000101','10000000-0000-4000-8000-000000000101','archiveadmin1','admin',true,false),
  ('00000000-0000-4000-8000-000000000102','10000000-0000-4000-8000-000000000102','archiveadmin2','admin',true,false),
- ('00000000-0000-4000-8000-000000000103','10000000-0000-4000-8000-000000000101','archiveaccountant','accountant',true,false)
+ ('00000000-0000-4000-8000-000000000103','10000000-0000-4000-8000-000000000101','archiveaccountant','accountant',true,false),
+ ('00000000-0000-4000-8000-000000000104','10000000-0000-4000-8000-000000000101','archivesupervisor','supervisor',true,false)
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO public.students(id,school_id,name,class_name,phone)
@@ -48,7 +49,7 @@ BEGIN
  OR has_function_privilege('anon','public.list_archive(text)','EXECUTE')
  OR EXISTS (
    SELECT 1 FROM pg_proc p
-   CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f',p.proowner))) a
+   CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
    WHERE p.oid IN (
      'public.archive_person(text,uuid,text,text)'::regprocedure,
      'public.restore_person(text,uuid)'::regprocedure,
@@ -67,18 +68,24 @@ END $$;
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000101',false);
 
--- Admin can create an archive entry for each supported entity type.
-SELECT public.archive_person('student','20000000-0000-4000-8000-000000000101','left_school','student archive test');
-SELECT public.archive_person('teacher','20000000-0000-4000-8000-000000000102','transferred','teacher archive test');
-SELECT public.archive_person('staff','20000000-0000-4000-8000-000000000103','inactive','staff archive test');
+SELECT public.archive_person('student','20000000-0000-4000-8000-000000000101','transferred','student archive test');
+SELECT public.archive_person('teacher','20000000-0000-4000-8000-000000000102','resigned','teacher archive test');
+SELECT public.archive_person('staff','20000000-0000-4000-8000-000000000103','terminated','staff archive test');
+SELECT public.archive_person('user','00000000-0000-4000-8000-000000000104','terminated','account archive test');
 
 DO $$
-DECLARE n integer;
+DECLARE all_rows jsonb; student_rows jsonb;
 BEGIN
- SELECT count(*) INTO n FROM public.list_archive('');
- IF n <> 3 THEN RAISE EXCEPTION 'archive listing expected 3 own-school records, got %',n; END IF;
- IF (SELECT count(*) FROM public.list_archive('Archive')) <> 3 THEN
-   RAISE EXCEPTION 'archive search did not return all matching people';
+ all_rows := public.list_archive(NULL);
+ IF jsonb_array_length(all_rows) <> 4 THEN
+   RAISE EXCEPTION 'archive listing expected 4 own-school records, got %',jsonb_array_length(all_rows);
+ END IF;
+ student_rows := public.list_archive('student');
+ IF jsonb_array_length(student_rows) <> 1 THEN
+   RAISE EXCEPTION 'kind-filtered archive listing expected one student';
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.students WHERE id='20000000-0000-4000-8000-000000000101' AND active=false AND status='transferred') THEN
+   RAISE EXCEPTION 'student archive did not update active/status fields';
  END IF;
  BEGIN
    PERFORM public.archive_person('student','20000000-0000-4000-8000-000000000104','other','cross tenant');
@@ -92,30 +99,30 @@ BEGIN
  END;
 END $$;
 
--- Restore each record and ensure archive metadata is cleared.
 SELECT public.restore_person('student','20000000-0000-4000-8000-000000000101');
 SELECT public.restore_person('teacher','20000000-0000-4000-8000-000000000102');
 SELECT public.restore_person('staff','20000000-0000-4000-8000-000000000103');
+SELECT public.restore_person('user','00000000-0000-4000-8000-000000000104');
+
 DO $$
 BEGIN
- IF (SELECT count(*) FROM public.list_archive('')) <> 0 THEN
+ IF jsonb_array_length(public.list_archive(NULL)) <> 0 THEN
    RAISE EXCEPTION 'restored records still appear in archive';
  END IF;
- IF EXISTS (SELECT 1 FROM public.students WHERE id='20000000-0000-4000-8000-000000000101' AND archived_at IS NOT NULL)
- OR EXISTS (SELECT 1 FROM public.teachers WHERE id='20000000-0000-4000-8000-000000000102' AND archived_at IS NOT NULL)
- OR EXISTS (SELECT 1 FROM public.staff WHERE id='20000000-0000-4000-8000-000000000103' AND archived_at IS NOT NULL) THEN
-   RAISE EXCEPTION 'restore did not clear archive metadata';
+ IF EXISTS (SELECT 1 FROM public.students WHERE id='20000000-0000-4000-8000-000000000101' AND (archived_at IS NOT NULL OR active IS NOT TRUE OR status <> 'active'))
+ OR EXISTS (SELECT 1 FROM public.teachers WHERE id='20000000-0000-4000-8000-000000000102' AND (archived_at IS NOT NULL OR active IS NOT TRUE))
+ OR EXISTS (SELECT 1 FROM public.staff WHERE id='20000000-0000-4000-8000-000000000103' AND (archived_at IS NOT NULL OR active IS NOT TRUE))
+ OR EXISTS (SELECT 1 FROM public.profiles WHERE user_id='00000000-0000-4000-8000-000000000104' AND (archived_at IS NOT NULL OR active IS NOT TRUE)) THEN
+   RAISE EXCEPTION 'restore did not reinstate active records';
  END IF;
- -- Staff INSERT/UPDATE policy replacement must preserve authorized admin writes.
  INSERT INTO public.staff(school_id,name) VALUES ('10000000-0000-4000-8000-000000000101','Policy write check');
  UPDATE public.staff SET name='Policy update check' WHERE name='Policy write check';
 END $$;
 
--- A user from another school cannot list this school's archive or archive its people.
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000102',false);
 DO $$
 BEGIN
- IF (SELECT count(*) FROM public.list_archive('')) <> 0 THEN
+ IF jsonb_array_length(public.list_archive(NULL)) <> 0 THEN
    RAISE EXCEPTION 'archive listing leaked records across schools';
  END IF;
  BEGIN
@@ -125,7 +132,6 @@ BEGIN
  END;
 END $$;
 
--- Accountant is authenticated but is not authorized to archive or restore.
 SELECT set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000103',false);
 DO $$
 BEGIN
@@ -140,14 +146,13 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
  BEGIN
-   PERFORM public.list_archive('');
+   PERFORM public.list_archive(NULL);
    RAISE EXCEPTION 'accountant unexpectedly listed archive';
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
 END $$;
 RESET ROLE;
 
--- Ensure all three rows still exist: lifecycle is soft-archive, never hard-delete.
 DO $$
 BEGIN
  IF (SELECT count(*) FROM public.students WHERE id='20000000-0000-4000-8000-000000000101') <> 1
