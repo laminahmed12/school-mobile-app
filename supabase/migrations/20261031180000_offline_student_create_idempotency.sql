@@ -110,6 +110,35 @@ $function$;
 -- Keep the production RPC argument names/order and SECURITY INVOKER contract.
 -- The client_operations table is school-scoped by RLS and records the authenticated creator.
 
+-- Reconstruct the same school-scoped idempotency ledger used by production.
+CREATE TABLE IF NOT EXISTS public.client_operations (
+  school_id uuid NOT NULL DEFAULT private.my_school()
+    REFERENCES public.schools(id) ON DELETE CASCADE,
+  operation_id text NOT NULL
+    CHECK (char_length(operation_id) >= 8 AND char_length(operation_id) <= 80),
+  kind text NOT NULL,
+  result_id uuid,
+  created_by uuid DEFAULT auth.uid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (school_id, operation_id)
+);
+
+ALTER TABLE public.client_operations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.client_operations FROM PUBLIC, anon;
+GRANT SELECT, INSERT ON TABLE public.client_operations TO authenticated;
+
+DROP POLICY IF EXISTS client_operations_select ON public.client_operations;
+DROP POLICY IF EXISTS client_operations_insert ON public.client_operations;
+CREATE POLICY client_operations_select ON public.client_operations
+  FOR SELECT TO authenticated
+  USING (school_id = (SELECT private.my_school()));
+CREATE POLICY client_operations_insert ON public.client_operations
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    school_id = (SELECT private.my_school())
+    AND created_by = (SELECT auth.uid())
+  );
+
 CREATE OR REPLACE FUNCTION public.create_student_with_fee_idempotent(
   p_name text,
   p_class_name text,
@@ -140,7 +169,8 @@ BEGIN
 
   SELECT true, result_id INTO v_seen, v_existing
   FROM public.client_operations
-  WHERE school_id = v_school AND operation_id = v_op;
+  WHERE school_id = v_school AND operation_id = v_op
+    AND kind = 'create_student' AND created_by = auth.uid();
 
   IF coalesce(v_seen, false) THEN
     RETURN v_existing;
