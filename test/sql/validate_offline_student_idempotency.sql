@@ -24,6 +24,20 @@ BEGIN
      OR NOT has_table_privilege('authenticated','public.client_operations','SELECT') THEN
     RAISE EXCEPTION 'authenticated client_operations access required by the invoker RPC is missing';
   END IF;
+  IF has_table_privilege('anon','public.client_operations','INSERT')
+     OR has_table_privilege('anon','public.client_operations','SELECT') THEN
+    RAISE EXCEPTION 'anon must not access the client operation ledger';
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.client_operations'::regclass) THEN
+    RAISE EXCEPTION 'client operation ledger must enforce RLS';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public'
+    AND tablename='client_operations' AND policyname='client_operations_insert'
+    AND cmd='INSERT') OR NOT EXISTS (SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='client_operations'
+    AND policyname='client_operations_select' AND cmd='SELECT') THEN
+    RAISE EXCEPTION 'school-scoped client operation policies are missing';
+  END IF;
 END
 $$;
 
