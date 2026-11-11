@@ -1257,7 +1257,11 @@ class SchoolRepository {
       ]);
       final rows = results
           .expand((result) => result as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
+          .map((row) {
+            final record = Map<String, dynamic>.from(row as Map);
+            record['details'] ??= record['detail'] ?? '';
+            return record;
+          })
           .where((row) {
             if (normalizedQuery.isEmpty) return true;
             final name = row['name']?.toString() ?? '';
