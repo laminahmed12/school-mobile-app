@@ -2066,6 +2066,13 @@ class SchoolRepository {
       if (result == null || result.toString().isEmpty) {
         throw Exception('لم يؤكد الخادم تسجيل الدفعة.');
       }
+      // Keep the secure offline snapshot current even when the payment was
+      // recorded online rather than replayed from the pending queue.
+      try {
+        await studentFinancialSummary(studentId);
+      } catch (cacheError) {
+        debugPrint('Online payment financial cache refresh failed: $cacheError');
+      }
     } catch (error) {
       if (!_isNetworkFailure(error)) rethrow;
       await _queueOfflinePayment(
