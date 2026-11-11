@@ -1,5 +1,5 @@
--- Archive-only lifecycle for students, teachers and staff.
--- Soft archive preserves foreign keys and all financial/academic history.
+-- Production-compatible archive lifecycle for students, teachers, staff and school accounts.
+-- Soft archive preserves records, relationships, audit history and financial data.
 BEGIN;
 
 ALTER TABLE public.students ADD COLUMN IF NOT EXISTS archived_at timestamptz;
@@ -17,11 +17,16 @@ ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS archived_by uuid REFERENCES au
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS archive_reason text;
 ALTER TABLE public.staff ADD COLUMN IF NOT EXISTS archive_note text;
 
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS archived_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS archive_reason text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS archive_note text;
+
 CREATE INDEX IF NOT EXISTS students_active_by_school ON public.students (school_id, name) WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS teachers_active_by_school ON public.teachers (school_id, name) WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS staff_active_by_school ON public.staff (school_id, name) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS profiles_active_by_school ON public.profiles (school_id, username) WHERE archived_at IS NULL;
 
--- Prevent permanent deletion by authenticated clients; service-role maintenance remains possible.
 DROP POLICY IF EXISTS students_delete ON public.students;
 DROP POLICY IF EXISTS teachers_delete ON public.teachers;
 DROP POLICY IF EXISTS teachers_owner_delete ON public.teachers;
@@ -39,85 +44,163 @@ REVOKE DELETE ON public.students, public.teachers, public.staff FROM authenticat
 
 CREATE OR REPLACE FUNCTION public.archive_person(
   p_kind text, p_id uuid, p_reason text DEFAULT 'other', p_note text DEFAULT ''
-) RETURNS void
+) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $fn$
 DECLARE
   sid uuid := private.my_school();
-  uid uuid := auth.uid();
-  target_school uuid;
+  v_role text := private.my_role();
+  v_name text;
+  v_username text;
+  v_note text := left(coalesce(p_note,''),500);
 BEGIN
-  IF uid IS NULL OR sid IS NULL OR private.my_role() NOT IN ('admin','owner') THEN
-    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  IF auth.uid() IS NULL OR sid IS NULL OR v_role NOT IN ('owner','admin') THEN
+    RAISE EXCEPTION 'الأرشفة متاحة لمدير المدرسة فقط' USING ERRCODE = '42501';
   END IF;
-  IF p_kind NOT IN ('student','teacher','staff') THEN
-    RAISE EXCEPTION 'invalid person kind' USING ERRCODE = '22023';
+  IF p_reason IS NULL OR p_reason NOT IN ('transferred','expelled','deceased','resigned','terminated','other') THEN
+    RAISE EXCEPTION 'سبب الأرشفة غير صالح' USING ERRCODE = '22023';
   END IF;
-  IF p_reason NOT IN ('left_school','transferred','inactive','other') THEN
-    RAISE EXCEPTION 'invalid archive reason' USING ERRCODE = '22023';
+  IF p_kind = 'student' AND p_reason IN ('resigned','terminated') THEN
+    RAISE EXCEPTION 'السبب لا يناسب الطالب' USING ERRCODE = '22023';
   END IF;
-  CASE p_kind
-    WHEN 'student' THEN
-      UPDATE public.students SET archived_at = now(), archived_by = uid,
-        archive_reason = p_reason, archive_note = NULLIF(left(trim(p_note), 1000), '')
-        WHERE id = p_id AND school_id = sid AND archived_at IS NULL;
-    WHEN 'teacher' THEN
-      UPDATE public.teachers SET archived_at = now(), archived_by = uid,
-        archive_reason = p_reason, archive_note = NULLIF(left(trim(p_note), 1000), '')
-        WHERE id = p_id AND school_id = sid AND archived_at IS NULL;
-    WHEN 'staff' THEN
-      UPDATE public.staff SET archived_at = now(), archived_by = uid,
-        archive_reason = p_reason, archive_note = NULLIF(left(trim(p_note), 1000), '')
-        WHERE id = p_id AND school_id = sid AND archived_at IS NULL;
-  END CASE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'record not found or already archived' USING ERRCODE = 'P0002'; END IF;
+  IF p_kind IN ('teacher','staff','user') AND p_reason = 'expelled' THEN
+    RAISE EXCEPTION 'السبب لا يناسب هذه الفئة' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT username INTO v_username FROM public.profiles WHERE user_id = auth.uid();
+
+  IF p_kind = 'student' THEN
+    UPDATE public.students
+      SET archived_at=now(), archive_reason=p_reason, archive_note=v_note,
+          archived_by=auth.uid(), active=false,
+          status=CASE p_reason WHEN 'transferred' THEN 'transferred'
+            WHEN 'expelled' THEN 'expelled' WHEN 'deceased' THEN 'deceased'
+            ELSE 'withdrawn' END
+      WHERE id=p_id AND school_id=sid AND archived_at IS NULL
+      RETURNING name INTO v_name;
+  ELSIF p_kind = 'teacher' THEN
+    UPDATE public.teachers
+      SET archived_at=now(), archive_reason=p_reason, archive_note=v_note,
+          archived_by=auth.uid(), active=false
+      WHERE id=p_id AND school_id=sid AND archived_at IS NULL
+      RETURNING name INTO v_name;
+  ELSIF p_kind = 'staff' THEN
+    UPDATE public.staff
+      SET archived_at=now(), archive_reason=p_reason, archive_note=v_note,
+          archived_by=auth.uid(), active=false
+      WHERE id=p_id AND school_id=sid AND archived_at IS NULL
+      RETURNING name INTO v_name;
+  ELSIF p_kind = 'user' THEN
+    UPDATE public.profiles
+      SET archived_at=now(), archive_reason=p_reason, archive_note=v_note,
+          archived_by=auth.uid(), active=false
+      WHERE user_id=p_id AND school_id=sid
+        AND role IN ('accountant','supervisor') AND archived_at IS NULL
+      RETURNING username INTO v_name;
+  ELSE
+    RAISE EXCEPTION 'نوع غير معروف' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_name IS NULL THEN
+    RAISE EXCEPTION 'السجل غير موجود أو مؤرشف مسبقاً أو غير قابل للأرشفة' USING ERRCODE = 'P0002';
+  END IF;
+
+  INSERT INTO public.audit_log(school_id,user_id,username,action,entity,entity_id,details)
+  VALUES (sid,auth.uid(),v_username,'archive',p_kind,p_id::text,
+    jsonb_build_object('name',v_name,'reason',p_reason,'note',v_note));
+
+  RETURN jsonb_build_object('ok',true,'kind',p_kind,'name',v_name,'message','تمت الأرشفة');
 END
 $fn$;
 
 CREATE OR REPLACE FUNCTION public.restore_person(p_kind text, p_id uuid)
-RETURNS void
+RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $fn$
-DECLARE sid uuid := private.my_school(); uid uuid := auth.uid();
+DECLARE
+  sid uuid := private.my_school();
+  v_role text := private.my_role();
+  v_name text;
+  v_username text;
 BEGIN
-  IF uid IS NULL OR sid IS NULL OR private.my_role() NOT IN ('admin','owner') THEN
-    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  IF auth.uid() IS NULL OR sid IS NULL OR v_role NOT IN ('owner','admin') THEN
+    RAISE EXCEPTION 'الإرجاع متاح لمدير المدرسة فقط' USING ERRCODE = '42501';
   END IF;
-  CASE p_kind
-    WHEN 'student' THEN UPDATE public.students SET archived_at=NULL, archived_by=NULL, archive_reason=NULL, archive_note=NULL WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL;
-    WHEN 'teacher' THEN UPDATE public.teachers SET archived_at=NULL, archived_by=NULL, archive_reason=NULL, archive_note=NULL WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL;
-    WHEN 'staff' THEN UPDATE public.staff SET archived_at=NULL, archived_by=NULL, archive_reason=NULL, archive_note=NULL WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL;
-    ELSE RAISE EXCEPTION 'invalid person kind' USING ERRCODE = '22023';
-  END CASE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'archived record not found' USING ERRCODE = 'P0002'; END IF;
+  SELECT username INTO v_username FROM public.profiles WHERE user_id=auth.uid();
+
+  IF p_kind = 'student' THEN
+    UPDATE public.students SET archived_at=NULL,archive_reason=NULL,archive_note=NULL,
+      archived_by=NULL,active=true,status='active'
+      WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL RETURNING name INTO v_name;
+  ELSIF p_kind = 'teacher' THEN
+    UPDATE public.teachers SET archived_at=NULL,archive_reason=NULL,archive_note=NULL,
+      archived_by=NULL,active=true
+      WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL RETURNING name INTO v_name;
+  ELSIF p_kind = 'staff' THEN
+    UPDATE public.staff SET archived_at=NULL,archive_reason=NULL,archive_note=NULL,
+      archived_by=NULL,active=true
+      WHERE id=p_id AND school_id=sid AND archived_at IS NOT NULL RETURNING name INTO v_name;
+  ELSIF p_kind = 'user' THEN
+    UPDATE public.profiles SET archived_at=NULL,archive_reason=NULL,archive_note=NULL,
+      archived_by=NULL,active=true
+      WHERE user_id=p_id AND school_id=sid AND archived_at IS NOT NULL RETURNING username INTO v_name;
+  ELSE
+    RAISE EXCEPTION 'نوع غير معروف' USING ERRCODE = '22023';
+  END IF;
+
+  IF v_name IS NULL THEN
+    RAISE EXCEPTION 'السجل غير موجود أو غير مؤرشف' USING ERRCODE = 'P0002';
+  END IF;
+
+  INSERT INTO public.audit_log(school_id,user_id,username,action,entity,entity_id,details)
+  VALUES (sid,auth.uid(),v_username,'restore',p_kind,p_id::text,jsonb_build_object('name',v_name));
+
+  RETURN jsonb_build_object('ok',true,'kind',p_kind,'name',v_name,'message','تم الإرجاع من الأرشيف');
 END
 $fn$;
 
-CREATE OR REPLACE FUNCTION public.list_archive(p_query text DEFAULT '')
-RETURNS TABLE(kind text, id uuid, name text, details text, archived_at timestamptz, archive_reason text, archive_note text)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+CREATE OR REPLACE FUNCTION public.list_archive(p_kind text DEFAULT NULL)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
 AS $fn$
-DECLARE sid uuid := private.my_school(); uid uuid := auth.uid(); q text := '%' || trim(coalesce(p_query,'')) || '%';
+DECLARE
+  sid uuid := private.my_school();
+  v_role text := private.my_role();
+  v_result jsonb;
 BEGIN
-  IF uid IS NULL OR sid IS NULL OR private.my_role() NOT IN ('admin','owner') THEN
-    RAISE EXCEPTION 'not authorized' USING ERRCODE = '42501';
+  IF auth.uid() IS NULL OR sid IS NULL OR v_role NOT IN ('owner','admin') THEN
+    RAISE EXCEPTION 'الأرشيف متاح لمدير المدرسة فقط' USING ERRCODE = '42501';
   END IF;
-  RETURN QUERY
-    SELECT 'student'::text, s.id, s.name, coalesce(s.class_name,''), s.archived_at, s.archive_reason, s.archive_note
-      FROM public.students s WHERE s.school_id=sid AND s.archived_at IS NOT NULL AND s.name ILIKE q
+
+  SELECT coalesce(jsonb_agg(to_jsonb(r) ORDER BY r.archived_at DESC),'[]'::jsonb)
+  INTO v_result
+  FROM (
+    SELECT 'student'::text AS kind,s.id::text AS id,s.name,s.class_name AS detail,
+      s.archive_reason AS reason,s.archive_note AS note,s.archived_at,
+      (SELECT username FROM public.profiles p WHERE p.user_id=s.archived_by) AS archived_by_name
+    FROM public.students s WHERE s.school_id=sid AND s.archived_at IS NOT NULL
     UNION ALL
-    SELECT 'teacher'::text, t.id, t.name, coalesce(t.subject,''), t.archived_at, t.archive_reason, t.archive_note
-      FROM public.teachers t WHERE t.school_id=sid AND t.archived_at IS NOT NULL AND t.name ILIKE q
+    SELECT 'teacher',t.id::text,t.name,t.subject,t.archive_reason,t.archive_note,t.archived_at,
+      (SELECT username FROM public.profiles p WHERE p.user_id=t.archived_by)
+    FROM public.teachers t WHERE t.school_id=sid AND t.archived_at IS NOT NULL
     UNION ALL
-    SELECT 'staff'::text, st.id, st.name, coalesce(st.role,''), st.archived_at, st.archive_reason, st.archive_note
-      FROM public.staff st WHERE st.school_id=sid AND st.archived_at IS NOT NULL AND st.name ILIKE q
-    ORDER BY 5 DESC;
+    SELECT 'staff',f.id::text,f.name,f.role,f.archive_reason,f.archive_note,f.archived_at,
+      (SELECT username FROM public.profiles p WHERE p.user_id=f.archived_by)
+    FROM public.staff f WHERE f.school_id=sid AND f.archived_at IS NOT NULL
+    UNION ALL
+    SELECT 'user',u.user_id::text,u.username,u.role,u.archive_reason,u.archive_note,u.archived_at,
+      (SELECT username FROM public.profiles p WHERE p.user_id=u.archived_by)
+    FROM public.profiles u WHERE u.school_id=sid AND u.archived_at IS NOT NULL
+  ) r
+  WHERE p_kind IS NULL OR r.kind=p_kind;
+
+  RETURN v_result;
 END
 $fn$;
 
-REVOKE ALL ON FUNCTION public.archive_person(text,uuid,text,text) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.restore_person(text,uuid) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.list_archive(text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.archive_person(text,uuid,text,text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.restore_person(text,uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.list_archive(text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.archive_person(text,uuid,text,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.restore_person(text,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_archive(text) TO authenticated;
