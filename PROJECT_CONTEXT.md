@@ -4286,3 +4286,10 @@ No commercial readiness percentage or final go-live approval has been establishe
 - No production RLS/Auth/migration/index change was made. Auth leaked-password protection and performance advisor items remain review tasks requiring a controlled production change plan.
 - Physical Android checks remain required for the oldest supported OS, offline cold-start/login, queue replay exactly once, and encrypted backup/restore.
 - PR #22 remains OPEN / UNMERGED. Preserve the existing release signing identity and do not run the signed release workflow until the established offline/performance release gates and device acceptance are satisfied.
+
+
+## 2026-11-11 — تحسين الوصول إلى أرشفة الموظفين من شاشة المرتبات
+- Commit: `8e7d98584179d0c3e4246bf81bee1643c28ef2d6` على الفرع `fix/lamin-portal-crud-offline-20261030`.
+- في `lib/main.dart` تم استبدال زري التعديل والأرشفة المنفصلين في بطاقة المستفيد بقائمة إجراءات موحدة (ثلاث نقاط). تظهر «تعديل البيانات» للجميع و«أرشفة الموظف» للموظفين فقط؛ المعلمون يحتفظون بمسار أرشفتهم الموجود في صفحة المعلمين.
+- لم تتغير آلية RPC `archive_person` أو بيانات الإنتاج أو الأسرار.
+- GitHub Actions: Development validation run `43081479856` وRPC ACL regression run `43081479975` أُطلقا على هذا commit؛ حالتهما عند التوثيق قيد التشغيل.
