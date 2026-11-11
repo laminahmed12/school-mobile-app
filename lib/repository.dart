@@ -1239,7 +1239,11 @@ class SchoolRepository {
         'p_query': normalizedQuery,
       }).timeout(const Duration(seconds: 12));
       return (result as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
+          .map((row) {
+            final record = Map<String, dynamic>.from(row as Map);
+            record['details'] ??= record['detail'] ?? '';
+            return record;
+          })
           .toList();
     } on PostgrestException catch (error) {
       // Older deployed databases expose list_archive(p_kind), not
