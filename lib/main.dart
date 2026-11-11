@@ -3913,6 +3913,66 @@ class _UserManagementViewState extends State<UserManagementView> {
     }
   }
 
+  Future<void> archiveUser(Map<String, dynamic> user) async {
+    final name = user['username']?.toString() ?? 'المستخدم';
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: const Text('أرشفة المستخدم'),
+            content: Text(
+              'سيتم إيقاف حساب ' + name +
+              ' ونقله إلى الأرشيف مع الاحتفاظ بسجلاته وسجل عملياته. هل تريد المتابعة؟',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(d, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(d, true),
+                child: const Text('أرشفة'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت. لم يتم تغيير الحساب.')),
+        );
+      }
+      return;
+    }
+    try {
+      final result = await db.rpc('archive_person', params: {
+        'p_kind': 'user',
+        'p_id': user['user_id'],
+        'p_reason': 'terminated',
+        'p_note': 'أرشفة من إدارة مستخدمي المدرسة',
+      });
+      if (result is Map && result['ok'] != true) {
+        throw Exception('لم يؤكد الخادم نجاح الأرشفة.');
+      }
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت أرشفة المستخدم مع الاحتفاظ بسجلاته.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyError(e, fallback: 'تعذرت أرشفة المستخدم. لم يتم تأكيد نجاح العملية.')),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> deleteUser(Map<String, dynamic> user) async {
     final name = user['username']?.toString() ?? 'المستخدم';
     final confirmed =
@@ -4132,7 +4192,7 @@ class _UserManagementViewState extends State<UserManagementView> {
                               if (value == 'edit') editUser(user: u);
                               if (value == 'active') toggleActive(u);
                               
-                              if (value == 'drive') oneDrive(u);
+                              if (value == 'drive') oneDrive(u);\n                              if (value == 'archive') archiveUser(u);
                             },
                             itemBuilder: (_) => [
                               const PopupMenuItem(
