@@ -4310,3 +4310,23 @@ No commercial readiness percentage or final go-live approval has been establishe
 - خيار الأرشفة لا يظهر للمالك أو المدير أو أي دور آخر لأن دالة `archive_person` الحالية لا تسمح بأرشفة حساباتهم. خيار إيقاف الحساب المعتاد ما زال متاحًا.
 - لم يتم حذف أو تعديل مسار `delete_user` في Edge Function ولم تُنشر أي دالة إنتاجية جديدة؛ لم تُجر أي كتابة على قاعدة الإنتاج.
 - التغيير البرمجي commit: `0f912955fd9f2208ba9b9cf73a095a5333ee8772`. ينتظر فحوص GitHub Actions بعد الدفع.
+
+
+---
+
+## Session update — 2026-11-12 (Codespaces retention and current CI verification)
+
+- Codespace `studious train` was opened and inspected by the owner. Its checked-out branch is `main`; local status was `## main...origin/main` with no tracked or staged changes and no ahead commits. The only untracked item was `supabase/.temp/cli-latest` (8 bytes). It was not deleted or committed. No source-code work was found in this Codespace that needs recovery.
+- Current work branch HEAD verified through GitHub API: `58ebb14e5e2b1c6936b2697639a79be59a0ed674` (commit: `Fix malformed newline in user actions menu`, 2026-11-12 05:47:32 UTC).
+- PR #22 remains OPEN and UNMERGED. Its head is the same SHA above. No merge, retarget, or production mutation was performed.
+- Current HEAD CI passed on both push and pull_request events:
+  - Development validation: PR run `43163728223`, push run `43163721755` — dependency resolution, Dart format, static analysis, Flutter tests, Android debug candidate build, package/signature identity verification, and artifact upload all succeeded.
+  - Portal validation: PR run `43163728281`, push run `43163721772` — SUCCESS.
+  - RPC security ACL regression: PR run `43163728297`, push run `43163721756` — SUCCESS.
+  - Schema baseline acceptance: PR run `43163728221`, push run `43163721793` — SUCCESS.
+- Development artifacts from PR run `43163728223`: `lamin-development-candidate` (29,265,758 bytes; artifact ID `13919381921`) and `lamin-apksigner-toolchain` (16,933,380 bytes; artifact ID `13919376972`). The APK is debug-signed for testing, not a production-signed release. No production release signing was run.
+- A separate scheduled build on `main`, run `43195875889`, failed during static analysis because the scheduled workflow's Flutter version emits 13 `deprecated_member_use` info diagnostics for `package:flutter/material.dart` after Flutter 3.47.0-0.0.pre. This is isolated to the old `main` snapshot/workflow; it is not a failure of the active work-branch HEAD, whose development validation passed. Do not change `main` as a quick fix; review the scheduled workflow's Flutter pin and compatibility policy separately.
+- Both `main` and the active work branch currently report GitHub branch protection disabled. This is a repository governance risk; enabling required checks/PR rules is a separate settings change and should be staged carefully to avoid blocking the existing PR workflow.
+- The Codespace's local `main` state matched `origin/main`; the current project work is on `fix/lamin-portal-crud-offline-20261030`, not on `main`. Continue from the work branch and keep the Codespace open until the owner confirms it is no longer needed.
+- Physical-device acceptance is still outstanding for cold-start offline login, wrong-password rejection, school/license/biometric gates, offline queue replay exactly once, and encrypted backup/restore. Do not claim these are fixed based on CI.
+- No production Supabase data/schema/auth settings, secrets, signing keys, hosting, `main`, or PR merge state were changed in this session.
