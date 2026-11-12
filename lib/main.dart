@@ -4192,7 +4192,8 @@ class _UserManagementViewState extends State<UserManagementView> {
                               if (value == 'edit') editUser(user: u);
                               if (value == 'active') toggleActive(u);
                               
-                              if (value == 'drive') oneDrive(u);\n                              if (value == 'archive') archiveUser(u);
+                              if (value == 'drive') oneDrive(u);
+                              if (value == 'archive') archiveUser(u);
                             },
                             itemBuilder: (_) => [
                               const PopupMenuItem(
