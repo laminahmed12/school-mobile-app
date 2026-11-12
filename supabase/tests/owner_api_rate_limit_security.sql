@@ -15,7 +15,7 @@ begin
 
   if has_function_privilege('anon', 'public.owner_api_consume_attempt(boolean)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.owner_api_consume_attempt(boolean)', 'EXECUTE')
-     or has_function_privilege('public', 'public.owner_api_consume_attempt(boolean)', 'EXECUTE') then
+ then
     raise exception 'owner API limiter must not be executable by public client roles';
   end if;
 
