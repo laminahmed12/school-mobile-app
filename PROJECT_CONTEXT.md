@@ -4330,3 +4330,39 @@ No commercial readiness percentage or final go-live approval has been establishe
 - The Codespace's local `main` state matched `origin/main`; the current project work is on `fix/lamin-portal-crud-offline-20261030`, not on `main`. Continue from the work branch and keep the Codespace open until the owner confirms it is no longer needed.
 - Physical-device acceptance is still outstanding for cold-start offline login, wrong-password rejection, school/license/biometric gates, offline queue replay exactly once, and encrypted backup/restore. Do not claim these are fixed based on CI.
 - No production Supabase data/schema/auth settings, secrets, signing keys, hosting, `main`, or PR merge state were changed in this session.
+
+
+---
+
+## Authoritative clarification — offline/network behavior and verified acceptance (2026-11-13)
+
+### Offline/network behavior — user-confirmed status
+- The owner explicitly reconfirmed that Lamīn School works well without an internet connection and that there is no outstanding offline-login/network-connectivity problem to reopen as a current defect.
+- Do not continue reporting offline login as broken, and do not ask the owner to repeat this confirmation.
+- Treat this as owner-confirmed real-device acceptance for the offline behavior the owner has already exercised. Do not expand the claim to untested edge cases (for example, first-ever login on a device that has never completed an online login).
+- When investigating a genuinely new connectivity issue, distinguish app connectivity from Supabase availability, cached/offline operation, queued synchronization, and server-dependent administrative screens. Do not conflate a server-dependent screen with failure of the app's offline mode.
+
+### Confirmed successful checks — preserve the exact scope
+- The project record documents four successful GitHub Actions workflows on commit `50b6bfa8b07ba8d2a48d70c13b0a24841740b2e9`:
+  1. Development validation — run `42684202750`.
+  2. Portal validation — run `42684202281`.
+  3. RPC security ACL regression — run `42684202538`.
+  4. Schema baseline acceptance — run `42684202179`.
+- These results are valid for that exact commit only. Do not attribute them to a later HEAD without checking the matching runs.
+- A later documented four-workflow success on commit `58ebb14e5e2b1c6936b2697639a79be59a0ed674` is also recorded above (PR runs `43163728223`, `43163728281`, `43163728297`, `43163728221`). The Android artifact from that development run was debug-signed for testing, not a commercial release.
+- The owner previously reported four successful manual phone checks in the 2026-11-08 session. Preserve that confirmation as user-reported acceptance; the individual test descriptions are not reconstructed here where they are not available verbatim.
+
+### Current security hardening work — separate from offline acceptance
+- Security branch: `security/harden-owner-api-20261113`.
+- Draft PR #23: https://github.com/laminahmed12/school-mobile-app/pull/23
+- Scope: move owner PIN verification to the `OWNER_PIN_HASH` Edge Function secret, replace spoofable forwarded-IP rate limiting with a fail-closed atomic database RPC, and add SQL security regression coverage.
+- PR #23 has not been merged. Its migration has not been confirmed applied to Lamin-Test; the earlier apply attempt timed out. The Edge Function has not been deployed to Lamin-Test or production.
+- Production project `stbrhcgzfxvpayfnnqfl`, production data/schema/secrets, release signing keys, and deployment state remain untouched.
+- Do not deploy the function until the Lamin-Test migration state is verified and `OWNER_PIN_HASH` is configured as a SHA-256 hex digest in Lamin-Test Edge Function Secrets. Never commit or print the PIN or its digest.
+
+### Next actions
+1. Continue the guided Lamin-Test secret setup; do not ask the owner to re-enter the PIN.
+2. Verify whether migration `20261113090000_harden_owner_api_pin_rate_limit.sql` exists in Lamin-Test before retrying it.
+3. Once the secret and migration are confirmed, deploy `owner-api` to Lamin-Test only and test valid/invalid PIN handling, throttling, and fail-closed behavior.
+4. Check PR #23 CI against its exact head. Keep PR #22 and PR #23 unmerged unless explicitly authorized.
+5. Keep offline functionality marked owner-confirmed; only reopen it if new reproducible evidence contradicts this status.
