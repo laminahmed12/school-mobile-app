@@ -4330,3 +4330,16 @@ No commercial readiness percentage or final go-live approval has been establishe
 - The Codespace's local `main` state matched `origin/main`; the current project work is on `fix/lamin-portal-crud-offline-20261030`, not on `main`. Continue from the work branch and keep the Codespace open until the owner confirms it is no longer needed.
 - Physical-device acceptance is still outstanding for cold-start offline login, wrong-password rejection, school/license/biometric gates, offline queue replay exactly once, and encrypted backup/restore. Do not claim these are fixed based on CI.
 - No production Supabase data/schema/auth settings, secrets, signing keys, hosting, `main`, or PR merge state were changed in this session.
+
+
+---
+
+## 2026-11-14 — بيانات التواصل ومسودتا الخصوصية وشروط الاستخدام
+
+- بناءً على بيانات التواصل التي قدمها مالك المشروع، حُدّثت `PRIVACY_POLICY.md` و`TERMS_OF_USE.md` على فرع العمل فقط.
+- البريد المعتمد للتواصل في المسودتين: `adreemkcom79@gmail.com`.
+- الهاتف: `0934951072`، ومذكور بوضوح أنه للمكالمات فقط حالياً. WhatsApp غير متاح حالياً، ويمكن إضافته بعد تفعيله وتحديث الوثيقتين.
+- أضيفت إلى سياسة الخصوصية مدد احتفاظ مقترحة: السجلات التعليمية/المالية حتى 5 سنوات عند الحاجة، سجلات الدخول والأمان حتى 12 شهراً، والنسخ الاحتياطية التي يديرها المشغّل بهدف 90 يوماً. نُص صراحةً على أنها مقترحات وليست إثباتاً لوجود حذف آلي مطبق؛ كما أن نسخ المستخدم على الجهاز أو Google Drive تبقى تحت سيطرته.
+- شروط الاستخدام تحيل إلى سياسة الخصوصية وتعرض قنوات التواصل نفسها، وتوضح أن WhatsApp ليس قناة دعم مفعّلة.
+- التعديل توثيقي فقط. لم تُغيّر آليات الاحتفاظ أو الحذف في التطبيق أو Supabase، ولم يُنشر الموقع/التطبيق، ولم يُجر اعتماد قانوني. يلزم قبل النشر مراجعة المدد وفق القانون الليبي والتحقق التقني من دورة النسخ الاحتياطي والسجلات، ثم تحديد تاريخ السريان وإظهار الوثيقتين للمستخدمين.
+- لا تغيير في `main` أو الإنتاج أو الأسرار أو حالة PR #22.
