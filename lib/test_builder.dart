@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
@@ -46,9 +47,27 @@ class _TestBuilderViewState extends State<TestBuilderView> {
     super.dispose();
   }
 
+  static const _secureStorageKey = 'lamin.secure.test_builder.v1';
+
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
+    const secureStorage = FlutterSecureStorage();
+    String? raw;
+    try {
+      raw = await secureStorage.read(key: _secureStorageKey);
+      if (raw == null) {
+        final legacy = prefs.getString(_storageKey);
+        if (legacy != null) {
+          await secureStorage.write(key: _secureStorageKey, value: legacy);
+          raw = legacy;
+        }
+      }
+      await prefs.remove(_storageKey);
+    } catch (error) {
+      // Avoid leaving student names/results in a plaintext preference.
+      await prefs.remove(_storageKey);
+      debugPrint('Test-builder secure-cache migration failed: $error');
+    }
     if (raw != null) {
       try {
         _tests = (jsonDecode(raw) as List)
@@ -62,8 +81,13 @@ class _TestBuilderViewState extends State<TestBuilderView> {
   }
 
   Future<void> _persist() async {
+    const secureStorage = FlutterSecureStorage();
+    await secureStorage.write(
+      key: _secureStorageKey,
+      value: jsonEncode(_tests),
+    );
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, jsonEncode(_tests));
+    await prefs.remove(_storageKey);
   }
 
   void _message(String text) {

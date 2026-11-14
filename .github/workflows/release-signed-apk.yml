@@ -6,7 +6,7 @@ on:
       source_ref:
         description: "Source version to sign"
         required: true
-        default: "backup/lamin-reference-before-icon-change-20261029"
+        default: "fix/lamin-portal-crud-offline-20261030"
         type: string
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || 'backup/lamin-reference-before-icon-change-20261029' }}
+          ref: ${{ inputs.source_ref }}
 
       - uses: actions/setup-java@v4
         with:
@@ -43,11 +43,22 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.35.4'
           cache: true
+
+      - name: Resolve dependencies and run tests
+        run: |
+          flutter pub get
+          dart format lib test
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --no-pub --fatal-infos --fatal-warnings
+          flutter test --no-pub
 
       - name: Generate Android platform files
         run: flutter create --project-name lamin_school --org com.adreemk.school --platforms android .
+
+      - name: Remove generated Flutter sample test
+        run: rm -f test/widget_test.dart
 
       - name: Apply premium Lamin launcher icon and app name
         shell: bash
@@ -95,13 +106,13 @@ jobs:
         run: |
           sed -i 's/android:label="[^"]*"/android:label="لامين"/' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:allowBackup=' android/app/src/main/AndroidManifest.xml || sed -i 's/<application/<application android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml || sed -i '/<application/i\    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' android/app/build.gradle.kts
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
-          cat > android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt <<'EOF'
-          package com.adreemk.school.lamin_school
-          import io.flutter.embedding.android.FlutterFragmentActivity
-          class MainActivity : FlutterFragmentActivity()
-          EOF
+          install -D tooling/android/MainActivity.kt android/app/src/main/kotlin/com/adreemk/school/lamin_school/MainActivity.kt
+
 
       - name: Configure release signing
         env:
@@ -124,6 +135,10 @@ jobs:
           from pathlib import Path
           p = Path("android/app/build.gradle.kts")
           s = p.read_text()
+          import_line = "import java.util.Properties\n"
+          if import_line not in s:
+              s = import_line + s
+          s = s.replace("java.util.Properties()", "Properties()")
           if 'signingConfigs.create("release")' in s:
               raise SystemExit("Release signing config already exists; refusing duplicate injection")
           marker = "android {"
@@ -132,19 +147,24 @@ jobs:
           s = s.replace(marker, '''android {
               signingConfigs {
                   create("release") {
-                      val props = java.util.Properties()
+                      val props = Properties()
                       val propsFile = rootProject.file("key.properties")
                       propsFile.inputStream().use { props.load(it) }
                       storeFile = file(props.getProperty("storeFile"))
                       storePassword = props.getProperty("storePassword")
                       keyAlias = props.getProperty("keyAlias")
                       keyPassword = props.getProperty("keyPassword")
+                      enableV1Signing = true
+                      enableV2Signing = true
+                      enableV3Signing = true
                   }
               }''', 1)
           old = 'signingConfig = signingConfigs.getByName("debug")'
           if old not in s:
               raise SystemExit("Expected Flutter release debug-signing default was not found")
           s = s.replace(old, 'signingConfig = signingConfigs.getByName("release")', 1)
+          if "java.util.Properties()" in s or "val props = Properties()" not in s:
+              raise SystemExit("Kotlin DSL signing properties injection did not produce the expected source")
           p.write_text(s)
           PY
           rm -f android/key.properties
@@ -156,27 +176,21 @@ jobs:
           storeFile=$RUNNER_TEMP/lamin-release.jks
           EOF
 
-      - name: Resolve dependencies and run tests
-        run: |
-          flutter pub get
-          dart format lib test
-          flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter test
-
       - name: Validate Google Drive OAuth configuration
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
         run: |
           test -n "$GOOGLE_SERVER_CLIENT_ID" || { echo "::error::Missing repository variable GOOGLE_SERVER_CLIENT_ID. Set it to the Web application OAuth client ID; otherwise Google Drive backup cannot work."; exit 1; }
 
       - name: Build signed release APK
         env:
-          GOOGLE_SERVER_CLIENT_ID: ${{ '207834913386-6tc5895vtjbsae2ie4va4g8rk84c8qq0.apps.googleusercontent.com' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.GOOGLE_SERVER_CLIENT_ID }}
         run: flutter build apk --release --no-tree-shake-icons --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID"
 
       - name: Verify APK signature and certificate
         env:
           KEYSTORE_PASSWORD: ${{ secrets.LAMIN_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.LAMIN_KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.LAMIN_KEY_ALIAS }}
         shell: bash
         run: |
@@ -184,8 +198,21 @@ jobs:
           test -s "$APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          "$APKSIGNER" verify "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          "$AAPT" dump permissions "$APK" | grep -q "android.permission.USE_BIOMETRIC" || { echo "::error::USE_BIOMETRIC missing from APK"; exit 1; }
+          "$AAPT" dump permissions "$APK" | grep -q "android.permission.INTERNET" || { echo "::error::INTERNET missing from APK"; exit 1; }
+          # The app's configured minSdk is 24 (Android 7.0+); V1/JAR is the legacy
+          # scheme for Android 6.0 and lower. Gradle signs the release APK with V2/V3.
+          "$AAPT" dump badging "$APK" | grep -q "sdkVersion:'24'" || { echo "::error::Unexpected APK minSdk; review required signature schemes"; exit 1; }
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$VERIFY_OUTPUT"
+          for SCHEME in "Verified using v2 scheme (APK Signature Scheme v2): true" "Verified using v3 scheme (APK Signature Scheme v3): true"; do
+            printf '%s\n' "$VERIFY_OUTPUT" | grep -Fq "$SCHEME" || { echo "::error::Required APK signature scheme missing: $SCHEME"; exit 1; }
+          done
+          CERT_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr '[:upper:]' '[:lower:]')"
+          EXPECTED_CERT_SHA256="7b9cf11eafab4801be6821d692edae3475618fcb51be2186b0f5866b2441881a"
+          test "$CERT_SHA256" = "$EXPECTED_CERT_SHA256" || { echo "::error::APK signing certificate does not match the previously approved Lamin release certificate"; exit 1; }
           sha256sum "$APK" | tee "$RUNNER_TEMP/apk-sha256.txt"
           keytool -list -v -keystore "$RUNNER_TEMP/lamin-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" | grep -E 'SHA256:|SHA-256:'
 

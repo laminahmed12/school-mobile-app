@@ -89,6 +89,73 @@ class _AcademicRolloverViewState extends State<AcademicRolloverView> {
     return 'طالب غير معروف';
   }
 
+  Future<void> createTargetYear() async {
+    if (sourceYear == null) {
+      _message('لا توجد سنة دراسية حالية يمكن إنشاء سنة تالية لها.');
+      return;
+    }
+    final source = years.firstWhere(
+      (y) => y['id'].toString() == sourceYear,
+      orElse: () => <String, dynamic>{},
+    );
+    final sourceName = source['name']?.toString() ?? '';
+    final match = RegExp(r'^(\d{4})\s*[/\-]\s*(\d{4})$').firstMatch(sourceName);
+    final suggested = match == null
+        ? sourceName + ' - الجديدة'
+        : (int.parse(match.group(1)!) + 1).toString() + '/' +
+            (int.parse(match.group(2)!) + 1).toString();
+    final controller = TextEditingController(text: suggested);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إنشاء سنة دراسية جديدة'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 60,
+          decoration: const InputDecoration(
+            labelText: 'اسم السنة الجديدة',
+            hintText: '2028/2029',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('إنشاء'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null) return;
+    if (name.trim().length < 3) {
+      _message('اسم السنة الدراسية يجب ألا يقل عن 3 أحرف.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final id = await db.rpc(
+        'create_next_academic_year',
+        params: {
+          'p_name': name.trim(),
+          'p_starts_on': null,
+          'p_ends_on': null,
+          'p_migrate_students': false,
+          'p_migrate_staff': false,
+        },
+      ).timeout(const Duration(seconds: 10));
+      await load();
+      if (mounted) {
+        setState(() => targetYear = id.toString());
+        _message('أُنشئت السنة الجديدة كمسودة غير مفعّلة. لم يبدأ ترحيل الطلاب أو الموظفين.');
+      }
+    } catch (e) {
+      _message('تعذر إنشاء السنة الجديدة: ' + e.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
   Future<void> prepare() async {
     if (sourceYear == null || targetYear == null || sourceYear == targetYear) {
       _message('اختر السنة الحالية وسنة جديدة مختلفة.');

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'app_error.dart';
@@ -23,6 +24,7 @@ import 'backup_view.dart';
 import 'backup_service.dart';
 import 'manager_requests.dart';
 import 'trial_policy.dart';
+import 'offline_credentials.dart';
 
 const brandGreen = Color(0xFF155D4A);
 const brandGold = Color(0xFFD7B56D);
@@ -38,7 +40,7 @@ Future<bool> _hasInternetConnection() async {
     final uri = Uri.parse('$base/auth/v1/health');
     final response = await http
         .get(uri, headers: {'apikey': supabasePublishableKey})
-        .timeout(const Duration(seconds: 3));
+        .timeout(const Duration(milliseconds: 1500));
     return response.statusCode < 500;
   } catch (_) {
     return false;
@@ -73,6 +75,13 @@ Future<void> main() async {
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabasePublishableKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: LaminAuthLocalStorage(),
+      // Restore the persisted session without attempting a network refresh
+      // before runApp. Expired sessions are refreshed later, after cached data
+      // has been displayed and internet access is confirmed.
+      autoRefreshToken: false,
+    ),
   );
   final prefs = await SharedPreferences.getInstance();
   runApp(LaminApp(prefs: prefs));
@@ -223,6 +232,21 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   bool checking = true;
   bool mustChangePassword = false;
   bool offlineAccess = false;
+  bool startupRequiresOfflineCredentialProof = true;
+  bool _startupAuthCheckCompleted = false;
+  int _lifecycleLockRevision = 0;
+  OnlineLoginPreparationState onlineLoginState =
+      OnlineLoginPreparationState.idle;
+
+  void _setOnlineLoginState(OnlineLoginPreparationState value) {
+    if (!mounted) return;
+    setState(() {
+      onlineLoginState = value;
+      if (value == OnlineLoginPreparationState.ready) {
+        startupRequiresOfflineCredentialProof = false;
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -240,64 +264,201 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshLock();
+      // Invalidate a background preference read that has not completed yet.
+      // This prevents a quick system interruption from locking after resume.
+      _lifecycleLockRevision++;
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      if (db.auth.currentSession != null && mounted)
-        setState(() => locked = true);
+      final revision = ++_lifecycleLockRevision;
+      unawaited(_applyBackgroundLock(state, revision));
+    }
+    // Do not call _refreshLock() on resume. A persisted Supabase session is
+    // not a fresh biometric event and must not recreate the lock page.
+  }
+
+  Future<void> _applyBackgroundLock(
+    AppLifecycleState state,
+    int revision,
+  ) async {
+    bool enabled;
+    try {
+      enabled = await security.enabled;
+    } catch (_) {
+      enabled = true;
+    }
+    if (!mounted || revision != _lifecycleLockRevision) return;
+
+    final hasAuthenticatedAccess =
+        db.auth.currentSession != null || offlineAccess;
+    if (shouldEngageBiometricLockForLifecycle(
+      state: state,
+      biometricEnabled: enabled,
+      hasAuthenticatedAccess: hasAuthenticatedAccess,
+    )) {
+      if (!locked) setState(() => locked = true);
     }
   }
 
   Future<void> _refreshLock() async {
-    final session = db.auth.currentSession;
-    final enabled = await security.enabled;
-    final repo = SchoolRepository(widget.prefs);
-    final hasInternet = await _hasInternetConnection();
-    SchoolProfile? cached;
-    bool canOpenOffline = false;
+    final isInitialStartupCheck = !_startupAuthCheckCompleted;
+    final lifecycleRevision = _lifecycleLockRevision;
+    try {
+      final session = db.auth.currentSession;
+      final enabled = await security.enabled;
 
-    if (session != null) {
-      cached = hasInternet
-          ? await repo.profile().timeout(
-              const Duration(seconds: 7),
-              onTimeout: () => repo.cachedProfile(),
-            )
-          : await repo.cachedProfile();
-    } else {
-      // Wi-Fi/mobile connectivity does not guarantee internet access.
-      final rememberedId = await const FlutterSecureStorage()
-          .read(key: 'lamin.offline.user.id');
+      // Keep startup deterministic: cached identity is available offline.
+      // Internet reachability is probed only to permit a remote profile
+      // fallback; it must never decide whether offline login is available.
+      final repo = SchoolRepository(widget.prefs);
+      final rememberedId = session?.user.id ??
+          await const FlutterSecureStorage().read(
+            key: 'lamin.offline.user.id',
+          );
+
+      SchoolProfile? cached;
       if (rememberedId != null && rememberedId.isNotEmpty) {
-        cached = await repo.cachedProfile();
-        final cachedSchool = await repo.cachedSchool();
-        final validTrial = schoolTrialEnd(cachedSchool)
-                ?.isAfter(DateTime.now().toUtc()) ??
-            false;
-        final licensed = cachedSchool?['licensed'] == true;
-        canOpenOffline = cached != null &&
-            cached.active &&
-            cached.schoolId != null &&
-            cachedSchool != null &&
-            cachedSchool['active'] != false &&
-            (cached.role == 'owner' || cached.mustChangePassword != true) &&
-            (licensed || validTrial);
+        cached = await repo.cachedProfileForUser(rememberedId);
       }
+
+      if (session != null && cached == null) {
+        final hasInternet = await _hasInternetConnection().timeout(
+          const Duration(milliseconds: 1500),
+          onTimeout: () => false,
+        );
+        if (hasInternet) {
+          cached = await repo.profile().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => repo.cachedProfileForUser(session.user.id),
+          );
+        }
+      }
+
+      // Cached profile data is used only for the forced-password-change guard.
+      // It never grants access: cold starts require an online session or the
+      // password-verified offline flow below.
+      final forcePassword = cached?.active == true &&
+          cached?.role != 'owner' &&
+          cached?.mustChangePassword == true;
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
+      setState(() {
+        checking = false;
+        if (isInitialStartupCheck) {
+          // A persisted Supabase session or cached profile is not proof that
+          // the person holding the device is the account owner. Require an
+          // explicit online login or verified offline password on every cold start.
+          offlineAccess = false;
+          startupRequiresOfflineCredentialProof = true;
+        }
+        locked = (session != null || offlineAccess) && enabled;
+        mustChangePassword = forcePassword && session != null;
+      });
+      _startupAuthCheckCompleted = true;
+    } catch (error) {
+      debugPrint('AuthGate cache restore failed: $error');
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
+      var keepBiometricLock = false;
+      try {
+        keepBiometricLock =
+            (db.auth.currentSession != null || offlineAccess) &&
+            await security.enabled;
+      } catch (_) {}
+      if (!mounted || lifecycleRevision != _lifecycleLockRevision) return;
+      setState(() {
+        checking = false;
+        if (isInitialStartupCheck) {
+          // Do not invalidate a persisted Supabase session because a cache
+          // refresh failed; the session remains locally authenticated.
+          offlineAccess = false;
+          startupRequiresOfflineCredentialProof = true;
+        }
+        locked = keepBiometricLock;
+        mustChangePassword = false;
+      });
+      _startupAuthCheckCompleted = true;
+    }
+  }
+
+  Future<String?> _tryOfflineAccess({
+    required String schoolCode,
+    required String username,
+    required String password,
+  }) async {
+    final normalizedSchool = schoolCode.trim().toLowerCase();
+    final normalizedUsername = username.trim().toLowerCase();
+    if (normalizedSchool.isEmpty ||
+        normalizedUsername.isEmpty ||
+        password.isEmpty) {
+      return 'أدخل رمز المدرسة واسم المستخدم وكلمة المرور.';
     }
 
-    final activeSession = session != null || canOpenOffline;
-    final forcePassword = cached?.active == true &&
-        cached?.role != 'owner' &&
-        cached?.mustChangePassword == true;
-    if (!mounted) return;
-    setState(() {
-      checking = false;
-      offlineAccess = canOpenOffline;
-      locked = activeSession && enabled;
-      mustChangePassword = forcePassword && session != null;
-    });
+    try {
+      final offlineStore = LaminOfflineCredentialStore();
+      final identity = await offlineStore.readIdentity();
+      if (identity == null) {
+        final diagnosis = await offlineStore.diagnoseIdentity();
+        return 'تعذر العثور على اعتماد الدخول المحلي. $diagnosis';
+      }
+
+      final userId = identity['user_id']?.toString() ?? '';
+      if (userId.isEmpty) {
+        return 'تعذر استعادة معرّف الحساب المحفوظ محليًا.';
+      }
+      if (identity['school_code'] != normalizedSchool ||
+          identity['username'] != normalizedUsername) {
+        return 'رمز المدرسة أو اسم المستخدم لا يطابق الحساب المحفوظ على هذا الجهاز.';
+      }
+      if (identity['profile_active'] != true ||
+          identity['must_change_password'] == true) {
+        return 'الحساب غير مؤهل للدخول المحلي. تحقق من حالة الحساب أو تغيير كلمة المرور المطلوب.';
+      }
+      if (identity['school_active'] != true) {
+        return 'المدرسة موقوفة، ولا يمكن فتحها دون اتصال.';
+      }
+
+      if (!await offlineStore.verifyDeviceBinding()) {
+        return 'معرّف الجهاز لا يطابق مفتاح الأمان الذي سُجّل عند الدخول المتصل. يلزم إعادة تسجيل الدخول بالإنترنت على هذا الجهاز.';
+      }
+
+      final licensed = identity['licensed'] == true;
+      final trialValid = schoolTrialEnd({
+            'trial_started_at': identity['trial_started_at'],
+          })?.isAfter(DateTime.now().toUtc()) ??
+          false;
+      if (!licensed && !trialValid) {
+        return 'انتهى الترخيص أو الفترة التجريبية المحفوظة لهذا الجهاز.';
+      }
+
+      final passwordValid = await offlineStore.verify(
+        userId: userId,
+        schoolCode: normalizedSchool,
+        username: normalizedUsername,
+        password: password,
+      ).timeout(const Duration(seconds: 10), onTimeout: () => false);
+      if (!passwordValid) {
+        return 'كلمة المرور غير مطابقة للاعتماد المحلي المحفوظ.';
+      }
+
+      await LaminAuthService().rememberOfflineUser(userId).timeout(
+        const Duration(seconds: 5),
+      );
+      final enabled = await security.enabled;
+      if (!mounted) return 'تعذر استعادة جلسة التطبيق.';
+      setState(() {
+        offlineAccess = true;
+        startupRequiresOfflineCredentialProof = false;
+        _startupAuthCheckCompleted = true;
+        locked = enabled;
+        mustChangePassword = false;
+      });
+      return null;
+    } catch (error) {
+      debugPrint('Offline identity check failed: $error');
+      return 'تعذر قراءة بيانات الدخول الآمن من الجهاز. أعد الدخول بالإنترنت لحفظها من جديد.';
+    }
   }
 
   void _unlock() {
+    _lifecycleLockRevision++;
     if (mounted) setState(() => locked = false);
   }
 
@@ -305,7 +466,22 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
     stream: db.auth.onAuthStateChange,
     builder: (_, __) {
-      if (db.auth.currentSession == null && !offlineAccess) return LoginPage(prefs: widget.prefs);
+      if (shouldShowLoginForm(
+        hasAuthenticatedSession: db.auth.currentSession != null,
+        offlineAccess: offlineAccess,
+        preparingOnlineLogin:
+            onlineLoginState == OnlineLoginPreparationState.preparing,
+        onlineLoginPreparationFailed:
+            onlineLoginState == OnlineLoginPreparationState.failed,
+        requiresOfflineCredentialProof:
+            startupRequiresOfflineCredentialProof,
+      )) {
+        return LoginPage(
+          prefs: widget.prefs,
+          onOfflineAccess: _tryOfflineAccess,
+          onOnlineLoginPreparationChanged: _setOnlineLoginState,
+        );
+      }
       if (checking || locked) return DeviceLockPage(onAuthenticated: _unlock);
       if (mustChangePassword)
         return ForcePasswordChangePage(prefs: widget.prefs);
@@ -352,6 +528,36 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
       final data = response.data;
       if (data is Map && data['error'] != null) {
         throw Exception(data['error'].toString());
+      }
+
+      final userId = db.auth.currentUser?.id;
+      if (userId != null && userId.isNotEmpty) {
+        final repo = SchoolRepository(widget.prefs);
+        final profile = await repo.profile().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.cachedProfileForUser(userId),
+        );
+        final schoolId = profile?.schoolId;
+        if (profile != null && schoolId != null && schoolId.isNotEmpty) {
+          final school = await repo.cachedSchoolForId(schoolId);
+          final schoolCode = school?['code']?.toString();
+          if (schoolCode != null && schoolCode.isNotEmpty) {
+            await LaminOfflineCredentialStore().save(
+              userId: userId,
+              schoolId: schoolId,
+              schoolCode: schoolCode,
+              username: profile.username,
+              password: p,
+              profileActive: profile.active,
+              mustChangePassword: false,
+              schoolActive: school?['active'] != false,
+              licensed: school?['licensed'] == true,
+              trialStartedAt: school?['trial_started_at']?.toString(),
+              role: profile.role,
+            ).timeout(const Duration(seconds: 12));
+            await LaminAuthService().rememberOfflineUser(userId);
+          }
+        }
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -499,7 +705,19 @@ class _ForcePasswordChangePageState extends State<ForcePasswordChangePage> {
 
 class LoginPage extends StatefulWidget {
   final SharedPreferences prefs;
-  const LoginPage({super.key, required this.prefs});
+  final Future<String?> Function({
+    required String schoolCode,
+    required String username,
+    required String password,
+  }) onOfflineAccess;
+  final ValueChanged<OnlineLoginPreparationState>
+      onOnlineLoginPreparationChanged;
+  const LoginPage({
+    super.key,
+    required this.prefs,
+    required this.onOfflineAccess,
+    required this.onOnlineLoginPreparationChanged,
+  });
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -510,9 +728,11 @@ class _LoginPageState extends State<LoginPage> {
       password = TextEditingController();
   final auth = LaminAuthService();
   bool loading = false, hide = true, schoolLocked = false;
+  bool checkingOffline = false;
   bool rememberUsername = false;
   static const _rememberUsernameKey = 'lamin_remember_username';
   static const _savedUsernameKey = 'lamin_saved_username';
+  static const _secureSavedUsernameKey = 'lamin.login.saved_username.v1';
   String? error;
   int _ownerTaps = 0;
   DateTime? _lastOwnerTap;
@@ -520,27 +740,14 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadSchool();
-    _loadRememberedUsername();
+    _restoreLoginIdentity();
   }
 
-  Future<void> _loadRememberedUsername() async {
-    final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
-    final saved = enabled ? widget.prefs.getString(_savedUsernameKey) : null;
+  Future<void> _restoreLoginIdentity() async {
+    await _loadSchool();
+    await _loadRememberedUsername();
     if (!mounted) return;
-    setState(() {
-      rememberUsername = enabled;
-      if (saved != null) username.text = saved;
-    });
-  }
-
-  Future<void> _saveUsernamePreference() async {
-    await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
-    if (rememberUsername) {
-      await widget.prefs.setString(_savedUsernameKey, username.text.trim());
-    } else {
-      await widget.prefs.remove(_savedUsernameKey);
-    }
+    await _hasOfflineIdentity();
   }
 
   Future<void> _loadSchool() async {
@@ -549,6 +756,114 @@ class _LoginPageState extends State<LoginPage> {
     if (saved != null && saved.isNotEmpty) {
       school.text = saved;
       setState(() => schoolLocked = true);
+    }
+  }
+
+  Future<void> _loadRememberedUsername() async {
+    final enabled = widget.prefs.getBool(_rememberUsernameKey) ?? false;
+    String? saved;
+    const secureStorage = FlutterSecureStorage();
+    try {
+      if (enabled) {
+        saved = await secureStorage.read(key: _secureSavedUsernameKey);
+        if (saved == null) {
+          final legacy = widget.prefs.getString(_savedUsernameKey);
+          if (legacy != null && legacy.isNotEmpty) {
+            await secureStorage.write(
+              key: _secureSavedUsernameKey,
+              value: legacy,
+            );
+            saved = legacy;
+          }
+        }
+      } else {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      }
+      await widget.prefs.remove(_savedUsernameKey);
+    } catch (storageError) {
+      debugPrint('Remembered username secure-storage migration failed: $storageError');
+      saved = null;
+      await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, false);
+    }
+    if (!mounted) return;
+    setState(() {
+      rememberUsername = enabled && saved != null;
+      if (saved != null) username.text = saved;
+    });
+  }
+
+  Future<void> _saveUsernamePreference() async {
+    const secureStorage = FlutterSecureStorage();
+    try {
+      if (rememberUsername) {
+        await secureStorage.write(
+          key: _secureSavedUsernameKey,
+          value: username.text.trim(),
+        );
+      } else {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      }
+      await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, rememberUsername);
+    } catch (storageError) {
+      debugPrint('Remembered username secure-storage write failed: $storageError');
+      try {
+        await secureStorage.delete(key: _secureSavedUsernameKey);
+      } catch (_) {}
+      await widget.prefs.remove(_savedUsernameKey);
+      await widget.prefs.setBool(_rememberUsernameKey, false);
+      if (mounted) setState(() => rememberUsername = false);
+    }
+  }
+
+  Future<void> continueOffline() async {
+    if (loading || checkingOffline) return;
+    setState(() {
+      checkingOffline = true;
+      error = null;
+    });
+    try {
+      final failure = await widget.onOfflineAccess(
+        schoolCode: school.text,
+        username: username.text,
+        password: password.text,
+      );
+      if (failure != null && mounted) {
+        setState(() => error = failure);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => error =
+            friendlyError(e, fallback: 'تعذّر استعادة الدخول دون اتصال.'));
+      }
+    } finally {
+      if (mounted) setState(() => checkingOffline = false);
+    }
+  }
+
+  Future<String?> _openCachedAccount() async {
+    return widget.onOfflineAccess(
+      schoolCode: school.text,
+      username: username.text,
+      password: password.text,
+    );
+  }
+
+  Future<bool> _hasOfflineIdentity() async {
+    try {
+      final identity = await LaminOfflineCredentialStore().readIdentity();
+      if (identity == null || !mounted) return false;
+      final savedCode = identity['school_code']?.toString() ?? '';
+      final savedUsername = identity['username']?.toString() ?? '';
+      if (savedCode.isEmpty || savedUsername.isEmpty) return false;
+      school.text = savedCode;
+      username.text = savedUsername;
+      schoolLocked = true;
+      return true;
+    } catch (storageError) {
+      debugPrint('Offline identity preflight failed: $storageError');
+      return false;
     }
   }
 
@@ -563,27 +878,184 @@ class _LoginPageState extends State<LoginPage> {
       loading = true;
       error = null;
     });
+    var onlineLoginPreparationStarted = false;
+    var onlineLoginPreparationResolved = false;
     try {
+      // Read the platform connectivity state first. Airplane mode takes the
+      // encrypted local verifier path without a remote DNS/HTTP probe.
+      final network = await Connectivity().checkConnectivity().timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () => const <ConnectivityResult>[],
+      );
+      final hasNetwork = network.any(
+        (item) => item != ConnectivityResult.none,
+      );
+      final hasInternet = hasNetwork && await _hasInternetConnection().timeout(
+        const Duration(milliseconds: 1500),
+        onTimeout: () => false,
+      );
+      if (!hasInternet) {
+        final offlineFailure = await _openCachedAccount();
+        if (offlineFailure == null) {
+          await _saveUsernamePreference();
+          return;
+        }
+        if (mounted) setState(() => error = offlineFailure);
+        return;
+      }
+
+      // Supabase emits an authenticated-session event during setSession.
+      // Keep this LoginPage mounted until all local offline identity data has
+      // been durably written and checked below.
+      widget.onOnlineLoginPreparationChanged(
+        OnlineLoginPreparationState.preparing,
+      );
+      onlineLoginPreparationStarted = true;
       final r = await auth.login(
         school: school.text,
         username: username.text,
         password: password.text,
       );
       if (!mounted) return;
-      if (r.ok) await _saveUsernamePreference();
-      setState(
-        () => error = r.ok
-            ? null
-            : (r.trialExpired
-                  ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
-                  : r.message),
-      );
-    } catch (e) {
-      if (mounted)
-        setState(
-          () => error = friendlyError(e, fallback: 'تعذر تسجيل الدخول.'),
+      if (r.ok) {
+        // Prime the encrypted identity/profile/school cache before the user
+        // can leave the online session and later start the app offline.
+        final authenticatedUserId =
+            db.auth.currentUser?.id ?? db.auth.currentSession?.user.id;
+        if (authenticatedUserId == null || authenticatedUserId.isEmpty) {
+          throw StateError('تعذر تحديد حساب المستخدم لحفظ الدخول المحلي.');
+        }
+        // Persist identity immediately after authentication; allow repository
+        // cache warm-up to settle before enrolling the offline credential.
+        await auth.rememberOfflineUser(authenticatedUserId);
+        final repo = SchoolRepository(widget.prefs);
+        SchoolProfile? profile;
+        Map<String, dynamic>? schoolData;
+        Object? enrollmentReadError;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          try {
+            profile = await repo.profile().timeout(
+              const Duration(seconds: 6),
+            );
+            if (profile?.schoolId != null && profile!.schoolId!.isNotEmpty) {
+              schoolData = await repo.school().timeout(
+                const Duration(seconds: 6),
+              );
+            }
+            if (profile?.schoolId != null &&
+                profile!.schoolId!.isNotEmpty &&
+                schoolData != null) {
+              break;
+            }
+          } catch (readError) {
+            enrollmentReadError = readError;
+          }
+          if (attempt < 2) {
+            await Future<void>.delayed(
+              Duration(milliseconds: 350 * (attempt + 1)),
+            );
+          }
+        }
+        if (profile?.schoolId == null || profile!.schoolId!.isEmpty) {
+          throw StateError(
+            'نجح الاتصال لكن تعذر تحميل ملف المستخدم لتجهيز الدخول المحلي. ' +
+            (enrollmentReadError?.toString() ?? ''),
+          );
+        }
+        if (schoolData == null) {
+          throw StateError(
+            'نجح الاتصال لكن تعذر تحميل بيانات المدرسة لتجهيز الدخول المحلي. ' +
+            (enrollmentReadError?.toString() ?? ''),
+          );
+        }
+        final offlineSchoolCode =
+            (schoolData['code']?.toString() ?? school.text).trim();
+        if (offlineSchoolCode.isEmpty || profile.username.trim().isEmpty) {
+          throw StateError('بيانات الحساب أو رمز المدرسة غير مكتملة لحفظ الدخول المحلي.');
+        }
+        final offlineStore = LaminOfflineCredentialStore();
+        await offlineStore.save(
+          userId: authenticatedUserId,
+          schoolId: profile.schoolId!,
+          schoolCode: offlineSchoolCode,
+          username: profile.username,
+          password: password.text,
+          profileActive: profile.active,
+          mustChangePassword: profile.mustChangePassword,
+          schoolActive: schoolData['active'] != false,
+          licensed: schoolData['licensed'] == true,
+          trialStartedAt: schoolData['trial_started_at']?.toString(),
+          role: profile.role,
+        ).timeout(const Duration(seconds: 15));
+        final credentialPersisted = await offlineStore.hasCredential(
+          userId: authenticatedUserId,
+          schoolCode: offlineSchoolCode,
+          username: profile.username,
+        ).timeout(const Duration(seconds: 5), onTimeout: () => false);
+        if (!credentialPersisted) {
+          throw StateError('لم يتم التحقق من حفظ اعتماد الدخول دون اتصال.');
+        }
+        final passwordVerifierValid = await offlineStore.verify(
+          userId: authenticatedUserId,
+          schoolCode: offlineSchoolCode,
+          username: profile.username,
+          password: password.text,
+        ).timeout(const Duration(seconds: 12), onTimeout: () => false);
+        if (!passwordVerifierValid) {
+          throw StateError(
+            'حُفظ سجل الدخول المحلي لكن فشل اختبار كلمة المرور ومفتاح الجهاز.',
+          );
+        }
+        final enrolledIdentity = await offlineStore.readIdentity();
+        final enrolledDeviceId = enrolledIdentity?['device_id']?.toString();
+        if (enrolledDeviceId == null || enrolledDeviceId.length != 64) {
+          throw StateError('لم يتم تسجيل معرّف الجهاز الآمن.');
+        }
+        await auth.rememberOfflineUser(authenticatedUserId);
+        await _saveUsernamePreference();
+        widget.onOnlineLoginPreparationChanged(
+          OnlineLoginPreparationState.ready,
         );
+        onlineLoginPreparationResolved = true;
+      } else {
+        if (r.networkFailure) {
+          final offlineFailure = await _openCachedAccount();
+          if (offlineFailure == null) {
+            await _saveUsernamePreference();
+            return;
+          }
+          error = offlineFailure;
+        } else {
+          error = r.trialExpired
+              ? 'المدرسة غير مفعّلة حالياً. يرجى التواصل مع مسؤول لامين لتفعيلها.'
+              : r.message;
+        }
+        if (onlineLoginPreparationStarted && mounted) {
+          widget.onOnlineLoginPreparationChanged(
+            OnlineLoginPreparationState.idle,
+          );
+          onlineLoginPreparationResolved = true;
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => error = friendlyError(
+            e,
+            fallback: 'تعذر إكمال حفظ الدخول المحلي بعد نجاح الاتصال.',
+          ),
+        );
+      }
     } finally {
+      if (onlineLoginPreparationStarted &&
+          !onlineLoginPreparationResolved &&
+          mounted) {
+        widget.onOnlineLoginPreparationChanged(
+          db.auth.currentSession == null
+              ? OnlineLoginPreparationState.idle
+              : OnlineLoginPreparationState.failed,
+        );
+      }
       if (mounted) setState(() => loading = false);
     }
   }
@@ -711,9 +1183,26 @@ class _LoginPageState extends State<LoginPage> {
                     label: Text(loading ? 'جارِ الدخول...' : 'دخول'),
                   ),
                 ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: checkingOffline || loading ? null : continueOffline,
+                    icon: checkingOffline
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_off_outlined),
+                    label: Text(checkingOffline
+                        ? 'جارٍ التحقق من الدخول المحفوظ...'
+                        : 'متابعة دون اتصال'),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 const Text(
-                  'سيتم حفظ رمز المدرسة بأمان على هذا الجهاز بعد أول دخول ناجح.',
+                  'سيتم ربط الدخول دون اتصال بمفتاح آمن خاص بهذا الجهاز بعد أول دخول ناجح.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12),
                 ),
@@ -776,7 +1265,7 @@ class _OwnerPinDialogState extends State<_OwnerPinDialog> {
     try {
       final response = await db.functions
           .invoke('owner-api', body: {'action': 'list_schools', 'pin': pin})
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 6));
       final data = response.data;
       if (data is Map && data['error'] != null)
         throw Exception(data['error'].toString());
@@ -849,16 +1338,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Student> students = [];
   List<Teacher> teachers = [];
   double payments = 0, expenses = 0;
+  int pendingOperations = 0;
+  int attendanceReloadVersion = 0;
+  bool syncingPending = false;
+  bool refreshingRemote = false;
+  String? offlineSyncError;
+
+  bool get _needsOnlineLoginForSync =>
+      shouldPromptOnlineLoginForPendingSync(
+        hasInternet: online,
+        hasAuthenticatedSession: db.auth.currentSession != null,
+        pendingCount: pendingOperations,
+      );
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     refresh();
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((_) async {
+      if (!mounted) return;
+      if (await _hasInternetConnection() && mounted) await refresh();
+    });
   }
+
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -873,14 +1381,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> logout() async {
     try {
-      await const FlutterSecureStorage().delete(key: 'lamin.offline.user.id');
-      await db.auth
-          .signOut(scope: SignOutScope.local)
-          .timeout(const Duration(seconds: 12));
+      // Explicit logout ends the authenticated Supabase session, but retains
+      // the device-bound offline credential. Offline access is separately
+      // gated by the saved password verifier and Android Keystore proof.
+      // Removing either secure-storage key here makes offline login impossible
+      // immediately after a normal logout.
       if (db.auth.currentSession != null) {
-        throw Exception(
-          'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
-        );
+        await db.auth
+            .signOut(scope: SignOutScope.local)
+            .timeout(const Duration(seconds: 5));
+        if (db.auth.currentSession != null) {
+          throw Exception(
+            'لم تُنهَ الجلسة المحلية. تحقق من الاتصال ثم أعد المحاولة.',
+          );
+        }
       }
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -900,94 +1414,210 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> refresh() async {
-    if (mounted) setState(() => loading = true);
+  Future<void> _syncPendingInBackground() async {
+    if (syncingPending || !mounted || db.auth.currentSession == null) return;
+    syncingPending = true;
     try {
-      try {
-        online = await _hasInternetConnection();
-      } catch (_) { online = false; }
-
-      if (!online) {
-        profile = await repo.cachedProfile();
-        schoolInfo = await repo.cachedSchool();
-        students = await repo.students();
-        final role = profile?.role ?? '';
-        if (role == 'supervisor') {
-          teachers = [];
-        } else {
-          teachers = await repo.teachers();
-        }
-        if (role == 'admin' || role == 'owner' || role == 'accountant') {
-          payments = await repo.paymentsTotal();
-          expenses = await repo.expensesTotal();
-        } else {
-          payments = 0;
-          expenses = 0;
-        }
-        if (mounted) setState(() => loading = false);
-        return;
+      final result = await repo.syncPendingOfflineChanges();
+      pendingOperations = result.pending;
+      if (result.synced > 0) {
+        attendanceReloadVersion++;
+        students = await repo.students(cacheOnly: true);
       }
-
-      await repo.ensureOwnerSchool();
-      profile = await repo.profile();
-      schoolInfo = await repo.school();
-
-      // Load each section independently so a role-restricted table does not
-      // prevent the rest of the dashboard from rendering.
-      try {
-        students = await repo.students();
-      } catch (_) {
-        students = [];
-      }
-
-      final role = profile?.role ?? '';
-      if (role == 'supervisor') {
-        // RLS intentionally restricts the teachers table for supervisors.
-        teachers = [];
+      if (result.failedOperation != null) {
+        final operation = offlineOperationLabel(result.failedOperation);
+        offlineSyncError =
+            'تعذرت مزامنة "$operation". بقيت العملية محفوظة لإعادة المحاولة. '
+            '${friendlyError(result.error ?? 'تعذر الاتصال بالخادم.')}';
       } else {
-        try {
-          teachers = await repo.teachers();
-        } catch (_) {
-          teachers = [];
+        offlineSyncError = null;
+      }
+    } catch (error) {
+      debugPrint('Background offline sync failed: $error');
+      try {
+        pendingOperations = await repo.pendingOfflineOperationCount();
+      } catch (_) {}
+      offlineSyncError =
+          'تعذرت مزامنة العمليات المحفوظة. ستبقى على الجهاز حتى إعادة المحاولة.';
+    } finally {
+      syncingPending = false;
+      if (mounted) {
+        setState(() {});
+        if (offlineSyncError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(offlineSyncError!)),
+          );
         }
       }
+    }
+  }
 
-      final canViewFinance =
-          role == 'admin' || role == 'owner' || role == 'accountant';
-      if (canViewFinance) {
+  Future<void> _refreshRemoteSnapshot() async {
+    if (refreshingRemote || !mounted || !online ||
+        SchoolRoleAccess.isGlobalOwner(profile?.role) ||
+        profile?.schoolId == null || profile!.schoolId!.isEmpty) return;
+    refreshingRemote = true;
+    try {
+      // With autoRefreshToken disabled, an expired session remains available
+      // locally at startup. Refresh it only now, after the cached home screen
+      // is visible and a real internet connection has been detected.
+      final session = db.auth.currentSession;
+      if (session != null && session.isExpired) {
         try {
-          payments = await repo.paymentsTotal();
-        } catch (_) {
-          payments = 0;
+          await db.auth.refreshSession().timeout(
+            const Duration(seconds: 5),
+          );
+        } catch (error) {
+          debugPrint('Background Supabase session refresh failed: $error');
+          return;
         }
-        try {
-          expenses = await repo.expensesTotal();
-        } catch (_) {
-          expenses = 0;
+        if (db.auth.currentSession == null ||
+            db.auth.currentSession!.isExpired) {
+          return;
         }
+      }
+      // Resolve and cache the signed-in profile first. All tenant-scoped
+      // requests below then use the correct school ID from the secure cache.
+      var refreshedProfile = await repo.profile().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => repo.cachedProfile(),
+      );
+      if (refreshedProfile?.schoolId == null) {
+        await repo.ensureOwnerSchool().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
+        refreshedProfile = await repo.profile().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => repo.cachedProfile(),
+        );
+      }
+      if (!mounted) return;
+      profile = refreshedProfile;
+
+      final values = await Future.wait<Object?>([
+        repo.school().timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => repo.cachedSchool(),
+        ),
+        repo.students().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.students(cacheOnly: true),
+        ),
+        repo.teachers().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.teachers(cacheOnly: true),
+        ),
+        repo.paymentsTotal().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.paymentsTotal(cacheOnly: true),
+        ),
+        repo.expensesTotal().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => repo.expensesTotal(cacheOnly: true),
+        ),
+      ]);
+
+      if (!mounted) return;
+      schoolInfo = values[0] as Map<String, dynamic>?;
+      students = values[1] as List<Student>;
+      teachers = values[2] as List<Teacher>;
+      final role = profile?.role ?? '';
+      if (role == 'admin' || role == 'accountant') {
+        payments = values[3] as double;
+        expenses = values[4] as double;
       } else {
         payments = 0;
         expenses = 0;
       }
-
-      try {
-        final status = await Connectivity().checkConnectivity();
-        online = !status.contains(ConnectivityResult.none);
-      } catch (_) {
-        online = false;
-      }
-    } catch (_) {
-      // Keep the app usable even if profile/bootstrap loading temporarily fails.
+      setState(() {});
+      // Queue replay starts only after the session has been refreshed.
+      unawaited(_syncPendingInBackground());
+    } catch (error) {
+      debugPrint('Remote dashboard refresh failed: $error');
+    } finally {
+      refreshingRemote = false;
     }
-    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> refresh() async {
+    if (mounted) setState(() => loading = true);
+    try {
+      // Render the latest encrypted local snapshot first. No Supabase call is
+      // needed to populate the home screen or the queued-operation counter.
+      online = await _hasInternetConnection();
+      profile = await repo.cachedProfile();
+      final role = profile?.role ?? '';
+      if (SchoolRoleAccess.isGlobalOwner(role) || (profile != null && (profile!.schoolId == null || profile!.schoolId!.isEmpty))) {
+        schoolInfo = null; students = []; teachers = []; payments = 0; expenses = 0; pendingOperations = 0;
+        if (mounted) setState(() => loading = false);
+        return;
+      }
+      schoolInfo = await repo.cachedSchool();
+
+      final cachedValues = await Future.wait<Object?>([
+        repo.students(cacheOnly: true),
+        role == 'supervisor'
+            ? Future<List<Teacher>>.value([])
+            : repo.teachers(cacheOnly: true),
+        (role == 'admin' || role == 'accountant')
+            ? repo.paymentsTotal(cacheOnly: true)
+            : Future<double>.value(0),
+        (role == 'admin' || role == 'accountant')
+            ? repo.expensesTotal(cacheOnly: true)
+            : Future<double>.value(0),
+        repo.pendingOfflineOperationCount(),
+      ]);
+      students = cachedValues[0] as List<Student>;
+      teachers = cachedValues[1] as List<Teacher>;
+      payments = cachedValues[2] as double;
+      expenses = cachedValues[3] as double;
+      pendingOperations = cachedValues[4] as int;
+
+      if (mounted) setState(() => loading = false);
+
+      // Remote refresh and queue replay run after the cached screen is visible.
+      if (online && db.auth.currentSession != null) {
+        unawaited(_refreshRemoteSnapshot());
+      }
+    } catch (error) {
+      debugPrint('Home local refresh failed: $error');
+      try {
+        pendingOperations = await repo.pendingOfflineOperationCount();
+      } catch (_) {}
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final role = profile?.role ?? '';
-    final isAdmin = role == 'admin' || role == 'owner';
-    final isSupervisor = role == 'supervisor';
-    final isAccountant = role == 'accountant';
+    if (SchoolRoleAccess.isGlobalOwner(role) ||
+        (profile != null && (profile!.schoolId == null || profile!.schoolId!.isEmpty))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('بوابة مالك النظام')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shield_outlined, size: 56),
+                const SizedBox(height: 16),
+                const Text('هذا الحساب مخصص لإدارة المنصة والمدارس، وليس لإدارة مدرسة بعينها.', textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                const Text('للوصول إلى بوابة المالك، سجّل الخروج وافتحها من شاشة الدخول عبر الضغط ثلاث مرات على Adreemk.', textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                FilledButton.icon(onPressed: logout, icon: const Icon(Icons.logout), label: const Text('تسجيل الخروج')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final isAdmin = role == 'admin';
+    final isSupervisor = SchoolRoleAccess.isSchoolSupervisor(role);
+    final isAccountant = SchoolRoleAccess.isSchoolAccountant(role);
     final pages = <Widget>[
       DashboardView(
         profile: profile,
@@ -1007,7 +1637,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           canSetFees: isAdmin,
         ),
       if (isAdmin || isSupervisor)
-        AttendanceView(repo: repo, students: students),
+        AttendanceView(
+          key: ValueKey(attendanceReloadVersion),
+          repo: repo,
+          students: students,
+        ),
       if (isAdmin || isAccountant)
         FinanceView(
           repo: repo,
@@ -1101,8 +1735,91 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة. لا تُحفظ التعديلات الجديدة حتى عودة الإنترنت.',
+                              'وضع عدم الاتصال: تعرض آخر البيانات المحفوظة، وتُحفظ التعديلات محلياً لمزامنتها عند عودة الإنترنت.',
                               style: TextStyle(color: Color(0xFF624A13), fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (pendingOperations > 0)
+                  Material(
+                    color: const Color(0xFFE7F0EA),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(14, 5, 8, 5),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.sync_problem_outlined,
+                            color: brandGreen,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'عمليات معلّقة: $pendingOperations',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: brandGreen,
+                                  ),
+                                ),
+                                if (_needsOnlineLoginForSync)
+                                  const Text(
+                                    'الإنترنت متاح؛ سجّل الدخول بالإنترنت لتأكيد الهوية ومزامنة العمليات.',
+                                    style: TextStyle(
+                                      color: Color(0xFF624A13),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: loading
+                                ? null
+                                : _needsOnlineLoginForSync
+                                    ? logout
+                                    : refresh,
+                            icon: Icon(
+                              _needsOnlineLoginForSync
+                                  ? Icons.login
+                                  : Icons.sync,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _needsOnlineLoginForSync
+                                  ? 'دخول للمزامنة'
+                                  : 'إعادة المحاولة',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (offlineSyncError != null)
+                  Material(
+                    color: const Color(0xFFFFE8E6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              offlineSyncError!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -1203,9 +1920,7 @@ class DashboardView extends StatelessWidget {
         stat('الطلاب', '${students.length}', Icons.groups),
         if (profile?.role != 'supervisor')
           stat('المعلمون', '${teachers.length}', Icons.school),
-        if (profile?.role == 'admin' ||
-            profile?.role == 'owner' ||
-            profile?.role == 'accountant') ...[
+        if (profile?.role == 'admin' || profile?.role == 'accountant') ...[
           stat(
             'إجمالي المدفوعات',
             '${payments.toStringAsFixed(2)} د.ل',
@@ -1309,7 +2024,7 @@ class _StudentsViewState extends State<StudentsView> {
                               );
                             } else if (action == 'edit') {
                               await editStudent(s);
-                            } else if (action == 'delete') {
+                            } else if (action == 'archive') {
                               await deleteStudent(s);
                             }
                           },
@@ -1318,16 +2033,16 @@ class _StudentsViewState extends State<StudentsView> {
                               value: 'profile',
                               child: Text('ملف الطالب'),
                             ),
-                            if (widget.canAdd)
+                            if (widget.canAdd) ...[
                               const PopupMenuItem(
                                 value: 'edit',
                                 child: Text('تعديل بيانات الطالب'),
                               ),
-                            if (widget.canAdd)
                               const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('حذف الطالب'),
+                                value: 'archive',
+                                child: Text('أرشفة الطالب'),
                               ),
+                            ],
                           ],
                         ),
                       ),
@@ -1384,14 +2099,12 @@ class _StudentsViewState extends State<StudentsView> {
         className.text.trim().isEmpty)
       return;
     try {
-      await db
-          .from('students')
-          .update({
-            'name': name.text.trim(),
-            'class_name': className.text.trim(),
-            'phone': phone.text.replaceAll(RegExp(r'[^0-9+]'), ''),
-          })
-          .eq('id', student.id);
+      await widget.repo.updateStudent(
+        studentId: student.id,
+        name: name.text,
+        className: className.text,
+        phone: phone.text,
+      );
       await widget.onChanged();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1410,46 +2123,43 @@ class _StudentsViewState extends State<StudentsView> {
   }
 
   Future<void> deleteStudent(Student student) async {
-    final ok = await showDialog<bool>(
+    final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف الطالب'),
-        content: Text(
-          'سيُحذف سجل الطالب «${student.name}» إذا سمحت علاقات قاعدة البيانات بذلك. قد تمنع سجلات الحضور والدرجات والمدفوعات الحذف لحماية التاريخ.',
-        ),
+        title: const Text('إدارة سجل الطالب'),
+        content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف الطالب'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'archive'), child: const Text('أرشفة')),
         ],
       ),
     );
-    if (ok != true) return;
+    if (action != 'archive') return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت وتسجيل الدخول إلى حساب المدرسة. لم يتم تغيير السجل.')),
+      );
+      return;
+    }
     try {
-      await db.from('students').delete().eq('id', student.id);
+      await db.rpc('archive_person', params: {
+        'p_kind': 'student',
+        'p_id': student.id,
+        'p_reason': 'other',
+        'p_note': '',
+      });
       await widget.onChanged();
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تم حذف الطالب.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت أرشفة السجل.')),
+      );
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم يُحذف الطالب؛ قد تكون له سجلات مرتبطة. احتفظ بسجلاته وأرشفه بدل الحذف. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
-            ),
-          ),
-        );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر تنفيذ العملية: ${friendlyError(e, fallback: 'تحقق من صلاحياتك والسجلات المرتبطة.')}')),
+      );
     }
   }
 
-  Future<void> addStudent(BuildContext context) async {
+  addStudent(BuildContext context) async {
     final n = TextEditingController(),
         cl = TextEditingController(),
         p = TextEditingController(),
@@ -1477,7 +2187,8 @@ class _StudentsViewState extends State<StudentsView> {
                   controller: p,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                    labelText: 'WhatsApp ولي الأمر',
+                    labelText: 'WhatsApp ولي الأمر (اختياري)',
+                    helperText: 'يمكن إضافة الطالب دون رقم هاتف، وإضافته لاحقًا.',
                   ),
                 ),
                 if (widget.canSetFees) ...[
@@ -1540,16 +2251,24 @@ class _StudentsViewState extends State<StudentsView> {
                   return;
                 }
                 try {
-                  await widget.repo.addStudent(
+                  final studentId = await widget.repo.addStudent(
                     name: n.text,
                     className: cl.text,
-                    phone: p.text,
+                    phone: p.text.trim(),
                     termFee: amount,
                     term: term,
                   );
                   if (ctx.mounted) Navigator.pop(ctx);
                   await widget.onChanged();
-                  if (context.mounted && amount > 0) {
+                  if (context.mounted && studentId.startsWith('offline-')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'حُفظ الطالب على الجهاز، وبقيت المزامنة معلّقة حتى يصبح الخادم جاهزًا.',
+                        ),
+                      ),
+                    );
+                  } else if (context.mounted && amount > 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('تم حفظ الطالب ورسوم الفصل الدراسي.'),
@@ -1579,7 +2298,11 @@ class _StudentsViewState extends State<StudentsView> {
 class AttendanceView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
-  const AttendanceView({super.key, required this.repo, required this.students});
+  const AttendanceView({
+    super.key,
+    required this.repo,
+    required this.students,
+  });
   @override
   State<AttendanceView> createState() => _AttendanceViewState();
 }
@@ -1587,6 +2310,7 @@ class AttendanceView extends StatefulWidget {
 class _AttendanceViewState extends State<AttendanceView> {
   final Map<String, String> status = {};
   DateTime day = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -1594,36 +2318,109 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 
   Future<void> load() async {
-    final rows = await widget.repo.attendance(day);
-    for (final r in rows) {
-      status[r.studentId] = r.status;
+    final requestedDay = day;
+    final rows = await widget.repo.attendance(requestedDay);
+    if (!mounted || requestedDay != day) return;
+    final loaded = <String, String>{};
+    for (final row in rows) {
+      loaded[row.studentId] = row.status;
     }
-    if (mounted) setState(() {});
+    setState(() {
+      status
+        ..clear()
+        ..addAll(loaded);
+    });
   }
 
-  Future<void> mark(Student s, String value) async {
-    setState(() => status[s.id] = value);
+  Future<void> mark(Student student, String value) async {
+    var minutesLate = 0;
+    if (value == 'late') {
+      final controller = TextEditingController();
+      final selectedMinutes = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('مدة التأخير — ${student.name}'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'عدد دقائق التأخير',
+              suffixText: 'دقيقة',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final parsed = int.tryParse(controller.text.trim());
+                if (parsed == null || parsed < 1) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('أدخل عدد دقائق صحيحاً أكبر من صفر.'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext, parsed);
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (selectedMinutes == null) return;
+      minutesLate = selectedMinutes;
+    }
+
+    final previousStatus = status[student.id];
+    setState(() => status[student.id] = value);
     try {
       await widget.repo.saveAttendance(
-        studentId: s.id,
+        studentId: student.id,
         day: day,
         status: value,
+        minutesLate: minutesLate,
       );
-    } catch (_) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تعذر حفظ الحضور')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        if (previousStatus == null) {
+          status.remove(student.id);
+        } else {
+          status[student.id] = previousStatus;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyError(error, fallback: 'تعذر حفظ سجل الحضور.'),
+          ),
+        ),
+      );
     }
   }
 
-  String label(String v) => v == 'present'
-      ? 'حاضر'
-      : v == 'absent'
-      ? 'غائب'
-      : v == 'late'
-      ? 'متأخر'
-      : 'معذور';
+  String label(String? value) {
+    if (value == null) return 'غير مسجّل';
+    switch (value) {
+      case 'present':
+        return 'حاضر';
+      case 'absent':
+        return 'غائب';
+      case 'late':
+        return 'متأخر';
+      case 'excused':
+        return 'معذور';
+      default:
+        return 'غير مسجّل';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final date =
@@ -1636,24 +2433,23 @@ class _AttendanceViewState extends State<AttendanceView> {
             children: [
               Expanded(
                 child: Text(
-                  'حضور $date',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'سجل الحضور — $date',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
               IconButton(
                 onPressed: () async {
-                  final d = await showDatePicker(
+                  final selected = await showDatePicker(
                     context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
                     initialDate: day,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100),
                   );
-                  if (d != null) {
-                    day = d;
-                    status.clear();
+                  if (selected != null) {
+                    setState(() {
+                      day = selected;
+                      status.clear();
+                    });
                     await load();
                   }
                 },
@@ -1665,15 +2461,19 @@ class _AttendanceViewState extends State<AttendanceView> {
         Expanded(
           child: ListView.builder(
             itemCount: widget.students.length,
-            itemBuilder: (_, i) {
-              final s = widget.students[i], v = status[s.id] ?? 'present';
+            itemBuilder: (_, index) {
+              final student = widget.students[index];
+              final value = status[student.id];
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: ListTile(
-                  title: Text(s.name),
-                  subtitle: Text(label(v)),
+                  title: Text(student.name),
+                  subtitle: Text(label(value)),
                   trailing: PopupMenuButton<String>(
-                    onSelected: (x) => mark(s, x),
+                    onSelected: (selected) => mark(student, selected),
                     itemBuilder: (_) => const [
                       PopupMenuItem(value: 'present', child: Text('حاضر')),
                       PopupMenuItem(value: 'absent', child: Text('غائب')),
@@ -1691,7 +2491,7 @@ class _AttendanceViewState extends State<AttendanceView> {
   }
 }
 
-class FinanceView extends StatelessWidget {
+class FinanceView extends StatefulWidget {
   final SchoolRepository repo;
   final List<Student> students;
   final double payments, expenses;
@@ -1709,7 +2509,28 @@ class FinanceView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Column(
+  State<FinanceView> createState() => _FinanceViewState();
+}
+
+class _FinanceViewState extends State<FinanceView> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleStudents = query.isEmpty
+        ? <Student>[]
+        : widget.students
+            .where((student) => student.name.toLowerCase().contains(query))
+            .toList();
+
+    return Column(
     children: [
       Padding(
         padding: const EdgeInsets.all(12),
@@ -1719,7 +2540,7 @@ class FinanceView extends StatelessWidget {
               child: Card(
                 child: ListTile(
                   title: const Text('الداخل'),
-                  trailing: Text('${payments.toStringAsFixed(2)} د.ل'),
+                  trailing: Text('${widget.payments.toStringAsFixed(2)} د.ل'),
                 ),
               ),
             ),
@@ -1728,14 +2549,14 @@ class FinanceView extends StatelessWidget {
               child: Card(
                 child: ListTile(
                   title: const Text('المصروف'),
-                  trailing: Text('${expenses.toStringAsFixed(2)} د.ل'),
+                  trailing: Text('${widget.expenses.toStringAsFixed(2)} د.ل'),
                 ),
               ),
             ),
           ],
         ),
       ),
-      if (canManageFees)
+      if (widget.canManageFees)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: SizedBox(
@@ -1744,7 +2565,7 @@ class FinanceView extends StatelessWidget {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ManagerRequestsView(repo: repo),
+                  builder: (_) => ManagerRequestsView(repo: widget.repo),
                 ),
               ),
               icon: const Icon(Icons.assignment_outlined),
@@ -1754,7 +2575,7 @@ class FinanceView extends StatelessWidget {
             ),
           ),
         ),
-      if (canManageFees)
+      if (widget.canManageFees)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: SizedBox(
@@ -1764,7 +2585,7 @@ class FinanceView extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) =>
-                      FeeManagementView(repo: repo, students: students),
+                      FeeManagementView(repo: widget.repo, students: widget.students),
                 ),
               ),
               icon: const Icon(Icons.price_change_outlined),
@@ -1773,13 +2594,43 @@ class FinanceView extends StatelessWidget {
           ),
         ),
       Expanded(
-        child: students.isEmpty
-            ? const Center(child: Text('لا يوجد طلاب مسجلون.'))
-            : ListView.builder(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  labelText: 'ابحث عن طالب لعرض حسابه المالي',
+                  hintText: 'اكتب اسم الطالب',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          tooltip: 'مسح البحث',
+                          icon: const Icon(Icons.clear),
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: query.isEmpty
+                  ? const Center(
+                      child: Text('ابحث باسم الطالب لعرض بياناته المالية.'),
+                    )
+                  : visibleStudents.isEmpty
+                      ? const Center(child: Text('لا توجد نتائج مطابقة.'))
+                      : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                itemCount: students.length,
+                itemCount: visibleStudents.length,
                 itemBuilder: (_, i) {
-                  final s = students[i];
+                  final s = visibleStudents[i];
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(10),
@@ -1787,7 +2638,7 @@ class FinanceView extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           FutureBuilder<Map<String, dynamic>>(
-                            future: repo.studentFinancialSummary(s.id),
+                            future: widget.repo.studentFinancialSummary(s.id),
                             builder: (context, snapshot) {
                               final summary = snapshot.data;
                               final fees =
@@ -1800,6 +2651,10 @@ class FinanceView extends StatelessWidget {
                               final remaining =
                                   (summary?['remaining'] as num?)?.toDouble() ??
                                   0;
+                              final requiresOnlineSession =
+                                  summary?['requires_online_session'] == true;
+                              final hasCachedFinancialData =
+                                  summary?['has_cached_financial_data'] == true;
                               final hasCredit = remaining < -0.009;
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1827,7 +2682,27 @@ class FinanceView extends StatelessWidget {
                                       'تعذر تحميل الرصيد. اضغط تحديثًا أو افتح كشف الحساب.',
                                       style: TextStyle(color: Colors.red),
                                     )
-                                  else
+                                  else if (requiresOnlineSession &&
+                                      !hasCachedFinancialData)
+                                    const Text(
+                                      'القيم المالية غير محفوظة على هذا الجهاز. سجّل الدخول بالإنترنت لعرض الحساب الحقيقي.',
+                                      style: TextStyle(
+                                        color: Color(0xFF795B16),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )
+                                  else ...[
+                                    if (requiresOnlineSession)
+                                      const Padding(
+                                        padding: EdgeInsets.only(bottom: 6),
+                                        child: Text(
+                                          'آخر بيانات مالية محفوظة محلياً؛ يلزم الدخول بالإنترنت للتحديث.',
+                                          style: TextStyle(
+                                            color: Color(0xFF795B16),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
                                     Wrap(
                                       spacing: 8,
                                       runSpacing: 8,
@@ -1843,6 +2718,7 @@ class FinanceView extends StatelessWidget {
                                         ),
                                       ],
                                     ),
+                                  ],
                                 ],
                               );
                             },
@@ -1864,9 +2740,9 @@ class FinanceView extends StatelessWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => StudentAccountView(
-                                        repo: repo,
+                                        repo: widget.repo,
                                         student: s,
-                                        canManageFees: canManageFees,
+                                        canManageFees: widget.canManageFees,
                                       ),
                                     ),
                                   ),
@@ -1882,9 +2758,13 @@ class FinanceView extends StatelessWidget {
                   );
                 },
               ),
+            ),
+          ],
+        ),
       ),
     ],
   );
+  }
 
   Widget _moneyChip(String label, double value, {bool emphasis = false}) =>
       Container(
@@ -1908,7 +2788,7 @@ class FinanceView extends StatelessWidget {
     final noteController = TextEditingController();
     List<Map<String, dynamic>> assessments = [];
     try {
-      assessments = await repo.studentFeeAssessments(s.id);
+      assessments = await widget.repo.studentFeeAssessments(s.id);
     } catch (_) {}
     String? selectedFeeId = assessments.isEmpty
         ? null
@@ -1997,14 +2877,24 @@ class FinanceView extends StatelessWidget {
     final value = (result['amount'] as num).toDouble();
     final note = result['note']?.toString() ?? '';
     try {
-      await repo.addPayment(
+      await widget.repo.addPayment(
         studentId: s.id,
         amount: value,
         note: note,
         term: result['term']?.toString() ?? 'غير محدد',
         feeAssessmentId: result['fee_assessment_id']?.toString(),
       );
-      await onChanged();
+      try {
+        await widget.onChanged();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم تسجيل الدفعة، لكن تعذر تحديث العرض. أعد تحميل البيانات.'),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2040,7 +2930,7 @@ class FinanceView extends StatelessWidget {
     if (makeReceipt && context.mounted) {
       try {
         await LaminPdfService.printPaymentReceipt(
-          repo: repo,
+          repo: widget.repo,
           studentName: s.name,
           className: s.className,
           amount: value,
@@ -2121,6 +3011,10 @@ class _StudentAccountViewState extends State<StudentAccountView> {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
     final remaining = money('remaining');
+    final requiresOnlineSession =
+        summary['requires_online_session'] == true;
+    final hasCachedFinancialData =
+        summary['has_cached_financial_data'] == true;
     return Scaffold(
       appBar: AppBar(
         title: const Text('كشف حساب ولي الأمر'),
@@ -2199,15 +3093,33 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                             'السنة الدراسية: ${summary['academic_year'] ?? 'غير محدد'}',
                           ),
                           const Divider(),
-                          _summaryRow('إجمالي الرسوم', money('fees')),
-                          _summaryRow('الخصومات', money('discount')),
-                          _summaryRow('رصيد مرحّل', money('opening_balance')),
-                          _summaryRow('إجمالي المدفوع', money('paid')),
-                          _summaryRow(
-                            remaining < 0 ? 'رصيد دائن' : 'المتبقي',
-                            remaining.abs(),
-                            bold: true,
-                          ),
+                          if (requiresOnlineSession && !hasCachedFinancialData)
+                            const Text(
+                              'القيم المالية غير محفوظة محلياً. سجّل الدخول بالإنترنت لعرض الرسوم والدفعات والرصيد الفعلي.',
+                              style: TextStyle(
+                                color: Color(0xFF795B16),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          else ...[
+                            if (requiresOnlineSession)
+                              const Text(
+                                'هذه آخر بيانات مالية محفوظة على الجهاز وليست تحديثاً مباشراً.',
+                                style: TextStyle(
+                                  color: Color(0xFF795B16),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            _summaryRow('إجمالي الرسوم', money('fees')),
+                            _summaryRow('الخصومات', money('discount')),
+                            _summaryRow('رصيد مرحّل', money('opening_balance')),
+                            _summaryRow('إجمالي المدفوع', money('paid')),
+                            _summaryRow(
+                              remaining < 0 ? 'رصيد دائن' : 'المتبقي',
+                              remaining.abs(),
+                              bold: true,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -2241,9 +3153,13 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                     ),
                   ),
                   if (assessments.isEmpty)
-                    const Card(
+                    Card(
                       child: ListTile(
-                        title: Text('لا توجد رسوم مسجلة لهذه السنة الدراسية.'),
+                        title: Text(
+                          requiresOnlineSession && !hasCachedFinancialData
+                              ? 'سجّل الدخول بالإنترنت لتحميل الرسوم المسجلة.'
+                              : 'لا توجد رسوم مسجلة لهذه السنة الدراسية.',
+                        ),
                       ),
                     )
                   else
@@ -2289,8 +3205,14 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                     ),
                   ),
                   if (payments.isEmpty)
-                    const Card(
-                      child: ListTile(title: Text('لا توجد دفعات مسجلة.')),
+                    Card(
+                      child: ListTile(
+                        title: Text(
+                          requiresOnlineSession && !hasCachedFinancialData
+                              ? 'سجّل الدخول بالإنترنت لتحميل سجل الدفعات.'
+                              : 'لا توجد دفعات مسجلة.',
+                        ),
+                      ),
                     )
                   else
                     ...payments.map(
@@ -2304,21 +3226,13 @@ class _StudentAccountViewState extends State<StudentAccountView> {
                             '${p['payment_date'] ?? p['created_at']?.toString().split('T').first ?? ''} • ${p['term'] ?? 'غير محدد'}${(p['note']?.toString().isNotEmpty ?? false) ? ' • ${p['note']}' : ''}',
                           ),
                           trailing: widget.canManageFees
-                              ? PopupMenuButton<String>(
-                                  onSelected: (action) {
-                                    if (action == 'edit') editPayment(p);
-                                    if (action == 'delete') deletePayment(p);
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('تعديل الدفعة'),
-                                    ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('حذف الدفعة'),
-                                    ),
-                                  ],
+                              ? const Tooltip(
+                                  message:
+                                      'سجل مالي ثابت؛ لا يُعدّل أو يُحذف مباشرة.',
+                                  child: Icon(
+                                    Icons.verified_outlined,
+                                    color: Colors.green,
+                                  ),
                                 )
                               : null,
                         ),
@@ -2328,135 +3242,6 @@ class _StudentAccountViewState extends State<StudentAccountView> {
               ),
             ),
     );
-  }
-
-  Future<void> editPayment(Map<String, dynamic> payment) async {
-    final amount = TextEditingController(
-      text: payment['amount']?.toString() ?? '',
-    );
-    final note = TextEditingController(text: payment['note']?.toString() ?? '');
-    final date = TextEditingController(
-      text: payment['payment_date']?.toString() ?? '',
-    );
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تعديل عملية مالية'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'المبلغ (د.ل)'),
-              ),
-              TextField(
-                controller: date,
-                decoration: const InputDecoration(
-                  labelText: 'تاريخ الدفع YYYY-MM-DD',
-                ),
-              ),
-              TextField(
-                controller: note,
-                decoration: const InputDecoration(
-                  labelText: 'ملاحظة / رقم إيصال',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
-    );
-    final value = double.tryParse(amount.text.replaceAll(',', '.'));
-    if (ok != true ||
-        value == null ||
-        value <= 0 ||
-        DateTime.tryParse(date.text.trim()) == null)
-      return;
-    try {
-      await db
-          .from('payments')
-          .update({
-            'amount': value,
-            'payment_date': date.text.trim(),
-            'note': note.text.trim(),
-          })
-          .eq('id', payment['id'])
-          .eq('student_id', widget.student.id);
-      await load();
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تعديل الدفعة وتحديث كشف الحساب.')),
-        );
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'تعذر تعديل الدفعة: ${friendlyError(e, fallback: 'قد تمنع الصلاحيات أو القيود المحاسبية التعديل.')}',
-            ),
-          ),
-        );
-    }
-  }
-
-  Future<void> deletePayment(Map<String, dynamic> payment) async {
-    final amount = (double.tryParse(payment['amount']?.toString() ?? '0') ?? 0)
-        .toStringAsFixed(2);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف الدفعة'),
-        content: Text(
-          'سيتم حذف الدفعة بقيمة $amount د.ل من سجل الطالب. استخدم هذا الإجراء فقط لتصحيح إدخال خاطئ؛ قد تمنع قاعدة البيانات الحذف إذا كانت العملية مرتبطة بسجلات مالية أخرى.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف الدفعة'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await db
-          .from('payments')
-          .delete()
-          .eq('id', payment['id'])
-          .eq('student_id', widget.student.id);
-      await load();
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حذف الدفعة وتحديث كشف الحساب.')),
-        );
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم تُحذف الدفعة: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة من قاعدة البيانات.')}',
-            ),
-          ),
-        );
-    }
   }
 
   Widget _summaryRow(String label, double value, {bool bold = false}) =>
@@ -2499,6 +3284,7 @@ class FeeManagementView extends StatefulWidget {
 
 class _FeeManagementViewState extends State<FeeManagementView> {
   final feeController = TextEditingController();
+  final studentSearchController = TextEditingController();
   final discountController = TextEditingController(text: '0');
   final noteController = TextEditingController();
   List<Map<String, dynamic>> years = [];
@@ -2517,6 +3303,7 @@ class _FeeManagementViewState extends State<FeeManagementView> {
   @override
   void dispose() {
     feeController.dispose();
+    studentSearchController.dispose();
     discountController.dispose();
     noteController.dispose();
     super.dispose();
@@ -2525,9 +3312,15 @@ class _FeeManagementViewState extends State<FeeManagementView> {
   Future<void> load() async {
     try {
       years = await widget.repo.academicYears();
-      studentId =
-          widget.initialStudentId ??
-          (widget.students.isNotEmpty ? widget.students.first.id : null);
+      studentId = widget.initialStudentId;
+      if (studentId != null) {
+        final selected = widget.students
+            .where((student) => student.id == studentId)
+            .toList();
+        if (selected.isNotEmpty) {
+          studentSearchController.text = selected.first.name;
+        }
+      }
       final activeYears = years.where((y) => y['active'] == true).toList();
       final active = activeYears.isEmpty ? null : activeYears.first;
       yearId = active?['id']?.toString();
@@ -2536,6 +3329,16 @@ class _FeeManagementViewState extends State<FeeManagementView> {
       error = friendlyError(e, fallback: 'تعذر تحميل الرسوم.');
     }
     if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> selectStudent(Student student) async {
+    setState(() {
+      studentId = student.id;
+      studentSearchController.text = student.name;
+      error = null;
+    });
+    await prefill();
+    if (mounted) setState(() {});
   }
 
   Future<void> prefill() async {
@@ -2639,25 +3442,85 @@ class _FeeManagementViewState extends State<FeeManagementView> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: studentId,
-                        decoration: const InputDecoration(labelText: 'الطالب'),
-                        items: widget.students
-                            .map(
-                              (s) => DropdownMenuItem(
-                                value: s.id,
-                                child: Text(s.name),
+                      TextField(
+                        controller: studentSearchController,
+                        enabled: !saving,
+                        onChanged: (_) => setState(() {
+                          studentId = null;
+                          feeController.clear();
+                          discountController.text = '0';
+                          noteController.clear();
+                          error = null;
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'ابحث عن الطالب بالاسم',
+                          hintText: 'اكتب اسم الطالب لعرض نتيجة البحث',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: studentSearchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'مسح البحث',
+                                  onPressed: saving
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            studentId = null;
+                                            studentSearchController.clear();
+                                            feeController.clear();
+                                            discountController.text = '0';
+                                            noteController.clear();
+                                          });
+                                        },
+                                  icon: const Icon(Icons.clear),
+                                ),
+                        ),
+                      ),
+                      if (studentId == null &&
+                          studentSearchController.text.trim().isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text('أدخل اسم الطالب للعثور عليه.'),
+                        ),
+                      if (studentId == null &&
+                          studentSearchController.text.trim().isNotEmpty)
+                        ...widget.students
+                            .where(
+                              (student) => student.name.toLowerCase().contains(
+                                studentSearchController.text.trim().toLowerCase(),
                               ),
                             )
-                            .toList(),
-                        onChanged: saving
-                            ? null
-                            : (v) async {
-                                setState(() => studentId = v);
-                                await prefill();
-                                if (mounted) setState(() {});
-                              },
-                      ),
+                            .take(12)
+                            .map(
+                              (student) => ListTile(
+                                dense: true,
+                                leading: const Icon(Icons.person_outline),
+                                title: Text(student.name),
+                                subtitle: Text(student.className),
+                                onTap: saving ? null : () => selectStudent(student),
+                              ),
+                            ),
+                      if (studentId != null)
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.person_pin_circle_outlined),
+                          title: Text(studentSearchController.text),
+                          subtitle: const Text('الطالب المحدد'),
+                          trailing: IconButton(
+                            tooltip: 'تغيير الطالب',
+                            onPressed: saving
+                                ? null
+                                : () {
+                                    setState(() {
+                                      studentId = null;
+                                      studentSearchController.clear();
+                                      feeController.clear();
+                                      discountController.text = '0';
+                                      noteController.clear();
+                                    });
+                                  },
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String?>(
                         initialValue: yearId,
@@ -2810,7 +3673,7 @@ class _UserManagementViewState extends State<UserManagementView> {
   ]) async {
     final response = await db.functions
         .invoke('admin-api', body: {'action': action, ...fields})
-        .timeout(const Duration(seconds: 20));
+        .timeout(const Duration(seconds: 6));
     final data = response.data;
     if (data is Map && data['error'] != null)
       throw Exception(data['error'].toString());
@@ -3050,6 +3913,66 @@ class _UserManagementViewState extends State<UserManagementView> {
     }
   }
 
+  Future<void> archiveUser(Map<String, dynamic> user) async {
+    final name = user['username']?.toString() ?? 'المستخدم';
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+            title: const Text('أرشفة المستخدم'),
+            content: Text(
+              'سيتم إيقاف حساب ' + name +
+              ' ونقله إلى الأرشيف مع الاحتفاظ بسجلاته وسجل عملياته. هل تريد المتابعة؟',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(d, false),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(d, true),
+                child: const Text('أرشفة'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت. لم يتم تغيير الحساب.')),
+        );
+      }
+      return;
+    }
+    try {
+      final result = await db.rpc('archive_person', params: {
+        'p_kind': 'user',
+        'p_id': user['user_id'],
+        'p_reason': 'terminated',
+        'p_note': 'أرشفة من إدارة مستخدمي المدرسة',
+      });
+      if (result is Map && result['ok'] != true) {
+        throw Exception('لم يؤكد الخادم نجاح الأرشفة.');
+      }
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت أرشفة المستخدم مع الاحتفاظ بسجلاته.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyError(e, fallback: 'تعذرت أرشفة المستخدم. لم يتم تأكيد نجاح العملية.')),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> deleteUser(Map<String, dynamic> user) async {
     final name = user['username']?.toString() ?? 'المستخدم';
     final confirmed =
@@ -3268,8 +4191,9 @@ class _UserManagementViewState extends State<UserManagementView> {
                             onSelected: (value) {
                               if (value == 'edit') editUser(user: u);
                               if (value == 'active') toggleActive(u);
-                              if (value == 'delete') deleteUser(u);
+                              
                               if (value == 'drive') oneDrive(u);
+                              if (value == 'archive') archiveUser(u);
                             },
                             itemBuilder: (_) => [
                               const PopupMenuItem(
@@ -3285,10 +4209,6 @@ class _UserManagementViewState extends State<UserManagementView> {
                               const PopupMenuItem(
                                 value: 'drive',
                                 child: Text('إدارة صلاحية OneDrive'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('حذف المستخدم'),
                               ),
                             ],
                           ),
@@ -3429,46 +4349,46 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
   }
 
   Future<void> deleteTeacher(Teacher teacher) async {
-    final ok = await showDialog<bool>(
+    final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حذف المعلم'),
-        content: Text(
-          'سيُحذف سجل «${teacher.name}» إذا لم تكن له سجلات رواتب أو حضور مرتبطة. ستمنع قاعدة البيانات الحذف عند وجود علاقات تحمي السجل التاريخي.',
-        ),
+        title: const Text('إدارة سجل المعلم'),
+        content: const Text('سيُنقل السجل إلى الأرشيف مع الاحتفاظ بتاريخه.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف المعلم'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'archive'), child: const Text('أرشفة')),
         ],
       ),
     );
-    if (ok != true) return;
+    if (action != 'archive') return;
+    if (db.auth.currentUser == null || db.auth.currentSession == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الأرشفة تتطلب اتصالاً بالإنترنت وتسجيل الدخول إلى حساب المدرسة. لم يتم تغيير السجل.')),
+      );
+      return;
+    }
     try {
-      setState(() => saving = true);
-      await db.from('teachers').delete().eq('id', teacher.id);
+      await db.rpc('archive_person', params: {
+        'p_kind': 'teacher',
+        'p_id': teacher.id,
+        'p_reason': 'other',
+        'p_note': '',
+      });
       await load();
       await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت أرشفة السجل.')),
+      );
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'لم يُحذف المعلم؛ قد تكون له سجلات رواتب أو سنوات دراسية. أرشفه للحفاظ على التاريخ. التفاصيل: ${friendlyError(e, fallback: 'عملية الحذف مرفوضة.')}',
-            ),
-          ),
-        );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر تنفيذ العملية: ${friendlyError(e, fallback: 'تحقق من صلاحياتك والسجلات المرتبطة.')}')),
+      );
     } finally {
       if (mounted) setState(() => saving = false);
     }
   }
 
-  Future<void> addTeacher() async {
+  addTeacher() async {
     final name = TextEditingController();
     final subject = TextEditingController();
     final phone = TextEditingController();
@@ -3659,9 +4579,12 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                           '${t.subject}${t.phone.isEmpty ? '' : ' • ${t.phone}'}',
                         ),
                         trailing: PopupMenuButton<String>(
-                          onSelected: (action) {
-                            if (action == 'edit') editTeacher(t);
-                            if (action == 'delete') deleteTeacher(t);
+                          onSelected: (action) async {
+                            if (action == 'edit') {
+                              await editTeacher(t);
+                            } else if (action == 'archive') {
+                              await deleteTeacher(t);
+                            }
                           },
                           itemBuilder: (_) => const [
                             PopupMenuItem(
@@ -3669,8 +4592,8 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
                               child: Text('تعديل بيانات المعلم'),
                             ),
                             PopupMenuItem(
-                              value: 'delete',
-                              child: Text('حذف المعلم'),
+                              value: 'archive',
+                              child: Text('أرشفة المعلم'),
                             ),
                           ],
                         ),
@@ -3681,6 +4604,119 @@ class _TeacherManagementViewState extends State<TeacherManagementView> {
             ),
           ),
   );
+}
+
+class ArchiveView extends StatefulWidget {
+  final SchoolRepository repo;
+  final Future<void> Function() onChanged;
+  const ArchiveView({super.key, required this.repo, required this.onChanged});
+  @override
+  State<ArchiveView> createState() => _ArchiveViewState();
+}
+class _ArchiveViewState extends State<ArchiveView> {
+  final search = TextEditingController();
+  List<Map<String, dynamic>> records = [];
+  bool loading = true, restoring = false;
+  String? error;
+  @override
+  void initState() { super.initState(); load(); }
+  @override
+  void dispose() { search.dispose(); super.dispose(); }
+  Future<void> load() async {
+    setState(() { loading = true; error = null; });
+    try { records = await widget.repo.archivedPeople(query: search.text); }
+    catch (e) { error = friendlyError(e, fallback: 'تعذر تحميل الأرشيف. تحقق من الاتصال وتحديث قاعدة البيانات.'); }
+    finally { if (mounted) setState(() => loading = false); }
+  }
+  String kindLabel(String? kind) {
+    switch (kind) {
+      case 'student': return 'طالب';
+      case 'teacher': return 'معلم';
+      case 'staff': return 'موظف';
+      default: return 'سجل';
+    }
+  }
+  Future<void> restore(Map<String, dynamic> record) async {
+    final kind = record['kind']?.toString() ?? '';
+    final id = record['id']?.toString() ?? '';
+    if (id.isEmpty || !['student', 'teacher', 'staff'].contains(kind)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('استعادة السجل'),
+        content: Text('هل تريد استعادة ' + (record['name']?.toString() ?? 'هذا السجل') + ' وإعادته إلى القائمة النشطة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('استعادة')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => restoring = true);
+    try {
+      await widget.repo.restorePerson(kind: kind, id: id);
+      await load();
+      await widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة السجل إلى القائمة النشطة.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e, fallback: 'تعذرت الاستعادة. تحقق من الصلاحيات والاتصال.'))));
+    } finally { if (mounted) setState(() => restoring = false); }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('الأرشيف'), actions: [
+        IconButton(tooltip: 'تحديث', onPressed: loading || restoring ? null : load, icon: const Icon(Icons.refresh)),
+      ]),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: search,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => load(),
+            decoration: InputDecoration(
+              hintText: 'ابحث باسم الطالب أو المعلم أو الموظف',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: IconButton(tooltip: 'مسح البحث', onPressed: () { search.clear(); load(); }, icon: const Icon(Icons.clear)),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        if (loading) const Expanded(child: Center(child: CircularProgressIndicator()))
+        else if (error != null) Expanded(child: Center(child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(error!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton.icon(onPressed: load, icon: const Icon(Icons.refresh), label: const Text('إعادة المحاولة')),
+          ]),
+        )))
+        else if (records.isEmpty) const Expanded(child: Center(child: Text('لا توجد سجلات مؤرشفة مطابقة للبحث.')))
+        else Expanded(child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          itemCount: records.length,
+          itemBuilder: (context, index) {
+            final record = records[index];
+            final date = DateTime.tryParse(record['archived_at']?.toString() ?? '');
+            final subtitle = kindLabel(record['kind']?.toString()) + ' • ' + (record['details']?.toString() ?? '') +
+              (date == null ? '' : '\nتاريخ الأرشفة: ' + date.toLocal().toString().substring(0, 16));
+            return Card(child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.archive_outlined)),
+              title: Text(record['name']?.toString() ?? '—'),
+              subtitle: Text(subtitle),
+              isThreeLine: true,
+              trailing: TextButton.icon(
+                onPressed: restoring ? null : () => restore(record),
+                icon: const Icon(Icons.unarchive_outlined),
+                label: const Text('استعادة'),
+              ),
+            ));
+          },
+        )),
+      ]),
+    );
+  }
 }
 
 class MoreView extends StatelessWidget {
@@ -3703,12 +4739,24 @@ class MoreView extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final isAdmin = role == 'admin' || role == 'owner';
+    final isAdmin = role == 'admin';
     final isSupervisor = role == 'supervisor';
     final isAccountant = role == 'accountant';
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        if (isAdmin)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('الأرشيف'),
+              subtitle: const Text('البحث عن السجلات المؤرشفة واستعادتها'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ArchiveView(repo: repo, onChanged: onChanged),
+              )),
+            ),
+          ),
         if (isAdmin)
           Card(
             child: ListTile(
@@ -4161,6 +5209,54 @@ class _PayrollViewState extends State<PayrollView> {
     ),
   );
 
+  Future<void> archiveStaff(Map<String, dynamic> person) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('أرشفة الموظف'),
+        content: const Text('سيُنقل سجل الموظف إلى الأرشيف مع الاحتفاظ بتاريخ المرتبات والسلف.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('أرشفة')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final staffId = person['id']?.toString() ?? '';
+      if (staffId.isEmpty) throw StateError('معرّف الموظف غير موجود.');
+      await widget.repo.archivePerson(kind: 'staff', id: staffId);
+
+      // Reflect the confirmed archive immediately. Refresh failures must not
+      // be reported as a failed archive after the server has committed it.
+      if (mounted) {
+        setState(() => staff.removeWhere((row) => row['id']?.toString() == staffId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت أرشفة الموظف والاحتفاظ بسجل مرتباته.')),
+        );
+      }
+      try {
+        await load();
+        await widget.onChanged();
+      } catch (refreshError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('أُرشِف الموظف، لكن تعذّر تحديث بعض الملخصات: ${refreshError.toString()}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        final detail = e is PostgrestException
+            ? '${e.message} [${e.code ?? 'بدون رمز'}]'
+            : e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذرت أرشفة الموظف: $detail')),
+        );
+      }
+    }
+  }
+
   Widget _payeeCard(Map<String, dynamic> person, {required bool isTeacher}) {
     final salary = _salary(person);
     final name = person['name']?.toString() ?? '—';
@@ -4207,10 +5303,33 @@ class _PayrollViewState extends State<PayrollView> {
                 '${remaining < -0.009 ? 'زيادة مصروفة' : 'المتبقي من الراتب'}: ${remaining.abs().toStringAsFixed(2)} د.ل',
               ),
               trailing: widget.canManagePayees
-                  ? IconButton(
-                      tooltip: 'تعديل بيانات',
-                      onPressed: () => editPayee(person, isTeacher: isTeacher),
-                      icon: const Icon(Icons.edit_outlined),
+                  ? PopupMenuButton<String>(
+                      tooltip: 'إجراءات',
+                      enabled: !saving,
+                      onSelected: (action) async {
+                        if (action == 'edit') {
+                          await editPayee(person, isTeacher: isTeacher);
+                        } else if (action == 'archive' && !isTeacher) {
+                          await archiveStaff(person);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('تعديل البيانات'),
+                        ),
+                        if (!isTeacher)
+                          const PopupMenuItem(
+                            value: 'archive',
+                            child: Row(
+                              children: [
+                                Icon(Icons.archive_outlined),
+                                SizedBox(width: 8),
+                                Text('أرشفة الموظف'),
+                              ],
+                            ),
+                          ),
+                      ],
                     )
                   : null,
             ),

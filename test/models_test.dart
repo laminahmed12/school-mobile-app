@@ -115,4 +115,22 @@ void main() {
       expect(result.percentage, 75.0);
     });
   });
+
+  group('SchoolRoleAccess', () {
+    test('global owner is not a school administrator', () {
+      expect(SchoolRoleAccess.isGlobalOwner('owner'), isTrue);
+      expect(SchoolRoleAccess.isSchoolAdmin('owner'), isFalse);
+      expect(SchoolRoleAccess.hasSchoolScope('owner'), isFalse);
+    });
+    test('school administrator retains school administration access', () {
+      expect(SchoolRoleAccess.isSchoolAdmin('admin'), isTrue);
+      expect(SchoolRoleAccess.hasSchoolScope('admin'), isTrue);
+    });
+    test('accountant and supervisor remain distinct school roles', () {
+      expect(SchoolRoleAccess.isSchoolAccountant('accountant'), isTrue);
+      expect(SchoolRoleAccess.isSchoolSupervisor('supervisor'), isTrue);
+      expect(SchoolRoleAccess.isSchoolAdmin('accountant'), isFalse);
+      expect(SchoolRoleAccess.isSchoolAdmin('supervisor'), isFalse);
+    });
+  });
 }

@@ -40,6 +40,11 @@ class _ManagerRequestsViewState extends State<ManagerRequestsView>
   Future<void> load() async {
     setState(() => loading = true);
     try {
+      // Offline local access has no Supabase JWT. Never issue direct REST reads
+      // as anon: that both leaks confusing 42501 errors and can look like empty data.
+      if (db.auth.currentUser == null || db.auth.currentSession == null) {
+        throw Exception('تتطلب بيانات الإدارة المدرسية اتصالاً بالإنترنت وتسجيل الدخول إلى حساب المدرسة. البيانات المحلية تبقى محفوظة.');
+      }
       final school = await widget.repo.school();
       schoolId = school?['id']?.toString();
       years = (await widget.repo.academicYears())

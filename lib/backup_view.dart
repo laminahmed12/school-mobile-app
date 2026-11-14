@@ -148,7 +148,9 @@ class BackupView extends StatelessWidget {
         );
         return;
       }
-      final school = await repo.school();
+      // Local restore is cache-only: never call repo.school() here because
+      // that method may contact Supabase when the cache is missing.
+      final school = await repo.cachedSchool();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || envelope['school_id']?.toString() != schoolId) {
         throw Exception(
@@ -164,8 +166,10 @@ class BackupView extends StatelessWidget {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('تأكيد استعادة النسخة المحلية'),
-          content: const Text(
-            'ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟',
+          content: Text(
+            data['local_cache_snapshot'] == true
+                ? 'ستُستعاد البيانات المخزنة محلياً وقائمة العمليات المعلقة إلى ذاكرة التطبيق على هذا الجهاز فقط، دون الاتصال بالخادم. هل تريد المتابعة؟'
+                : 'ستُدمج السجلات الموجودة في النسخة مع بيانات المدرسة الحالية دون حذف السجلات الحالية أو استبدالها. هل تريد المتابعة؟',
           ),
           actions: [
             TextButton(
@@ -180,11 +184,21 @@ class BackupView extends StatelessWidget {
         ),
       );
       if (confirmed != true || !context.mounted) return;
+      if (data['local_cache_snapshot'] == true) {
+        await repo.restoreCachedSnapshot(data);
+        await onChanged();
+        _message(
+          context,
+          'استُعيدت نسخة التخزين المحلي على هذا الجهاز. تحتوي على البيانات التي كانت مخزنة محلياً وعمليات المزامنة المعلقة وقت إنشاء النسخة.',
+        );
+        return;
+      }
+
       final result = await repo.restoreBackup(data);
       await onChanged();
       _message(
         context,
-        'اكتملت الاستعادة المحلية. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}',
+        'اكتملت الاستعادة. ${result['message'] ?? 'تم دمج السجلات المتاحة.'}',
       );
     } catch (e) {
       _message(context, 'تعذرت استعادة النسخة المحلية: $e', error: true);
@@ -193,10 +207,10 @@ class BackupView extends StatelessWidget {
 
   Future<void> _restoreFile(BuildContext context) async {
     try {
-      final school = await repo.school();
+      final school = await repo.cachedSchool();
       final schoolId = school?['id']?.toString();
       if (schoolId == null || schoolId.isEmpty) {
-        throw Exception('تعذر تحديد المدرسة الحالية.');
+        throw Exception('لا توجد هوية مدرسة محفوظة محلياً على هذا الجهاز.');
       }
       final envelope = await BackupService.pickBackupFile(
         expectedSchoolId: schoolId,
@@ -412,7 +426,7 @@ class BackupView extends StatelessWidget {
             leading: const Icon(Icons.save_alt_outlined),
             title: const Text('إنشاء نسخة محلية'),
             subtitle: const Text(
-              'حفظ نسخة داخل مساحة التطبيق دون فتح نافذة خارجية',
+              'حفظ نسخة مشفرة من البيانات المخزنة محلياً والعمليات المعلقة دون الاتصال بالخادم',
             ),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => _local(context),

@@ -3,6 +3,16 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
 
+bool shouldEngageBiometricLockForLifecycle({
+  required AppLifecycleState state,
+  required bool biometricEnabled,
+  required bool hasAuthenticatedAccess,
+}) {
+  final appWentToBackground =
+      state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
+  return appWentToBackground && biometricEnabled && hasAuthenticatedAccess;
+}
+
 class LaminBiometricService {
   static const _enabledKey = 'lamin.biometric.enabled';
   final LocalAuthentication _auth = LocalAuthentication();
@@ -16,7 +26,7 @@ class LaminBiometricService {
     try {
       if (!await _auth.isDeviceSupported()) return false;
       final enrolled = await _auth.getAvailableBiometrics();
-      return enrolled.isNotEmpty;
+      return enrolled.isNotEmpty || await _auth.isDeviceSupported();
     } catch (_) {
       return false;
     }
@@ -26,7 +36,7 @@ class LaminBiometricService {
     try {
       return await _auth.authenticate(
         localizedReason: 'أكد هويتك لفتح تطبيق لامين',
-        biometricOnly: true,
+        biometricOnly: false,
         persistAcrossBackgrounding: true,
       );
     } catch (_) {
@@ -83,7 +93,7 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
     setState(() {
       loading = false;
       message =
-          'تعذر التحقق بالبصمة. استخدم كلمة المرور من شاشة الدخول إذا لزم الأمر.';
+          'تعذر فتح قفل الجهاز. استخدم وسيلة قفل الشاشة أو كلمة المرور.';
     });
   }
 
@@ -116,12 +126,12 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'الدخول الآمن بالبصمة',
+                'الدخول الآمن',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
               const Text(
-                'ضع إصبعك على مستشعر البصمة لفتح التطبيق.',
+                'استخدم البصمة أو وسيلة قفل الشاشة المعتمدة على جهازك.',
                 textAlign: TextAlign.center,
               ),
               if (message != null) ...[
@@ -136,7 +146,7 @@ class _BiometricLockPageState extends State<BiometricLockPage> {
               FilledButton.icon(
                 onPressed: loading ? null : unlock,
                 icon: const Icon(Icons.fingerprint),
-                label: Text(loading ? 'جارِ التحقق...' : 'فتح بالبصمة'),
+                label: Text(loading ? 'جارِ التحقق...' : 'فتح التطبيق'),
               ),
               const SizedBox(height: 12),
               TextButton.icon(
